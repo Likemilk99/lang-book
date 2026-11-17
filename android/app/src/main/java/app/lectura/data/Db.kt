@@ -37,6 +37,28 @@ data class SavedWord(
     val lapses: Int = 0,
     /** versionCode приложения, в котором запись последний раз сохранялась (0 = до версии 0.2.0). */
     @ColumnInfo(defaultValue = "0") val appVersion: Int = 0,
+    /** "word" или "phrase". */
+    @ColumnInfo(defaultValue = "word") val kind: String = KIND_WORD,
+    /** Ступень «лестницы сложности» (0 — новое, растёт с правильными ответами). */
+    @ColumnInfo(defaultValue = "0") val stage: Int = 0,
+) {
+    val isPhrase: Boolean get() = kind == KIND_PHRASE
+
+    companion object {
+        const val KIND_WORD = "word"
+        const val KIND_PHRASE = "phrase"
+    }
+}
+
+/** Статистика по дням (day = "yyyy-MM-dd" по локальному времени). */
+@Entity(tableName = "daily_stats")
+data class DailyStats(
+    @PrimaryKey val day: String,
+    @ColumnInfo(defaultValue = "0") val reviews: Int = 0,
+    @ColumnInfo(defaultValue = "0") val correct: Int = 0,
+    @ColumnInfo(defaultValue = "0") val sentencesRead: Int = 0,
+    @ColumnInfo(defaultValue = "0") val speaking: Int = 0,
+    @ColumnInfo(defaultValue = "0") val newWords: Int = 0,
 )
 
 @Entity(tableName = "progress")
@@ -113,6 +135,21 @@ interface ProgressDao {
 }
 
 @Dao
+interface StatsDao {
+    @Query("SELECT * FROM daily_stats WHERE day = :day")
+    suspend fun get(day: String): DailyStats?
+
+    @Query("SELECT * FROM daily_stats ORDER BY day DESC LIMIT :limit")
+    fun recent(limit: Int): Flow<List<DailyStats>>
+
+    @Query("SELECT * FROM daily_stats")
+    suspend fun allOnce(): List<DailyStats>
+
+    @Upsert
+    suspend fun put(stats: DailyStats)
+}
+
+@Dao
 interface MetaDao {
     @Query("SELECT value FROM meta WHERE `key` = :key")
     suspend fun get(key: String): String?
@@ -133,17 +170,19 @@ interface MetaDao {
  *  3. fallbackToDestructiveMigration НЕ использовать никогда.
  */
 @Database(
-    entities = [SavedWord::class, Progress::class, AppMeta::class],
-    version = 2,
+    entities = [SavedWord::class, Progress::class, AppMeta::class, DailyStats::class],
+    version = 3,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
+        AutoMigration(from = 2, to = 3),
     ],
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun words(): WordDao
     abstract fun progress(): ProgressDao
     abstract fun meta(): MetaDao
+    abstract fun stats(): StatsDao
 }
 
 /** Ручные миграции (для изменений, которые AutoMigration не умеет). */

@@ -32,6 +32,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.lectura.ui.LibraryScreen
+import app.lectura.ui.QuestionsScreen
+import app.lectura.ui.ShadowingScreen
 import app.lectura.ui.ReaderScreen
 import app.lectura.ui.ReviewScreen
 import app.lectura.ui.VocabScreen
@@ -93,7 +95,26 @@ private fun AppNav() {
         NavHost(nav, startDestination = "library", modifier = Modifier.padding(pad)) {
             composable("library") { LibraryScreen(onOpen = { nav.navigate("reader/$it") }) }
             composable("reader/{id}") { e ->
-                ReaderScreen(bookId = e.arguments?.getString("id").orEmpty(), onBack = { nav.popBackStack() })
+                ReaderScreen(
+                    bookId = e.arguments?.getString("id").orEmpty(),
+                    onBack = { nav.popBackStack() },
+                    onNavigate = { nav.navigate(it) },
+                )
+            }
+            composable("questions/{id}/{ch}") { e ->
+                QuestionsScreen(
+                    bookId = e.arguments?.getString("id").orEmpty(),
+                    chapter = e.arguments?.getString("ch")?.toIntOrNull() ?: 0,
+                    onBack = { nav.popBackStack() },
+                )
+            }
+            composable("speak/{id}/{ch}/{mode}") { e ->
+                ShadowingScreen(
+                    bookId = e.arguments?.getString("id").orEmpty(),
+                    chapter = e.arguments?.getString("ch")?.toIntOrNull() ?: 0,
+                    mode = e.arguments?.getString("mode") ?: "shadow",
+                    onBack = { nav.popBackStack() },
+                )
             }
             composable("vocab") { VocabScreen(onReview = { nav.navigate("review") }) }
             composable("review") { ReviewScreen() }

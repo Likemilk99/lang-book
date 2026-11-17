@@ -11,7 +11,16 @@ data class Book(
     val level: String = "",
     val lang: String = "es-ES",
     val source: String = "",
+    /** Персонажи (для разных голосов в диалогах). */
+    val characters: List<Character> = emptyList(),
     val chapters: List<Chapter>,
+)
+
+@Serializable
+data class Character(
+    val name: String,
+    /** "m" / "f" */
+    val gender: String = "",
 )
 
 @Serializable
@@ -19,6 +28,12 @@ data class Chapter(
     val title: String,
     val titleRu: String = "",
     val paragraphs: List<Paragraph>,
+    /** Полезные разговорные фразы главы (речевые модели). */
+    val phrases: List<PhraseItem> = emptyList(),
+    /** Вопросы на понимание главы. */
+    val questions: List<Question> = emptyList(),
+    /** Упражнения «выбери уместный ответ в диалоге». */
+    val replies: List<ReplyItem> = emptyList(),
 ) {
     /** Все предложения главы подряд — индекс в этом списке и есть «номер предложения». */
     val sentences: List<Sentence> by lazy { paragraphs.flatMap { it.sentences } }
@@ -33,6 +48,8 @@ data class Sentence(
     val tokens: List<Token>,
     /** Необязательный путь к готовому аудио (на будущее, для дикторской озвучки). */
     val audio: String? = null,
+    /** Кто говорит: имя персонажа для реплик диалога, null — авторский текст. */
+    val sp: String? = null,
 ) {
     /** Нужен ли пробел перед каждым токеном. */
     val spaces: List<Boolean> by lazy { computeSpaces(tokens) }
@@ -45,6 +62,39 @@ data class Sentence(
         }
     }
 }
+
+@Serializable
+data class PhraseItem(
+    /** Фраза на испанском, например "¿Me pones un café?" */
+    val es: String,
+    val ru: String,
+    /** Короткое пояснение по-русски: когда и как так говорят. */
+    val note: String = "",
+    /** Шаблон с подстановкой, например "¿Me pones ___?" */
+    val pattern: String = "",
+)
+
+@Serializable
+data class Question(
+    /** Вопрос на испанском. */
+    val q: String,
+    val ru: String = "",
+    /** Варианты ответа на испанском. */
+    val options: List<String>,
+    val answer: Int,
+)
+
+@Serializable
+data class ReplyItem(
+    /** Реплика собеседника на испанском, например "¿Qué te pongo?" */
+    val prompt: String,
+    val promptRu: String = "",
+    /** Варианты ответа (испанский), один уместный. */
+    val options: List<String>,
+    val answer: Int,
+    /** Почему этот ответ уместен (по-русски). */
+    val why: String = "",
+)
 
 @Serializable
 data class Token(

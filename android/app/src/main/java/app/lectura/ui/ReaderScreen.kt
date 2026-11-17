@@ -131,7 +131,7 @@ private val RATES = listOf(0.6f, 0.7f, 0.8f, 0.9f, 1.0f, 1.2f)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReaderScreen(bookId: String, onBack: () -> Unit) {
+fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Unit = {}) {
     val app = LecturaApp.instance
     val vm: ReaderViewModel = viewModel(key = bookId) { ReaderViewModel(app, bookId) }
     val book by vm.book.collectAsStateWithLifecycle()

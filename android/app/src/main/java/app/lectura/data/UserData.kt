@@ -9,6 +9,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 object AppVersion {
     val code: Int = BuildConfig.VERSION_CODE
@@ -38,13 +41,50 @@ class UserData(private val context: Context, private val db: AppDatabase) {
     }
 
     suspend fun addWord(word: SavedWord) = db.withTransaction {
-        db.words().insert(word.copy(appVersion = AppVersion.code))
+        val id = db.words().insert(word.copy(appVersion = AppVersion.code))
+        if (id > 0) bumpStats { it.copy(newWords = it.newWords + 1) }
         stamp()
     }
 
     suspend fun updateWord(word: SavedWord) = db.withTransaction {
         db.words().update(word.copy(appVersion = AppVersion.code))
         stamp()
+    }
+
+    /**
+     * Результат упражнения по слову/фразе: обновляет интервал (SM-2), ступень лестницы и статистику дня.
+     * @param grade оценка Srs.AGAIN..Srs.EASY
+     * @param stageDelta +1 за верный ответ в «объективном» упражнении, -1 за ошибку, 0 — без изменения
+     * @return обновлённая запись
+     */
+    suspend fun recordReview(word: SavedWord, grade: Int, stageDelta: Int = 0): SavedWord {
+        val upd = Srs.schedule(word, grade).let {
+            it.copy(stage = (it.stage + stageDelta).coerceIn(0, MAX_STAGE), appVersion = AppVersion.code)
+        }
+        db.withTransaction {
+            db.words().update(upd)
+            bumpStats { it.copy(reviews = it.reviews + 1, correct = it.correct + if (grade >= Srs.HARD) 1 else 0) }
+            stamp()
+        }
+        return upd
+    }
+
+    /** Упражнение без привязки к слову (ответ в диалоге, вопрос по главе). */
+    suspend fun recordFreeExercise(correct: Boolean) = db.withTransaction {
+        bumpStats { it.copy(reviews = it.reviews + 1, correct = it.correct + if (correct) 1 else 0) }
+        stamp()
+    }
+
+    suspend fun recordSpeaking() = db.withTransaction {
+        bumpStats { it.copy(speaking = it.speaking + 1) }
+        stamp()
+    }
+
+    suspend fun recordSentenceRead() = bumpStats { it.copy(sentencesRead = it.sentencesRead + 1) }
+
+    private suspend fun bumpStats(change: (DailyStats) -> DailyStats) {
+        val day = today()
+        db.stats().put(change(db.stats().get(day) ?: DailyStats(day)))
     }
 
     private suspend fun stamp() {
@@ -108,7 +148,11 @@ class UserData(private val context: Context, private val db: AppDatabase) {
                 WordDto(
                     it.key, it.word, it.lemma, it.ru, it.grammar, it.sentence, it.sentenceRu, it.bookId,
                     it.createdAt, it.due, it.intervalDays, it.ease, it.reps, it.lapses, it.appVersion,
+                    it.kind, it.stage,
                 )
+            },
+            stats = db.stats().allOnce().map {
+                StatsDto(it.day, it.reviews, it.correct, it.sentencesRead, it.speaking, it.newWords)
             },
         )
         context.contentResolver.openOutputStream(uri, "wt")!!.use {
@@ -142,9 +186,15 @@ class UserData(private val context: Context, private val db: AppDatabase) {
                             sentence = w.sentence, sentenceRu = w.sentenceRu, bookId = w.bookId,
                             createdAt = w.createdAt, due = w.due, intervalDays = w.intervalDays, ease = w.ease,
                             reps = w.reps, lapses = w.lapses, appVersion = w.appVersion,
+                            kind = w.kind, stage = w.stage,
                         ),
                     )
                     words++
+                }
+            }
+            b.stats.forEach { st ->
+                if (db.stats().get(st.day) == null) {
+                    db.stats().put(DailyStats(st.day, st.reviews, st.correct, st.sentencesRead, st.speaking, st.newWords))
                 }
             }
             stamp()
@@ -177,6 +227,7 @@ data class Backup(
     val exportedAt: Long = 0,
     val progress: List<ProgressDto> = emptyList(),
     val words: List<WordDto> = emptyList(),
+    val stats: List<StatsDto> = emptyList(),
 ) {
     companion object {
         const val FORMAT = 1
@@ -209,4 +260,20 @@ data class WordDto(
     val reps: Int = 0,
     val lapses: Int = 0,
     val appVersion: Int = 0,
+    val kind: String = SavedWord.KIND_WORD,
+    val stage: Int = 0,
 )
+
+@Serializable
+data class StatsDto(
+    val day: String,
+    val reviews: Int = 0,
+    val correct: Int = 0,
+    val sentencesRead: Int = 0,
+    val speaking: Int = 0,
+    val newWords: Int = 0,
+)
+
+const val MAX_STAGE = 6
+
+fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
