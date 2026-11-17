@@ -34,6 +34,10 @@ class Prefs(context: Context) {
     var reviewDirection: String
         get() = sp.getString("reviewDirection", "es_ru") ?: "es_ru"
         set(v) = sp.edit().putString("reviewDirection", v).apply()
+    /** "mixed" — смешанные упражнения, "cards" — только карточки. */
+    var reviewMode: String
+        get() = sp.getString("reviewMode", "mixed") ?: "mixed"
+        set(v) = sp.edit().putString("reviewMode", v).apply()
 
     var rate: Float
         get() = sp.getFloat("rate", 0.8f)
