@@ -75,14 +75,21 @@ class BookRepository(private val context: Context, private val prefs: Prefs) {
         return book
     }
 
+    /**
+     * Копирует встроенные книги. Если в новой версии приложения встроенная книга изменилась
+     * (например, добавились фразы и вопросы), копия на телефоне обновляется — прогресс хранится отдельно.
+     */
     private fun installBundled() {
         val deleted = prefs.deletedBundled()
         context.assets.list("books").orEmpty().forEach { name ->
+            if (name in deleted) return@forEach
+            val bytes = context.assets.open("books/$name").use { it.readBytes() }
+            val hash = java.security.MessageDigest.getInstance("SHA-1").digest(bytes)
+                .joinToString("") { "%02x".format(it) }
             val target = File(dir, name)
-            if (!target.exists() && name !in deleted) {
-                context.assets.open("books/$name").use { input ->
-                    target.outputStream().use { input.copyTo(it) }
-                }
+            if (!target.exists() || prefs.bundledHash(name) != hash) {
+                target.writeBytes(bytes)
+                prefs.setBundledHash(name, hash)
             }
         }
     }

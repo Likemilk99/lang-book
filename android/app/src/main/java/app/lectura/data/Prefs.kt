@@ -43,6 +43,9 @@ class Prefs(context: Context) {
         get() = sp.getFloat("rate", 0.8f)
         set(v) = sp.edit().putFloat("rate", v).apply()
 
+    fun bundledHash(name: String): String? = sp.getString("bundledHash:$name", null)
+    fun setBundledHash(name: String, hash: String) = sp.edit().putString("bundledHash:$name", hash).apply()
+
     fun deletedBundled(): Set<String> = sp.getStringSet("deletedBundled", emptySet()).orEmpty()
     fun markBundledDeleted(name: String) {
         sp.edit().putStringSet("deletedBundled", deletedBundled() + name).apply()

@@ -8,14 +8,17 @@ Personal Android app for learning Spanish (Spain, es-ES) by reading adapted book
 - **TTS** is the Android system engine, es-ES voice. `Sentence.audio` is reserved for pre-generated narrator audio.
 
 ## Structure
-- `pipeline/prepare_book.py`: `--topic` writes an original story, `--source` adapts a txt/epub. Levels A0–B2. Results are cached in `books/.work/`, and `--push` sends the book to the phone over adb.
+- `pipeline/prepare_book.py`: `--topic` writes an original story, `--source` adapts a txt/epub; `--enrich book.json` only refreshes a book's markup. Levels A0–B2. Results are cached in `books/.work/`, and `--push` sends the book to the phone over adb. The enrich step adds characters, the speaker of each line (`sp`), phrases, comprehension questions and dialogue replies.
 - `android/`: Kotlin, Compose, Room, no DI. Package `app.lectura`.
-  - `model/Book.kt`: book format (Book → Chapter → Paragraph → Sentence → Token{t,l,ru,g}).
+  - `model/Book.kt`: book format (Book{characters} → Chapter{phrases,questions,replies} → Paragraph → Sentence{sp} → Token{t,l,ru,g}).
   - `playback/Player.kt`: single source of truth for the current position. Reads sentence by sentence and saves progress.
   - `playback/PlaybackService.kt`: foreground service with MediaSession, for listening with the screen off.
   - `data/`: Room (words, progress, meta), `UserData.kt` (all user-data writes, version stamping, backup), `Srs.kt` (SM-2), `BookRepository` (JSON files in `Android/data/app.lectura/files/books/`).
-  - `ui/`: Library, Reader (tap a word → bottom sheet), Vocab, Review.
-- Sample book: `android/app/src/main/assets/books/madrid.json`.
+  - `ui/`: Library (+StatsCard: today's numbers and the day streak), Reader (tap a word → bottom sheet, «Выделить фразу», chapter phrasebook, «Ещё» menu), Vocab, Review, QuestionsScreen, ShadowingScreen (shadowing and role-play).
+  - `review/`: mixed session. `ExerciseBuilder` picks the exercise by the item's stage (ladder 0–6) and alternates types. Types: flashcards, listen-and-choose, fill-in from options, fill-in by typing, sentence building, say it aloud, dialogue reply.
+  - `speech/Speech.kt`: es-ES recognition (on-device first, cloud as fallback), `SpeechMatch` (LCS over words ignoring accents), `SpeakButton`. `SpeechTts` is TTS with a wait for completion.
+- Built-in books (`assets/books/`) refresh on the phone when their hash changes (`BookRepository.installBundled`).
+- Tests: `./gradlew testDebugUnitTest` (`BookFormatTest` checks the built-in books).
 
 ## Build and release
 - Local build: `cd android && JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew assembleDebug`
