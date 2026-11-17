@@ -104,6 +104,7 @@ fun LibraryScreen(onOpen: (String) -> Unit) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            item { StatsCard() }
             items(books, key = { it.id }) { b ->
                 val p = progress.firstOrNull { it.bookId == b.id }
                 Card(

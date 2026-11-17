@@ -4,3 +4,4 @@ books/.work/
 *.keystore
 keystore.properties
 __pycache__/
+.claude/

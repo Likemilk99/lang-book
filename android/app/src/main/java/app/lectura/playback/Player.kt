@@ -67,6 +67,8 @@ class Player(private val app: LecturaApp) {
         val res = tts.setLanguage(spain)
         val voice = pickVoice()
         voice?.let { tts.voice = it }
+        narratorVoice = voice
+        spanishVoices = installedSpanishVoices()
         tts.setAudioAttributes(
             AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -92,6 +94,41 @@ class Player(private val app: LecturaApp) {
             )
         }
         if (playWhenReady) play()
+    }
+
+    private var narratorVoice: Voice? = null
+    private var spanishVoices: List<Voice> = emptyList()
+
+    private fun installedSpanishVoices(): List<Voice> = runCatching {
+        tts.voices.orEmpty()
+            .filter { it.locale.language == "es" && it.locale.country == "ES" }
+            .filterNot { TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED in it.features }
+            .filterNot { it.isNetworkConnectionRequired }
+            .sortedBy { it.name }
+    }.getOrDefault(emptyList())
+
+    /**
+     * Голос и высота тона для говорящего: у каждого персонажа свой голос (если их несколько установлено),
+     * плюс тон по полу (м — ниже, ж — выше), чтобы реплики различались даже при одном голосе.
+     */
+    private fun applySpeaker(sp: String?) {
+        val b = book
+        if (sp == null || b == null) {
+            narratorVoice?.let { tts.voice = it }
+            tts.setPitch(1.0f)
+            return
+        }
+        val idx = b.characters.indexOfFirst { it.name == sp }.let { if (it < 0) sp.hashCode().mod(7) else it }
+        val others = spanishVoices.filter { it.name != narratorVoice?.name }.ifEmpty { spanishVoices }
+        others.getOrNull(idx % others.size.coerceAtLeast(1))?.let { tts.voice = it }
+        val gender = b.characters.firstOrNull { it.name == sp }?.gender
+        tts.setPitch(
+            when (gender) {
+                "m" -> 0.85f
+                "f" -> 1.12f
+                else -> 1.0f
+            },
+        )
     }
 
     /** Лучший испанский (Испания) голос, предпочитаем офлайновые. */
@@ -182,6 +219,7 @@ class Player(private val app: LecturaApp) {
     fun speakOnce(text: String, slow: Boolean = false) {
         if (_state.value.playing) pause()
         generation++
+        applySpeaker(null)
         tts.setSpeechRate(if (slow) 0.6f else _state.value.rate)
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "once")
     }
@@ -192,6 +230,7 @@ class Player(private val app: LecturaApp) {
         if (items.isEmpty()) return
         if (_state.value.playing) pause()
         generation++
+        applySpeaker(null)
         tts.setSpeechRate(_state.value.rate)
         items.forEachIndexed { i, t ->
             tts.speak(t, if (i == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, "once$i")
@@ -212,13 +251,18 @@ class Player(private val app: LecturaApp) {
         }
         generation++
         tts.setSpeechRate(_state.value.rate)
+        applySpeaker(currentSentence?.sp)
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId())
     }
+
+    private val currentSentence
+        get() = book?.chapters?.getOrNull(_state.value.chapter)?.sentences?.getOrNull(_state.value.sentence)
 
     private fun utteranceId() = "s|$generation"
 
     private fun onUtteranceDone(id: String?) {
         if (id != utteranceId() || !_state.value.playing) return
+        io.launch { runCatching { app.userData.recordSentenceRead() } }
         val s = _state.value
         when {
             s.sentence + 1 < s.sentenceCount -> {

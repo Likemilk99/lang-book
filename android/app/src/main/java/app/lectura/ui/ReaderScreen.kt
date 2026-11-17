@@ -4,7 +4,10 @@ import android.content.Intent
 import android.speech.tts.TextToSpeech
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -23,7 +26,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -45,6 +51,7 @@ import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -82,6 +89,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.lectura.LecturaApp
 import app.lectura.data.SavedWord
 import app.lectura.model.Book
+import app.lectura.model.Chapter
+import app.lectura.model.PhraseItem
 import app.lectura.model.Sentence
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -104,6 +113,31 @@ class ReaderViewModel(private val app: LecturaApp, val bookId: String) : ViewMod
                 book.value = b
             }.onFailure { error.value = it.message ?: it.toString() }
         }
+    }
+
+    /** Сохранить фразу (несколько слов) как отдельную карточку. */
+    fun savePhrase(es: String, ru: String, sentence: String, sentenceRu: String) {
+        val key = es.lowercase().trim()
+        if (key.isBlank() || key in savedKeys.value) return
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            app.userData.addWord(
+                SavedWord(
+                    key = key, word = es.trim(), lemma = es.trim(), ru = ru.trim(), grammar = "фраза",
+                    sentence = sentence, sentenceRu = sentenceRu, bookId = bookId, createdAt = now, due = now,
+                    kind = SavedWord.KIND_PHRASE,
+                ),
+            )
+        }
+    }
+
+    fun removeKey(key: String) = viewModelScope.launch { app.db.words().deleteKey(key) }
+
+    /** Фраза из разговорника главы: пример берём из предложения главы, где она встречается. */
+    fun savePhraseItem(item: PhraseItem, chapter: Chapter) {
+        val norm = item.es.lowercase().trim().trimEnd('.', '!', '?')
+        val src = chapter.sentences.firstOrNull { it.text.lowercase().contains(norm.trimStart('¿', '¡')) }
+        savePhrase(item.es, item.ru, src?.text ?: item.es, src?.ru ?: item.ru)
     }
 
     fun toggleSave(sentence: Sentence, tokenIndex: Int) {
@@ -142,6 +176,8 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
     val showRu by app.prefs.showRu.collectAsStateWithLifecycle()
     var selection by remember { mutableStateOf<Selection?>(null) }
     var chaptersMenu by remember { mutableStateOf(false) }
+    var moreMenu by remember { mutableStateOf(false) }
+    var showPhrases by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
 
     val b = book
@@ -185,8 +221,6 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
                     IconToggleButton(checked = showRu, onCheckedChange = { app.prefs.setShowRu(it) }) {
                         Icon(Icons.Filled.Translate, "Перевод абзацев")
                     }
-                    IconButton(onClick = { app.prefs.setFontSize(fontSize - 2) }) { Icon(Icons.Filled.TextDecrease, "Мельче") }
-                    IconButton(onClick = { app.prefs.setFontSize(fontSize + 2) }) { Icon(Icons.Filled.TextIncrease, "Крупнее") }
                     Box {
                         IconButton(onClick = { chaptersMenu = true }) { Icon(Icons.AutoMirrored.Filled.List, "Главы") }
                         DropdownMenu(expanded = chaptersMenu, onDismissRequest = { chaptersMenu = false }) {
@@ -199,6 +233,34 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
                                     },
                                 )
                             }
+                        }
+                    }
+                    Box {
+                        IconButton(onClick = { moreMenu = true }) { Icon(Icons.Filled.MoreVert, "Ещё") }
+                        DropdownMenu(expanded = moreMenu, onDismissRequest = { moreMenu = false }) {
+                            fun go(route: String) {
+                                moreMenu = false
+                                app.player.pause()
+                                onNavigate(route)
+                            }
+                            DropdownMenuItem(text = { Text("💬 Полезные фразы") }, onClick = {
+                                moreMenu = false
+                                showPhrases = true
+                            })
+                            DropdownMenuItem(text = { Text("❓ Вопросы по главе") }, onClick = { go("questions/$bookId/$chapterIdx") })
+                            DropdownMenuItem(text = { Text("🗣 Повторять за диктором") }, onClick = { go("speak/$bookId/$chapterIdx/shadow") })
+                            DropdownMenuItem(text = { Text("🎭 Ролевая игра") }, onClick = { go("speak/$bookId/$chapterIdx/role") })
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("Шрифт крупнее") },
+                                leadingIcon = { Icon(Icons.Filled.TextIncrease, null) },
+                                onClick = { app.prefs.setFontSize(fontSize + 2) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Шрифт мельче") },
+                                leadingIcon = { Icon(Icons.Filled.TextDecrease, null) },
+                                onClick = { app.prefs.setFontSize(fontSize - 2) },
+                            )
                         }
                     }
                 },
@@ -250,15 +312,16 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
                     }
                 }
                 item {
-                    Row(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalArrangement = Arrangement.Center) {
-                        if (chapterIdx + 1 < b.chapters.size) {
-                            FilledTonalButton(onClick = { app.player.seekChapter(chapterIdx + 1) }) {
-                                Text("Следующая глава →")
-                            }
-                        } else {
-                            Text("Конец книги 🎉", style = MaterialTheme.typography.titleMedium)
-                        }
-                    }
+                    ChapterEnd(
+                        chapter = chapter,
+                        hasNext = chapterIdx + 1 < b.chapters.size,
+                        onNext = { app.player.seekChapter(chapterIdx + 1) },
+                        onPhrases = { showPhrases = true },
+                        onNavigate = { mode ->
+                            app.player.pause()
+                            onNavigate(if (mode == "questions") "questions/$bookId/$chapterIdx" else "speak/$bookId/$chapterIdx/$mode")
+                        },
+                    )
                 }
             }
         }
@@ -274,6 +337,8 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
                 tokenIndex = sel.token,
                 isSaved = token.key in saved,
                 onToggleSave = { vm.toggleSave(sentence, sel.token) },
+                savedKeys = saved,
+                onSavePhrase = { es, ru -> vm.savePhrase(es, ru, sentence.text, sentence.ru) },
                 onReadFromHere = {
                     selection = null
                     app.player.seek(sel.sentence)
@@ -281,6 +346,102 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
                 },
                 onDismiss = { selection = null },
             )
+        }
+    }
+
+    if (showPhrases && chapter != null) {
+        PhrasebookSheet(
+            chapter = chapter,
+            saved = saved,
+            onAdd = { vm.savePhraseItem(it, chapter) },
+            onRemove = { vm.removeKey(it.es.lowercase().trim()) },
+            onDismiss = { showPhrases = false },
+        )
+    }
+}
+
+@Composable
+private fun ChapterEnd(
+    chapter: Chapter,
+    hasNext: Boolean,
+    onNext: () -> Unit,
+    onPhrases: () -> Unit,
+    onNavigate: (String) -> Unit,
+) {
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("Закрепить главу", style = MaterialTheme.typography.titleMedium)
+        if (chapter.phrases.isNotEmpty()) {
+            OutlinedButton(onClick = onPhrases, modifier = Modifier.fillMaxWidth()) {
+                Text("💬 Полезные фразы (${chapter.phrases.size})")
+            }
+        }
+        if (chapter.questions.isNotEmpty()) {
+            OutlinedButton(onClick = { onNavigate("questions") }, modifier = Modifier.fillMaxWidth()) {
+                Text("❓ Вопросы по главе (${chapter.questions.size})")
+            }
+        }
+        OutlinedButton(onClick = { onNavigate("shadow") }, modifier = Modifier.fillMaxWidth()) {
+            Text("🗣 Повторять за диктором")
+        }
+        if (chapter.sentences.any { it.sp != null }) {
+            OutlinedButton(onClick = { onNavigate("role") }, modifier = Modifier.fillMaxWidth()) {
+                Text("🎭 Ролевая игра")
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        if (hasNext) {
+            FilledTonalButton(onClick = onNext) { Text("Следующая глава →") }
+        } else {
+            Text("Конец книги 🎉", style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PhrasebookSheet(
+    chapter: Chapter,
+    saved: Set<String>,
+    onAdd: (PhraseItem) -> Unit,
+    onRemove: (PhraseItem) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val player = LecturaApp.instance.player
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        LazyColumn(
+            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                Text("Полезные фразы", style = MaterialTheme.typography.titleLarge)
+                if (chapter.phrases.isEmpty()) Text("В этой главе пока нет разговорника — обновите книгу.")
+            }
+            itemsIndexed(chapter.phrases) { _, ph ->
+                val isSaved = ph.es.lowercase().trim() in saved
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f).clickable { player.speakOnce(ph.es) }) {
+                        Text(ph.es, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(ph.ru, style = MaterialTheme.typography.bodyLarge)
+                        if (ph.pattern.isNotBlank()) Text(
+                            "Модель: ${ph.pattern}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        if (ph.note.isNotBlank()) Text(
+                            ph.note,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    IconButton(onClick = { if (isSaved) onRemove(ph) else onAdd(ph) }) {
+                        Icon(if (isSaved) Icons.Filled.Check else Icons.Filled.Add, if (isSaved) "В словаре" else "Добавить")
+                    }
+                }
+            }
         }
     }
 }
@@ -389,12 +550,15 @@ private fun WordSheet(
     tokenIndex: Int,
     isSaved: Boolean,
     onToggleSave: () -> Unit,
+    savedKeys: Set<String>,
+    onSavePhrase: (es: String, ru: String) -> Unit,
     onReadFromHere: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val player = LecturaApp.instance.player
     val tk = sentence.tokens[tokenIndex]
     var showSentenceRu by remember(sentence) { mutableStateOf(false) }
+    var phraseMode by remember(sentence, tokenIndex) { mutableStateOf(false) }
     LaunchedEffect(tk) { player.speakOnce(tk.t) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
@@ -415,13 +579,24 @@ private fun WordSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(12.dp))
-            Button(onClick = onToggleSave) {
-                Icon(if (isSaved) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder, null)
-                Spacer(Modifier.width(8.dp))
-                Text(if (isSaved) "В словаре" else "Сохранить в словарь")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onToggleSave) {
+                    Icon(if (isSaved) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (isSaved) "В словаре" else "Сохранить")
+                }
+                OutlinedButton(onClick = { phraseMode = !phraseMode }) { Text(if (phraseMode) "Отмена" else "Выделить фразу") }
             }
 
             HorizontalDivider(Modifier.padding(vertical = 16.dp))
+
+            if (phraseMode) {
+                PhraseSelector(sentence, tokenIndex, savedKeys) { es, ru ->
+                    onSavePhrase(es, ru)
+                    phraseMode = false
+                }
+                return@Column
+            }
 
             Text(
                 buildAnnotatedString {
@@ -453,4 +628,74 @@ private fun WordSheet(
             }
         }
     }
+}
+
+/** Выбор диапазона слов в предложении: тап — начало, второй тап — конец. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PhraseSelector(sentence: Sentence, initial: Int, savedKeys: Set<String>, onSave: (String, String) -> Unit) {
+    val player = LecturaApp.instance.player
+    var start by remember { mutableStateOf(initial) }
+    var end by remember { mutableStateOf(initial) }
+    var picking by remember { mutableStateOf(true) } // следующий тап задаёт конец
+    val range = minOf(start, end)..maxOf(start, end)
+    val es = buildString {
+        for (i in range) {
+            if (i != range.first && sentence.spaces[i]) append(' ')
+            append(sentence.tokens[i].t)
+        }
+    }.trim().trimEnd(',', ';', ':')
+    val autoRu = range.mapNotNull { sentence.tokens[it].ru?.takeIf { r -> r.isNotBlank() } }.joinToString(" ")
+    var ru by remember(range) { mutableStateOf(autoRu) }
+
+    Text("Нажмите на первое и последнее слово фразы", style = MaterialTheme.typography.labelLarge)
+    Spacer(Modifier.height(8.dp))
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        sentence.tokens.forEachIndexed { i, t ->
+            val inRange = i in range
+            Text(
+                t.t,
+                modifier = Modifier
+                    .background(
+                        if (inRange) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                        RoundedCornerShape(8.dp),
+                    )
+                    .clickable {
+                        if (picking) {
+                            end = i
+                        } else {
+                            start = i
+                            end = i
+                        }
+                        picking = !picking
+                    }
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(es, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        IconButton(onClick = { player.speakOnce(es) }) { Icon(Icons.AutoMirrored.Filled.VolumeUp, "Произнести") }
+    }
+    OutlinedTextField(
+        value = ru,
+        onValueChange = { ru = it },
+        label = { Text("Перевод (можно поправить)") },
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Text(
+        "Перевод предложения: ${sentence.ru}",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 4.dp),
+    )
+    Spacer(Modifier.height(12.dp))
+    val already = es.lowercase() in savedKeys
+    Button(
+        onClick = { onSave(es, ru) },
+        enabled = !already && range.count() >= 2 && ru.isNotBlank(),
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text(if (already) "Фраза уже в словаре" else "Сохранить фразу") }
 }
