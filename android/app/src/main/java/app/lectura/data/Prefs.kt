@@ -39,6 +39,11 @@ class Prefs(context: Context) {
         get() = sp.getString("reviewMode", "mixed") ?: "mixed"
         set(v) = sp.edit().putString("reviewMode", v).apply()
 
+    /** Запись речи заканчивается по кнопке (true) или сама на паузе (false). */
+    var speechManualStop: Boolean
+        get() = sp.getBoolean("speechManualStop", true)
+        set(v) = sp.edit().putBoolean("speechManualStop", v).apply()
+
     var rate: Float
         get() = sp.getFloat("rate", 0.8f)
         set(v) = sp.edit().putFloat("rate", v).apply()
