@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.room.Room
 import app.lectura.data.AppDatabase
 import app.lectura.data.BookRepository
+import app.lectura.data.CurriculumRepository
 import app.lectura.data.MIGRATIONS
 import app.lectura.data.Prefs
 import app.lectura.data.UserData
@@ -23,6 +24,7 @@ class LecturaApp : Application() {
     lateinit var db: AppDatabase
     lateinit var books: BookRepository
     lateinit var userData: UserData
+    lateinit var curriculum: CurriculumRepository
     lateinit var player: Player
 
     override fun onCreate() {
@@ -34,6 +36,7 @@ class LecturaApp : Application() {
             .addMigrations(*MIGRATIONS)
             .build()
         userData = UserData(this, db)
+        curriculum = CurriculumRepository(this)
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { userData.onAppStart() }.onFailure { Log.e("LecturaApp", "data upgrade failed", it) }
         }

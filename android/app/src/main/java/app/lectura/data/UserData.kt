@@ -131,6 +131,51 @@ class UserData(private val context: Context, private val db: AppDatabase) {
         stamp()
     }
 
+    /**
+     * Итог сессии по грамматической теме. ≥ 80% — тема закрепляется (ступень +1, интервал растёт),
+     * 60–79% — без изменения, < 60% — ступень −1 и тема снова «пора повторить».
+     */
+    suspend fun recordGrammarSession(
+        topicId: String,
+        level: String,
+        correct: Int,
+        total: Int,
+        shownIds: List<String>,
+    ): GrammarProgress = db.withTransaction {
+        val now = System.currentTimeMillis()
+        val cur = db.grammar().get(topicId) ?: GrammarProgress(topicId, level)
+        val pct = if (total == 0) 0 else correct * 100 / total
+        val stage = when {
+            pct >= 80 -> cur.stage + 1
+            pct < 60 -> cur.stage - 1
+            else -> cur.stage
+        }.coerceIn(0, MAX_STAGE)
+        val interval = when {
+            pct < 60 -> 0
+            pct < 80 -> maxOf(1, cur.intervalDays)
+            cur.intervalDays == 0 -> 1
+            else -> minOf(120, cur.intervalDays * 2 + 1)
+        }
+        val recent = (shownIds + cur.recentIds.split(',').filter { it.isNotBlank() }).distinct().take(60)
+        val upd = cur.copy(
+            level = level,
+            sessions = cur.sessions + 1,
+            attempts = cur.attempts + total,
+            correct = cur.correct + correct,
+            lastPct = pct,
+            bestPct = maxOf(cur.bestPct, pct),
+            stage = stage,
+            intervalDays = interval,
+            due = now + interval * 24L * 60 * 60 * 1000,
+            lastPracticed = now,
+            recentIds = recent.joinToString(","),
+        )
+        db.grammar().put(upd)
+        bumpStats { it.copy(reviews = it.reviews + total, correct = it.correct + correct) }
+        stamp()
+        upd
+    }
+
     /** Результат упражнения главы (лучший процент сохраняется). */
     suspend fun recordChapterActivity(bookId: String, chapter: Int, kind: String, percent: Int) = db.withTransaction {
         val cur = db.activity().get(bookId, chapter, kind)
@@ -228,6 +273,12 @@ class UserData(private val context: Context, private val db: AppDatabase) {
                     it.kind, it.stage, it.lastReviewed, it.practiceCount,
                 )
             },
+            grammar = db.grammar().allOnce().map {
+                GrammarDto(
+                    it.topicId, it.level, it.sessions, it.attempts, it.correct, it.lastPct, it.bestPct,
+                    it.stage, it.due, it.intervalDays, it.lastPracticed, it.recentIds,
+                )
+            },
             activity = db.activity().allOnce().map {
                 ActivityDto(it.bookId, it.chapter, it.kind, it.best, it.count, it.updatedAt)
             },
@@ -273,6 +324,17 @@ class UserData(private val context: Context, private val db: AppDatabase) {
                         ),
                     )
                     words++
+                }
+            }
+            b.grammar.forEach { g ->
+                val cur = db.grammar().get(g.topicId)
+                if (cur == null || g.lastPracticed > cur.lastPracticed) {
+                    db.grammar().put(
+                        GrammarProgress(
+                            g.topicId, g.level, g.sessions, g.attempts, g.correct, g.lastPct, g.bestPct,
+                            g.stage, g.due, g.intervalDays, g.lastPracticed, g.recentIds,
+                        ),
+                    )
                 }
             }
             b.activity.forEach { a ->
@@ -323,6 +385,7 @@ data class Backup(
     val words: List<WordDto> = emptyList(),
     val stats: List<StatsDto> = emptyList(),
     val activity: List<ActivityDto> = emptyList(),
+    val grammar: List<GrammarDto> = emptyList(),
 ) {
     companion object {
         const val FORMAT = 1
@@ -373,6 +436,22 @@ data class StatsDto(
     val memoryPct: Int = -1,
     val strongWords: Int = 0,
     val totalWords: Int = 0,
+)
+
+@Serializable
+data class GrammarDto(
+    val topicId: String,
+    val level: String = "",
+    val sessions: Int = 0,
+    val attempts: Int = 0,
+    val correct: Int = 0,
+    val lastPct: Int = 0,
+    val bestPct: Int = 0,
+    val stage: Int = 0,
+    val due: Long = 0,
+    val intervalDays: Int = 0,
+    val lastPracticed: Long = 0,
+    val recentIds: String = "",
 )
 
 @Serializable

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Spellcheck
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -40,12 +41,16 @@ import app.lectura.ui.ShadowingScreen
 import app.lectura.ui.ReaderScreen
 import app.lectura.ui.ReviewScreen
 import app.lectura.ui.VocabScreen
+import app.lectura.ui.grammar.GrammarPracticeScreen
+import app.lectura.ui.grammar.GrammarScreen
+import app.lectura.ui.grammar.GrammarTopicScreen
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
 private val tabs = listOf(
     Tab("library", "Книги", Icons.AutoMirrored.Filled.MenuBook),
     Tab("vocab", "Словарь", Icons.Filled.Style),
+    Tab("grammar", "Грамматика", Icons.Filled.Spellcheck),
     Tab("review", "Повторение", Icons.Filled.School),
 )
 
@@ -139,6 +144,14 @@ private fun AppNav() {
                 )
             }
             composable("vocab") { VocabScreen(onReview = { nav.navigate("review") }) }
+            composable("grammar") { GrammarScreen(onTopic = { nav.navigate("grammar/$it") }) }
+            composable("grammar/{id}") { e ->
+                val id = e.arguments?.getString("id").orEmpty()
+                GrammarTopicScreen(id, onBack = { nav.popBackStack() }, onPractice = { nav.navigate("grammar/$id/practice") })
+            }
+            composable("grammar/{id}/practice") { e ->
+                GrammarPracticeScreen(e.arguments?.getString("id").orEmpty(), onBack = { nav.popBackStack() })
+            }
             composable("review") { ReviewScreen() }
         }
     }

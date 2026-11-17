@@ -90,6 +90,32 @@ data class ChapterActivity(
     }
 }
 
+/** Прогресс по грамматической теме: интервальное повторение темы + точность. */
+@Entity(tableName = "grammar_progress")
+data class GrammarProgress(
+    @PrimaryKey val topicId: String,
+    val level: String,
+    val sessions: Int = 0,
+    val attempts: Int = 0,
+    val correct: Int = 0,
+    /** Последняя сессия, % */
+    val lastPct: Int = 0,
+    val bestPct: Int = 0,
+    /** Ступень 0..6: растёт за сессии ≥ 80%, падает за < 60%. Освоено — от MASTERED_STAGE. */
+    val stage: Int = 0,
+    val due: Long = 0,
+    val intervalDays: Int = 0,
+    val lastPracticed: Long = 0,
+    /** id упражнений, показанных в последних сессиях (через запятую) — чтобы не повторяться. */
+    val recentIds: String = "",
+) {
+    val mastered: Boolean get() = stage >= MASTERED_STAGE
+
+    companion object {
+        const val MASTERED_STAGE = 3
+    }
+}
+
 @Entity(tableName = "progress")
 data class Progress(
     @PrimaryKey val bookId: String,
@@ -182,6 +208,21 @@ interface ActivityDao {
 }
 
 @Dao
+interface GrammarDao {
+    @Query("SELECT * FROM grammar_progress")
+    fun all(): Flow<List<GrammarProgress>>
+
+    @Query("SELECT * FROM grammar_progress")
+    suspend fun allOnce(): List<GrammarProgress>
+
+    @Query("SELECT * FROM grammar_progress WHERE topicId = :id")
+    suspend fun get(id: String): GrammarProgress?
+
+    @Upsert
+    suspend fun put(p: GrammarProgress)
+}
+
+@Dao
 interface StatsDao {
     @Query("SELECT * FROM daily_stats WHERE day = :day")
     suspend fun get(day: String): DailyStats?
@@ -217,7 +258,7 @@ interface MetaDao {
  *  3. fallbackToDestructiveMigration НЕ использовать никогда.
  */
 @Database(
-    entities = [SavedWord::class, Progress::class, AppMeta::class, DailyStats::class, ChapterActivity::class],
+    entities = [SavedWord::class, Progress::class, AppMeta::class, DailyStats::class, ChapterActivity::class, GrammarProgress::class],
     version = 4,
     exportSchema = true,
     autoMigrations = [
@@ -232,6 +273,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun meta(): MetaDao
     abstract fun stats(): StatsDao
     abstract fun activity(): ActivityDao
+    abstract fun grammar(): GrammarDao
 }
 
 /** Ручные миграции (для изменений, которые AutoMigration не умеет). */
