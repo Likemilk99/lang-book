@@ -153,7 +153,12 @@ private fun AppNav() {
             composable("grammar") { GrammarScreen(onTopic = { nav.navigate("grammar/$it") }) }
             composable("grammar/{id}") { e ->
                 val id = e.arguments?.getString("id").orEmpty()
-                GrammarTopicScreen(id, onBack = { nav.popBackStack() }, onPractice = { nav.navigate("grammar/$id/practice") })
+                GrammarTopicScreen(
+                    id,
+                    onBack = { nav.popBackStack() },
+                    onPractice = { nav.navigate("grammar/$id/practice") },
+                    onOpenTopic = { nav.navigate("grammar/$it") },
+                )
             }
             composable("grammar/{id}/practice") { e ->
                 GrammarPracticeScreen(e.arguments?.getString("id").orEmpty(), onBack = { nav.popBackStack() })
