@@ -23,17 +23,32 @@ import java.time.LocalDate
 
 /** Сегодняшняя активность + серия дней подряд. */
 @Composable
-fun StatsCard(modifier: Modifier = Modifier) {
+fun StatsCard(modifier: Modifier = Modifier, onClick: () -> Unit = {}) {
     val stats by LecturaApp.instance.db.stats().recent(400).collectAsState(initial = emptyList())
     val t = stats.firstOrNull { it.day == today() } ?: DailyStats(today())
     val streak = streak(stats)
-    Card(modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+    val level by androidx.compose.runtime.produceState<app.lectura.data.LevelProgress?>(null, stats) {
+        value = runCatching { app.lectura.data.ProgressService.compute().current }.getOrNull()
+    }
+    Card(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+    ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("Сегодня", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text("Упражнений: ${t.reviews}" + if (t.reviews > 0) " · верно ${t.correct * 100 / t.reviews}%" else "")
                 Text("Новых слов: ${t.newWords} · прослушано предложений: ${t.sentencesRead}")
                 if (t.speaking > 0) Text("Сказано вслух: ${t.speaking}")
+                level?.let {
+                    Text(
+                        "Уровень ${it.level}: ${it.percent}% · мой прогресс ›",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("🔥 $streak", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)

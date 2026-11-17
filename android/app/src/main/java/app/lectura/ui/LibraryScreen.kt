@@ -70,7 +70,7 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
-fun LibraryScreen(onOpen: (String) -> Unit, onBookStats: (String) -> Unit = {}) {
+fun LibraryScreen(onOpen: (String) -> Unit, onBookStats: (String) -> Unit = {}, onProgress: () -> Unit = {}) {
     val app = LecturaApp.instance
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -148,7 +148,7 @@ fun LibraryScreen(onOpen: (String) -> Unit, onBookStats: (String) -> Unit = {}) 
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item { StatsCard() }
+            item { StatsCard(onClick = onProgress) }
             item {
                 // Уровни + кнопка «Темы»
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

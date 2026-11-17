@@ -36,6 +36,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import app.lectura.ui.BookStatsScreen
 import app.lectura.ui.LibraryScreen
+import app.lectura.ui.ProgressScreen
 import app.lectura.ui.QuestionsScreen
 import app.lectura.ui.ShadowingScreen
 import app.lectura.ui.ReaderScreen
@@ -102,8 +103,13 @@ private fun AppNav() {
     ) { pad ->
         NavHost(nav, startDestination = "library", modifier = Modifier.padding(pad)) {
             composable("library") {
-                LibraryScreen(onOpen = { nav.navigate("reader/$it") }, onBookStats = { nav.navigate("bookstats/$it") })
+                LibraryScreen(
+                    onOpen = { nav.navigate("reader/$it") },
+                    onBookStats = { nav.navigate("bookstats/$it") },
+                    onProgress = { nav.navigate("progress") },
+                )
             }
+            composable("progress") { ProgressScreen(onBack = { nav.popBackStack() }) }
             composable("bookstats/{id}") { e ->
                 val id = e.arguments?.getString("id").orEmpty()
                 val scope = rememberCoroutineScope()

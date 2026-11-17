@@ -36,6 +36,8 @@ data class Chapter(
     val questions: List<Question> = emptyList(),
     /** Упражнения «выбери уместный ответ в диалоге». */
     val replies: List<ReplyItem> = emptyList(),
+    /** id грамматических тем учебной программы, которые отрабатываются в главе (model/Curriculum.kt). */
+    val grammar: List<String> = emptyList(),
 ) {
     /** Все предложения главы подряд — индекс в этом списке и есть «номер предложения». */
     val sentences: List<Sentence> by lazy { paragraphs.flatMap { it.sentences } }
