@@ -44,6 +44,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("speechManualStop", true)
         set(v) = sp.edit().putBoolean("speechManualStop", v).apply()
 
+    /** Последний выбранный уровень во вкладке «Грамматика» ("" — выбрать автоматически). */
+    var grammarLevel: String
+        get() = sp.getString("grammarLevel", "") ?: ""
+        set(v) = sp.edit().putString("grammarLevel", v).apply()
+
     var rate: Float
         get() = sp.getFloat("rate", 0.8f)
         set(v) = sp.edit().putFloat("rate", v).apply()
