@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """Готовит книгу для приложения Lectura с помощью Claude Code (`claude -p`).
 
-Два режима:
+Режимы:
   1) Адаптация существующего текста (txt / epub):
        python3 pipeline/prepare_book.py --source book.txt --title "Marianela" --author "Galdós"
   2) Оригинальная история на тему:
        python3 pipeline/prepare_book.py --topic "кот, который живёт в Мадриде" --chapters 5
+  3) Только обогащение готовой книги (файл перезаписывается на месте):
+       python3 pipeline/prepare_book.py --enrich books/madrid.json
+
+В конце режимов 1 и 2 тоже идёт обогащение (отключается --no-enrich): по одному запросу
+на главу — кто говорит каждую реплику (Sentence.sp, Book.characters), разговорные фразы
+главы (phrases), вопросы на понимание (questions) и «выбери уместный ответ» (replies).
 
 Результат: books/<id>.json — формат, который читает приложение.
 С флагом --push файл сразу копируется на телефон через adb.
@@ -20,6 +26,7 @@ import argparse
 import concurrent.futures as cf
 import html
 import json
+import random
 import re
 import subprocess
 import sys
@@ -146,6 +153,134 @@ For EACH input sentence, in the same order, return:
       ru = Russian meaning of this word IN THIS CONTEXT, short (1-4 words)
       g  = short grammar note IN RUSSIAN. Verbs: Spanish tense name + person/number, e.g. "presente, 3 л. ед. ч.", "pretérito indefinido, 1 л. мн. ч.", "infinitivo", "gerundio". If the form is irregular, add "(неправ.)". Nouns: "сущ., м. р." / "сущ., ж. р., мн. ч.". Others: "прил.", "нареч.", "предлог", "артикль", "местоим.", "союз".
 Return exactly as many sentences as were given."""
+
+_STR = {"type": "string"}
+_STR_LIST = {"type": "array", "items": _STR}
+
+# Ответ модели для шага enrich. Варианты ответов модель отдаёт как correct + wrong,
+# а перемешивает их и вычисляет индекс answer уже Python (см. build_choice).
+ENRICH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "characters": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"name": _STR, "gender": {"type": "string", "enum": ["m", "f"]}},
+                "required": ["name", "gender"],
+                "additionalProperties": False,
+            },
+        },
+        "speakers": {
+            "type": "array",
+            "description": "One item per input sentence, in order",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "i": {"type": "integer", "description": "Sentence number from the input"},
+                    "sp": {"type": "string", "description": "Speaker name, or empty string for narration"},
+                },
+                "required": ["i", "sp"],
+                "additionalProperties": False,
+            },
+        },
+        "phrases": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"es": _STR, "ru": _STR, "note": _STR, "pattern": _STR},
+                "required": ["es", "ru", "note", "pattern"],
+                "additionalProperties": False,
+            },
+        },
+        "questions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"q": _STR, "ru": _STR, "correct": _STR, "wrong": _STR_LIST},
+                "required": ["q", "ru", "correct", "wrong"],
+                "additionalProperties": False,
+            },
+        },
+        "replies": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "prompt": _STR, "promptRu": _STR, "correct": _STR, "wrong": _STR_LIST, "why": _STR,
+                },
+                "required": ["prompt", "promptRu", "correct", "wrong", "why"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["characters", "speakers", "phrases", "questions", "replies"],
+    "additionalProperties": False,
+}
+
+ENRICH_SYSTEM = """You prepare conversation-practice material for one chapter of a graded Spanish reader.
+The learner is a native Russian speaker at level {level} ({level_guide}).
+The goal is CONVERSATIONAL Peninsular Spanish: how people in Spain really talk.
+{spain}
+All Spanish you write must be Peninsular (tú/vosotros, Spain vocabulary) and at the learner's level.
+All translations, notes and explanations are in RUSSIAN.
+
+You receive the chapter's sentences, numbered, with paragraph breaks, and the list of already known
+characters of the book. Return:
+
+1. speakers — exactly one item per input sentence {{i, sp}}, in order, i = the sentence number.
+   sp = who says the sentence, or "" for pure narration.
+   * A sentence is dialogue if it contains a line of direct speech (Spanish dialogue starts with an
+     em dash —, or is inside «» / quotes). Assign the speaker of that speech even when the sentence
+     also contains a speech tag ("—Hola —dice Ana." → Ana) or starts with narration
+     ("Carmen sonríe y dice: —No pasa nada." → Carmen).
+   * A sentence without a dash that continues the same person's line in the same paragraph belongs
+     to that person. Thoughts in «» ("piensa: «Me gusta…»") belong to the thinker.
+   * Pure narration ("Por la noche, Boris duerme.") → "".
+   * Use the dialogue logic (who asks, who answers, alternating turns) to work out untagged lines.
+2. characters — everyone who speaks in this chapter: {{name, gender}} (gender "m" or "f").
+   * If a speaker is in the known characters list, reuse EXACTLY that name spelling.
+   * Use the character's name as written in the text. For an unnamed speaker (a waiter, a doctor,
+     a shop assistant…) use a short capitalised Spanish role label without article, e.g.
+     "Camarero", "Doctora", "Recepcionista" — and reuse a known label if it is the same person.
+   * Every non-empty sp must be exactly one of the character names (known or returned here).
+3. phrases — 4 to 8 of the MOST USEFUL conversational chunks / speech patterns that occur IN THIS
+   CHAPTER'S TEXT, the ones a learner would want to say in real life in Spain
+   (asking for things, ordering, questions, answers, reactions, agreeing, making plans, politeness).
+   * Take them from the lines of DIALOGUE (direct speech), not from narration. Prefer chunks the
+     learner can reuse in their own conversations; skip story-specific statements that teach no
+     reusable pattern, and trivial ones like "Hola" unless the chapter has nothing better.
+   * es: the chunk in Spanish, as it appears in the text (you may cut it down to the reusable part,
+     keep ¿? ¡! punctuation). Do not repeat the same chunk twice.
+   * ru: a natural Russian equivalent (how a Russian would say it, not word-for-word).
+   * note: 1–2 short sentences in Russian: when and how it is used, register (informal/neutral/polite,
+     tú vs usted), typical answer or a common alternative used in Spain.
+   * pattern: a reusable template with ___ for the slot, e.g. "¿Me pones ___?", "Me duele ___",
+     "¿Te apetece ___?". If no natural slot exists (fixed expressions like "No pasa nada",
+     "Buenos días"), repeat the phrase itself — do not invent artificial slots.
+4. questions — 3 to 5 multiple-choice comprehension questions about what happens in this chapter.
+   * q: the question in simple Spanish at the learner's level; ru: its Russian translation.
+   * correct: the right answer (short, Spanish); wrong: 2–3 wrong answers in Spanish of the same
+     shape and length, plausible (use people, places and things from the story) but clearly false
+     according to the text. Exactly one answer may be correct.
+5. replies — 3 to 6 "choose the appropriate reply" exercises based on the dialogues of this chapter.
+   * prompt: a line another person says TO THE LEARNER that naturally calls for a reply — a question,
+     offer, request, invitation, greeting, thanks, apology or piece of news (Spanish, taken or adapted
+     from the chapter's dialogue);
+     promptRu: its Russian translation.
+   * correct: one natural, appropriate reply a Spaniard would give in that situation.
+   * wrong: exactly 2 replies that are grammatical, natural-sounding Spanish but inappropriate here.
+     At least one of them must stay ON TOPIC (same situation and vocabulary) but be the wrong speech
+     act or meaning, so the learner has to understand the prompt rather than spot unrelated words:
+     e.g. answers a different question (¿Cuánto cuesta? → "Dos cafés, por favor"), says the waiter's
+     line instead of the customer's ("¿Qué te pongo?"), uses the wrong social formula ("De nada" as a
+     reply to "Perdón"), or contradicts the situation. Never gibberish, never grammar mistakes, never
+     a second acceptable answer. Keep all three options about the same length.
+   * why: 1–2 short sentences in Russian: why the correct reply fits and what is wrong with the others.
+     The options are shuffled later, so NEVER refer to them by position ("второй", "третий вариант")
+     — quote them instead («De nada» …).
+   * Skip lines said to an animal, to oneself or shouted to nobody — they are not good prompts.
+"""
 
 
 # ---------------------------------------------------------------- source text
@@ -318,6 +453,207 @@ def annotate(sentences: list[str], args) -> list[dict]:
     return out
 
 
+# ---------------------------------------------------------------- enrich
+
+_NO_SPACE_BEFORE = {".", ",", ";", ":", "!", "?", ")", "»", "…", "”", "%", "..."}
+_NO_SPACE_AFTER = {"¿", "¡", "(", "«", "“", "—", "–"}
+
+
+def sentence_text(tokens: list[dict]) -> str:
+    """Склеивает токены в текст так же, как приложение (Book.kt, computeSpaces)."""
+    out, no_space_next, quote_open = [], True, False
+    for tk in tokens:
+        t = tk["t"]
+        space = not no_space_next and t not in _NO_SPACE_BEFORE
+        no_space_next = t in _NO_SPACE_AFTER
+        if t == '"':
+            if quote_open:
+                space, quote_open = False, False
+            else:
+                quote_open, no_space_next = True, True
+        out.append((" " if space else "") + t)
+    return "".join(out)
+
+
+def norm_key(s: str) -> str:
+    """Ключ для сравнения имён/фраз: без диакритики, регистра, пунктуации и артикля."""
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(c for c in s if not unicodedata.combining(c)).casefold()
+    s = re.sub(r"[^\w\s]", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return re.sub(r"^(el|la|los|las) ", "", s)
+
+
+def chapter_sentences(ch: dict) -> list[dict]:
+    return [s for p in ch["paragraphs"] for s in p["sentences"]]
+
+
+def enrich_chapter(ch: dict, ci: int, total: int, level: str, book_title: str,
+                   known: list[dict], args) -> dict:
+    blocks, n = [], 0
+    for p in ch["paragraphs"]:
+        lines = []
+        for s in p["sentences"]:
+            n += 1
+            lines.append(f"{n}. {sentence_text(s['tokens'])}")
+        blocks.append("\n".join(lines))
+    known_txt = ", ".join(f"{c['name']} ({c['gender'] or '?'})" for c in known) or "(none yet)"
+    prompt = (
+        f"Book: {book_title}. Chapter {ci + 1} of {total}: {ch['title']}.\n"
+        f"Known characters: {known_txt}\n\n"
+        f"The chapter has {n} sentences (blank line = new paragraph):\n\n" + "\n\n".join(blocks)
+    )
+    system = ENRICH_SYSTEM.format(level=level, level_guide=LEVEL_GUIDE[level], spain=SPAIN_RULES)
+    res = claude_json(prompt, system, ENRICH_SCHEMA, args.model, args.enrich_effort)
+    res["n"] = n
+    return res
+
+
+def build_choice(correct: str, wrong: list[str], max_wrong: int, rng: random.Random):
+    """[correct] + wrong → перемешанные options и индекс правильного; None, если вариантов мало."""
+    opts = [correct.strip()]
+    for w in wrong:
+        w = w.strip()
+        if w and norm_key(w) not in {norm_key(o) for o in opts}:
+            opts.append(w)
+    opts = opts[: 1 + max_wrong]
+    if not opts[0] or len(opts) < 3:
+        return None
+    order = list(range(len(opts)))
+    rng.shuffle(order)
+    options = [opts[i] for i in order]
+    answer = order.index(0)
+    assert 0 <= answer < len(options)
+    return options, answer
+
+
+def enrich_book(book: dict, work: Path, args) -> None:
+    """Добавляет в книгу characters, Sentence.sp и Chapter.phrases/questions/replies (на месте)."""
+    chapters = book["chapters"]
+    level = book.get("level") if book.get("level") in LEVEL_GUIDE else "A1"
+
+    registry: dict[str, dict] = {}  # norm_key(name) -> {"name", "gender"}
+
+    def add_chars(items: list[dict]) -> None:
+        for c in items:
+            name = (c.get("name") or "").strip()
+            if not name:
+                continue
+            g = c.get("gender") if c.get("gender") in ("m", "f") else ""
+            k = norm_key(name)
+            if k not in registry:
+                registry[k] = {"name": name, "gender": g}
+            elif not registry[k]["gender"] and g:
+                registry[k]["gender"] = g
+
+    existing = book.get("characters") or []
+    add_chars(existing)
+
+    def do(ci: int, known: list[dict]) -> dict:
+        n = len(chapter_sentences(chapters[ci]))
+        path = work / f"enrich_{ci:03d}.json"
+        if path.exists():
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if data.get("n") == n:
+                print(f"   ✓ глава {ci + 1}/{len(chapters)} (кэш)")
+                return data
+            print(f"   ! {path.name}: глава изменилась ({data.get('n')} → {n} предл.), пересчитываю")
+        data = enrich_chapter(chapters[ci], ci, len(chapters), level, book["title"], known, args)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"   ✓ глава {ci + 1}/{len(chapters)}: {chapters[ci]['title']}")
+        return data
+
+    print(f"▶ Обогащаю {len(chapters)} гл.: говорящие, фразы, вопросы, ответы (параллельно: {args.jobs})…")
+    results: dict[int, dict] = {}
+    rest = list(range(len(chapters)))
+    if not registry and rest:
+        # Первая глава — отдельно, чтобы остальные знали имена персонажей.
+        results[0] = do(0, [])
+        add_chars(results[0]["characters"])
+        rest = rest[1:]
+    known = list(registry.values())
+    with cf.ThreadPoolExecutor(args.jobs) as ex:
+        for ci, r in zip(rest, ex.map(lambda ci: do(ci, known), rest)):
+            results[ci] = r
+    for ci in sorted(results):
+        add_chars(results[ci]["characters"])
+
+    used: set[str] = set()
+    n_sent = n_sp = dropped = verbatim = 0
+    totals = {"phrases": 0, "questions": 0, "replies": 0}
+    for ci, ch in enumerate(chapters):
+        r = results[ci]
+        rng = random.Random(f"{book['id']}:{ci}")
+        sents = chapter_sentences(ch)
+        sp_by_idx = {it["i"]: (it.get("sp") or "").strip() for it in r["speakers"]}
+        for i, s in enumerate(sents):
+            s.pop("sp", None)
+            sp = sp_by_idx.get(i + 1, "")
+            n_sent += 1
+            if not sp:
+                continue
+            c = registry.get(norm_key(sp))
+            if c is None:
+                dropped += 1
+                continue
+            s["sp"] = c["name"]
+            used.add(norm_key(sp))
+            n_sp += 1
+
+        text_key = norm_key(" ".join(sentence_text(s["tokens"]) for s in sents))
+        phrases, seen = [], set()
+        for p in r["phrases"]:
+            es = p["es"].strip()
+            k = norm_key(es)
+            if not es or not p["ru"].strip() or k in seen:
+                continue
+            seen.add(k)
+            verbatim += k in text_key
+            phrases.append({"es": es, "ru": p["ru"].strip(), "note": p["note"].strip(),
+                            "pattern": p["pattern"].strip() or es})
+        ch["phrases"] = phrases[:8]
+
+        questions = []
+        for q in r["questions"]:
+            built = build_choice(q["correct"], q["wrong"], 3, rng)
+            if built and q["q"].strip():
+                questions.append({"q": q["q"].strip(), "ru": q["ru"].strip(),
+                                  "options": built[0], "answer": built[1]})
+        ch["questions"] = questions[:5]
+
+        replies = []
+        for rp in r["replies"]:
+            built = build_choice(rp["correct"], rp["wrong"], 2, rng)
+            if built and rp["prompt"].strip():
+                replies.append({"prompt": rp["prompt"].strip(), "promptRu": rp["promptRu"].strip(),
+                                "options": built[0], "answer": built[1], "why": rp["why"].strip()})
+        ch["replies"] = replies[:6]
+        for key in totals:
+            totals[key] += len(ch[key])
+
+    keep = {norm_key(c["name"]) for c in existing} | used
+    characters = [c for k, c in registry.items() if k in keep]
+    # characters — перед chapters, остальной порядок ключей сохраняем.
+    rebuilt = {k: v for k, v in book.items() if k not in ("characters", "chapters")}
+    rebuilt["characters"] = characters
+    rebuilt["chapters"] = chapters
+    book.clear()
+    book.update(rebuilt)
+
+    pct = 100 * n_sp / n_sent if n_sent else 0
+    print("   Персонажи: " + (", ".join(f"{c['name']} ({c['gender']})" for c in characters) or "—"))
+    print(f"   Фраз: {totals['phrases']} (дословно из текста: {verbatim}), "
+          f"вопросов: {totals['questions']}, «выбери ответ»: {totals['replies']}")
+    print(f"   Реплик с говорящим: {n_sp}/{n_sent} ({pct:.0f}%)"
+          + (f"; отброшено неизвестных говорящих: {dropped}" if dropped else ""))
+
+
+def write_book(path: Path, book: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(book, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+
+
 def tokens_ok(src: str, tokens: list[dict]) -> bool:
     norm = lambda s: re.sub(r"\s+", "", s)
     return norm(src) == norm("".join(t["t"] for t in tokens))
@@ -333,6 +669,8 @@ def main() -> None:
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--source", type=Path, help="txt или epub")
     src.add_argument("--topic", help="тема оригинальной истории")
+    src.add_argument("--enrich", type=Path, metavar="PATH.json",
+                     help="только шаг обогащения для готовой книги (файл перезаписывается на месте)")
     ap.add_argument("--title", help="название (для --source обязательно)")
     ap.add_argument("--author", default="")
     ap.add_argument("--level", default="A1", choices=list(LEVEL_GUIDE))
@@ -342,6 +680,9 @@ def main() -> None:
     ap.add_argument("--model", default="sonnet", help="модель claude (sonnet / opus / haiku)")
     ap.add_argument("--effort", default="medium", help="effort для адаптации")
     ap.add_argument("--annotate-effort", default="low", help="effort для разметки слов")
+    ap.add_argument("--enrich-effort", default="medium",
+                    help="effort для обогащения (говорящие, фразы, вопросы, ответы)")
+    ap.add_argument("--no-enrich", action="store_true", help="не запускать шаг обогащения")
     ap.add_argument("--chunk-words", type=int, default=900, help="размер куска оригинала в словах")
     ap.add_argument("--max-chunks", type=int, default=0, help="обработать только первые N кусков (0 = все)")
     ap.add_argument("--skip-chunks", type=int, default=0, help="пропустить первые N кусков (оглавление и т.п.)")
@@ -354,6 +695,16 @@ def main() -> None:
 
     if args.source and not args.title:
         ap.error("--title обязателен вместе с --source")
+
+    if args.enrich:
+        book = json.loads(args.enrich.read_text(encoding="utf-8"))
+        work = BOOKS_DIR / ".work" / book["id"]
+        enrich_book(book, work, args)
+        write_book(args.enrich, book)
+        print(f"✅ {args.enrich} обновлён")
+        if args.push:
+            push(args.enrich)
+        return
 
     book_id = args.id or slugify(args.title or args.topic)
     work = BOOKS_DIR / ".work" / book_id
@@ -428,15 +779,20 @@ def main() -> None:
         "source": source_note,
         "chapters": out_chapters,
     }
-    BOOKS_DIR.mkdir(exist_ok=True)
     out = BOOKS_DIR / f"{book_id}.json"
-    out.write_text(json.dumps(book, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    write_book(out, book)
     n_sent = sum(len(p["sentences"]) for c in out_chapters for p in c["paragraphs"])
     n_words = sum(1 for c in out_chapters for p in c["paragraphs"] for s in p["sentences"]
                   for t in s["tokens"] if "l" in t)
     print(f"✅ {out}  — {len(out_chapters)} гл., {n_sent} предл., {n_words} слов")
     if bad:
         print(f"   (в {bad} предл. токены не совпали с исходником буква в букву — не критично)")
+
+    # 4. Обогащение: говорящие, разговорные фразы, вопросы, «выбери ответ»
+    if not args.no_enrich:
+        enrich_book(book, work, args)
+        write_book(out, book)
+        print(f"✅ {out} обогащён")
 
     if args.push:
         push(out)
