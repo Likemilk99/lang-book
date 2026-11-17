@@ -41,6 +41,10 @@ data class SavedWord(
     @ColumnInfo(defaultValue = "word") val kind: String = KIND_WORD,
     /** Ступень «лестницы сложности» (0 — новое, растёт с правильными ответами). */
     @ColumnInfo(defaultValue = "0") val stage: Int = 0,
+    /** Когда слово последний раз вспоминали (повторение или практика), мс; 0 — неизвестно. */
+    @ColumnInfo(defaultValue = "0") val lastReviewed: Long = 0,
+    /** Сколько раз слово отрабатывали в дополнительной практике. */
+    @ColumnInfo(defaultValue = "0") val practiceCount: Int = 0,
 ) {
     val isPhrase: Boolean get() = kind == KIND_PHRASE
 
@@ -59,7 +63,32 @@ data class DailyStats(
     @ColumnInfo(defaultValue = "0") val sentencesRead: Int = 0,
     @ColumnInfo(defaultValue = "0") val speaking: Int = 0,
     @ColumnInfo(defaultValue = "0") val newWords: Int = 0,
+    /** Ответов в дополнительной практике. */
+    @ColumnInfo(defaultValue = "0") val practice: Int = 0,
+    /** Снимок «памяти словаря» на этот день: средняя вероятность вспомнить, %. -1 — нет данных. */
+    @ColumnInfo(defaultValue = "-1") val memoryPct: Int = -1,
+    /** Снимок: слов «крепко» (интервал ≥ 21 дня) и всего слов. */
+    @ColumnInfo(defaultValue = "0") val strongWords: Int = 0,
+    @ColumnInfo(defaultValue = "0") val totalWords: Int = 0,
 )
+
+/** Прохождение упражнений главы: kind = read | questions | shadow | role; best — лучший результат, %. */
+@Entity(tableName = "chapter_activity", primaryKeys = ["bookId", "chapter", "kind"])
+data class ChapterActivity(
+    val bookId: String,
+    val chapter: Int,
+    val kind: String,
+    val best: Int,
+    val count: Int,
+    val updatedAt: Long,
+) {
+    companion object {
+        const val READ = "read"
+        const val QUESTIONS = "questions"
+        const val SHADOW = "shadow"
+        const val ROLE = "role"
+    }
+}
 
 @Entity(tableName = "progress")
 data class Progress(
@@ -135,6 +164,24 @@ interface ProgressDao {
 }
 
 @Dao
+interface ActivityDao {
+    @Query("SELECT * FROM chapter_activity WHERE bookId = :bookId")
+    fun forBook(bookId: String): Flow<List<ChapterActivity>>
+
+    @Query("SELECT * FROM chapter_activity")
+    fun all(): Flow<List<ChapterActivity>>
+
+    @Query("SELECT * FROM chapter_activity")
+    suspend fun allOnce(): List<ChapterActivity>
+
+    @Query("SELECT * FROM chapter_activity WHERE bookId = :bookId AND chapter = :chapter AND kind = :kind")
+    suspend fun get(bookId: String, chapter: Int, kind: String): ChapterActivity?
+
+    @Upsert
+    suspend fun put(a: ChapterActivity)
+}
+
+@Dao
 interface StatsDao {
     @Query("SELECT * FROM daily_stats WHERE day = :day")
     suspend fun get(day: String): DailyStats?
@@ -170,12 +217,13 @@ interface MetaDao {
  *  3. fallbackToDestructiveMigration НЕ использовать никогда.
  */
 @Database(
-    entities = [SavedWord::class, Progress::class, AppMeta::class, DailyStats::class],
-    version = 3,
+    entities = [SavedWord::class, Progress::class, AppMeta::class, DailyStats::class, ChapterActivity::class],
+    version = 4,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
+        AutoMigration(from = 3, to = 4),
     ],
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -183,6 +231,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun progress(): ProgressDao
     abstract fun meta(): MetaDao
     abstract fun stats(): StatsDao
+    abstract fun activity(): ActivityDao
 }
 
 /** Ручные миграции (для изменений, которые AutoMigration не умеет). */

@@ -649,6 +649,67 @@ def enrich_book(book: dict, work: Path, args) -> None:
           + (f"; отброшено неизвестных говорящих: {dropped}" if dropped else ""))
 
 
+# Справочник тегов: тот же, что в android/.../model/Tags.kt. id не менять, новые можно добавлять.
+TAGS = {
+    # Ситуации
+    "cafe": "кафе, бар, ресторан, заказ еды",
+    "shopping": "магазин, рынок, покупки, цены",
+    "transport": "метро, автобус, такси, как пройти, город",
+    "travel": "путешествие, отель, туризм, экскурсии",
+    "airport": "аэропорт, вокзал, билеты, багаж",
+    "health": "врач, аптека, самочувствие",
+    "work": "работа, коллеги, собеседование",
+    "study": "учёба, школа, курсы, университет",
+    "home": "дом, квартира, соседи, аренда, быт",
+    "money": "банк, деньги, оплата",
+    "officials": "полиция, документы, госучреждения",
+    "phone": "звонки, сообщения, интернет",
+    # Общение
+    "meeting": "знакомство, рассказ о себе",
+    "plans": "приглашения, договориться о встрече, планы",
+    "requests": "просьбы, вопросы, уточнения",
+    "opinions": "мнения, чувства, согласие и несогласие",
+    "family": "семья, друзья, отношения",
+    "smalltalk": "болтовня, погода, светская беседа",
+    "problems": "проблемы, жалобы, извинения",
+    # Жанр
+    "everyday": "повседневная жизнь",
+    "adventure": "приключения",
+    "mystery": "детектив, тайна",
+    "romance": "романтика, любовь",
+    "humor": "юмор",
+    "classic": "адаптация классики",
+    "nonfiction": "нон-фикшн, полезные знания",
+}
+
+
+def tag_book(book: dict, args) -> None:
+    """Расставляет теги книги (3–8 из справочника TAGS)."""
+    chapters = []
+    for i, ch in enumerate(book["chapters"]):
+        sents = [" ".join(t["t"] for t in s["tokens"]) for p in ch["paragraphs"] for s in p["sentences"]][:6]
+        phrases = "; ".join(ph.get("es", "") for ph in ch.get("phrases", [])[:6])
+        chapters.append(f"{i + 1}. {ch['title']} ({ch.get('titleRu', '')})\n   {' '.join(sents)}\n   Фразы: {phrases}")
+    catalog = "\n".join(f"- {k}: {v}" for k, v in TAGS.items())
+    schema = {
+        "type": "object",
+        "properties": {"tags": {"type": "array", "items": {"type": "string", "enum": list(TAGS)}}},
+        "required": ["tags"],
+        "additionalProperties": False,
+    }
+    system = (
+        "You tag graded Spanish readers so a learner can filter a library by topic. "
+        "Pick 3-8 tags from the catalog that describe what situations, communication functions and genre "
+        "the book really covers (a tag only if a meaningful part of the book is about it). "
+        "Always include exactly one or two genre tags (everyday/adventure/mystery/romance/humor/classic/nonfiction)."
+    )
+    prompt = f"Catalog:\n{catalog}\n\nBook: {book['title']} (level {book.get('level', '')}).\nChapters:\n" + "\n".join(chapters)
+    res = claude_json(prompt, system, schema, args.model, "low")
+    tags = [t for t in dict.fromkeys(res.get("tags", [])) if t in TAGS]
+    book["tags"] = tags
+    print("   Теги: " + ", ".join(tags))
+
+
 def write_book(path: Path, book: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(book, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
@@ -671,6 +732,8 @@ def main() -> None:
     src.add_argument("--topic", help="тема оригинальной истории")
     src.add_argument("--enrich", type=Path, metavar="PATH.json",
                      help="только шаг обогащения для готовой книги (файл перезаписывается на месте)")
+    src.add_argument("--tags", type=Path, metavar="PATH.json",
+                     help="только расставить теги готовой книге (файл перезаписывается на месте)")
     ap.add_argument("--title", help="название (для --source обязательно)")
     ap.add_argument("--author", default="")
     ap.add_argument("--level", default="A1", choices=list(LEVEL_GUIDE))
@@ -696,10 +759,21 @@ def main() -> None:
     if args.source and not args.title:
         ap.error("--title обязателен вместе с --source")
 
+    if args.tags:
+        book = json.loads(args.tags.read_text(encoding="utf-8"))
+        print(f"▶ Теги для «{book['title']}»…")
+        tag_book(book, args)
+        write_book(args.tags, book)
+        print(f"✅ {args.tags} обновлён")
+        if args.push:
+            push(args.tags)
+        return
+
     if args.enrich:
         book = json.loads(args.enrich.read_text(encoding="utf-8"))
         work = BOOKS_DIR / ".work" / book["id"]
         enrich_book(book, work, args)
+        tag_book(book, args)
         write_book(args.enrich, book)
         print(f"✅ {args.enrich} обновлён")
         if args.push:
@@ -791,6 +865,7 @@ def main() -> None:
     # 4. Обогащение: говорящие, разговорные фразы, вопросы, «выбери ответ»
     if not args.no_enrich:
         enrich_book(book, work, args)
+        tag_book(book, args)
         write_book(out, book)
         print(f"✅ {out} обогащён")
 

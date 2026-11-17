@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.lectura.ui.MemoryCard
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -64,8 +66,10 @@ private fun ColumnScope.AutoCheckedView(vm: ReviewViewModel, ex: Exercise) {
 @Composable
 fun SetupPanel(vm: ReviewViewModel) {
     val phrases = vm.due.count { it.isPhrase }
+    Column(Modifier.verticalScroll(rememberScrollState())) {
+    MemoryCard(vm.allWords, Modifier.padding(bottom = 12.dp))
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp)) {
+        Column(Modifier.padding(20.dp)) {
             Text("К повторению: ${vm.due.size}", style = MaterialTheme.typography.titleLarge)
             if (phrases > 0) {
                 Text(
@@ -122,8 +126,33 @@ fun SetupPanel(vm: ReviewViewModel) {
 
             Spacer(Modifier.height(20.dp))
             Button(onClick = { vm.start() }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Начать") }
+            if (vm.practiceAvailable > 0) {
+                OutlinedButton(onClick = { vm.startPractice() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                    Text("Дополнительная практика (${vm.practiceAvailable})")
+                }
+            }
         }
     }
+    }
+}
+
+/** Кнопка «ещё потренироваться» с пояснением, что расписание она не ломает. */
+@Composable
+private fun PracticeButton(vm: ReviewViewModel) {
+    if (vm.practiceAvailable == 0) return
+    Button(onClick = { vm.startPractice() }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(56.dp)) {
+        Text(
+            if (vm.practice) "Ещё практика (${vm.practiceAvailable})" else "Дополнительная практика (${vm.practiceAvailable})",
+            style = MaterialTheme.typography.titleMedium,
+        )
+    }
+    Text(
+        "Слова, которые вы скорее всего подзабыли. Верные ответы не сдвигают расписание, " +
+            "ошибка возвращает слово в обычное повторение.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 4.dp),
+    )
 }
 
 @Composable
@@ -142,11 +171,11 @@ fun FinishedView(vm: ReviewViewModel, onAgain: () -> Unit) {
     val results = vm.results
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(top = 32.dp)) {
         if (results.isEmpty()) {
-            Text("Сейчас нечего повторять", style = MaterialTheme.typography.titleLarge)
+            Text("По плану сейчас нечего повторять", style = MaterialTheme.typography.titleLarge)
         } else {
             val correct = results.count { it.correct }
             val pct = (correct * 100f / results.size).roundToInt()
-            Text("Готово! 🎉", style = MaterialTheme.typography.headlineMedium)
+            Text(if (vm.practice) "Практика окончена 💪" else "Готово! 🎉", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(12.dp))
             Text("Упражнений: ${results.size}", style = MaterialTheme.typography.titleMedium)
             Text("Верно: $correct ($pct%)", style = MaterialTheme.typography.titleMedium)
@@ -169,10 +198,12 @@ fun FinishedView(vm: ReviewViewModel, onAgain: () -> Unit) {
                 modifier = Modifier.padding(top = 16.dp),
             )
         }
+        PracticeButton(vm)
         if (results.isNotEmpty()) {
-            Button(onClick = onAgain, modifier = Modifier.fillMaxWidth().padding(top = 24.dp).height(52.dp)) {
-                Text("Проверить, есть ли ещё")
+            OutlinedButton(onClick = onAgain, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                Text("Проверить плановые повторения")
             }
         }
+        MemoryCard(vm.allWords, Modifier.padding(top = 16.dp))
     }
 }

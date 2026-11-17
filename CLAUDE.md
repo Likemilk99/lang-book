@@ -8,13 +8,13 @@ Personal Android app for learning Spanish (Spain, es-ES) by reading adapted book
 - **TTS** is the Android system engine, es-ES voice. `Sentence.audio` is reserved for pre-generated narrator audio.
 
 ## Structure
-- `pipeline/prepare_book.py`: `--topic` writes an original story, `--source` adapts a txt/epub; `--enrich book.json` only refreshes a book's markup. Levels A0–B2. Results are cached in `books/.work/`, and `--push` sends the book to the phone over adb. The enrich step adds characters, the speaker of each line (`sp`), phrases, comprehension questions and dialogue replies.
+- `pipeline/prepare_book.py`: `--topic` writes an original story, `--source` adapts a txt/epub; `--enrich book.json` only refreshes a book's markup. Levels A0–B2. Results are cached in `books/.work/`, and `--push` sends the book to the phone over adb. The enrich step adds characters, the speaker of each line (`sp`), phrases, comprehension questions and dialogue replies, and tags (`--tags book.json` re-tags only). The tag catalog is `TAGS` in the pipeline = `model/Tags.kt` in the app (3 groups; ids are never changed).
 - `android/`: Kotlin, Compose, Room, no DI. Package `app.lectura`.
   - `model/Book.kt`: book format (Book{characters} → Chapter{phrases,questions,replies} → Paragraph → Sentence{sp} → Token{t,l,ru,g}).
   - `playback/Player.kt`: single source of truth for the current position. Reads sentence by sentence and saves progress.
   - `playback/PlaybackService.kt`: foreground service with MediaSession, for listening with the screen off.
-  - `data/`: Room (words, progress, meta), `UserData.kt` (all user-data writes, version stamping, backup), `Srs.kt` (SM-2), `BookRepository` (JSON files in `Android/data/app.lectura/files/books/`).
-  - `ui/`: Library (+StatsCard: today's numbers and the day streak), Reader (tap a word → bottom sheet, «Выделить фразу», chapter phrasebook, «Ещё» menu), Vocab, Review, QuestionsScreen, ShadowingScreen (shadowing and role-play).
+  - `data/`: Room (words, progress, meta, daily_stats, chapter_activity), `UserData.kt` (all user-data writes, version stamping, backup, `markKnown`, `recordPractice`, `recordChapterActivity`), `Srs.kt` (SM-2), `Memory.kt` (recall estimate on the FSRS curve, picking words for extra practice), `BookStats.kt` (book vocabulary coverage by lemma, chapter exercises), `BookRepository` (JSON files in `Android/data/app.lectura/files/books/`).
+  - `ui/`: Library (StatsCard, level and topic filters, book progress), BookStatsScreen (per-chapter table), MemoryCard («Память словаря»), Reader (tap a word → bottom sheet, «Выделить фразу», chapter phrasebook, «Ещё» menu), Vocab, Review, QuestionsScreen, ShadowingScreen (shadowing and role-play).
   - `review/`: mixed session. `ExerciseBuilder` picks the exercise by the item's stage (ladder 0–6) and alternates types. Types: flashcards, listen-and-choose, fill-in from options, fill-in by typing, sentence building, say it aloud, dialogue reply.
   - `speech/Speech.kt`: es-ES recognition (on-device first, cloud as fallback), `SpeechMatch` (LCS over words ignoring accents), `SpeakButton`. `SpeechTts` is TTS with a wait for completion.
 - Built-in books (`assets/books/`) refresh on the phone when their hash changes (`BookRepository.installBundled`).
@@ -36,6 +36,8 @@ Personal Android app for learning Spanish (Spain, es-ES) by reading adapted book
 - Testing an upgrade: install the previous release APK on the emulator (AVD `Pixel_8_Pro`), create data, install the new one with `adb install -r`, open «Данные».
 
 ## Rules
+- Extra practice does not change the schedule when the answer is right; a wrong answer sends the word back into regular review.
+- «Знаю» = stage 3, interval 7 days. Words are matched by both form and lemma (`vocabIndex`).
 - Content focus: conversational Spanish and dialogues (`--style dialog` by default in the pipeline).
 - Spanish is Peninsular only (vosotros, Spain vocabulary). The interface and translations are in Russian.
 - Book format changes must stay backward compatible (`ignoreUnknownKeys`, new fields optional).

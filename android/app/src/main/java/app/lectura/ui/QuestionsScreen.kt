@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.lectura.LecturaApp
+import app.lectura.data.ChapterActivity
 import app.lectura.model.Chapter
 import app.lectura.model.Question
 import app.lectura.review.Bad
@@ -99,7 +100,15 @@ fun QuestionsScreen(bookId: String, chapter: Int, onBack: () -> Unit) {
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(top = 24.dp),
                 )
-                index >= questions.size -> Score(
+                index >= questions.size -> {
+                    LaunchedEffect(round) {
+                        runCatching {
+                            app.userData.recordChapterActivity(
+                                bookId, chapter, ChapterActivity.QUESTIONS, correct * 100 / questions.size,
+                            )
+                        }
+                    }
+                    Score(
                     correct = correct,
                     total = questions.size,
                     onAgain = {
@@ -109,6 +118,7 @@ fun QuestionsScreen(bookId: String, chapter: Int, onBack: () -> Unit) {
                     },
                     onBack = onBack,
                 )
+                }
                 else -> key(round, index) {
                     QuestionView(
                         q = questions[index],

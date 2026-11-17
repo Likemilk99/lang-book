@@ -68,6 +68,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.lectura.LecturaApp
+import app.lectura.data.ChapterActivity
 import app.lectura.model.Book
 import app.lectura.model.Chapter
 import app.lectura.model.Sentence
@@ -206,6 +207,26 @@ fun ShadowingScreen(bookId: String, chapter: Int, mode: String, onBack: () -> Un
     val book = vm.book
     val ch = book?.chapters?.getOrNull(chapter)
     val phrases = remember(ch) { ch?.sentences?.filter(::isSpeakable).orEmpty() }
+
+    // Глава пройдена — сохраняем результат для статистики книги.
+    if (ch != null && !role && phrases.isNotEmpty() && vm.index >= phrases.size) {
+        LaunchedEffect(Unit) {
+            val passed = vm.best.values.count { it >= MatchResult.PASS_SCORE }
+            runCatching {
+                app.userData.recordChapterActivity(bookId, chapter, ChapterActivity.SHADOW, passed * 100 / phrases.size)
+            }
+        }
+    }
+    val me = vm.character
+    if (ch != null && role && me != null && vm.pos >= ch.sentences.size) {
+        LaunchedEffect(me) {
+            val mine = ch.sentences.count { it.speaker() == me }.coerceAtLeast(1)
+            val passed = vm.roleResults.values.count { it.passed }
+            runCatching {
+                app.userData.recordChapterActivity(bookId, chapter, ChapterActivity.ROLE, passed * 100 / mine)
+            }
+        }
+    }
 
     val subtitle = when {
         ch == null -> ""

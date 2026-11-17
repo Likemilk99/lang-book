@@ -97,4 +97,14 @@ class BookFormatTest {
             }
         }
     }
+
+    @Test
+    fun tagsComeFromTheCatalog() {
+        val known = app.lectura.model.Tags.groups.flatMap { g -> g.tags.map { it.id } }.toSet()
+        java.io.File("src/main/assets/books").listFiles { f -> f.extension == "json" }!!.forEach { f ->
+            val book = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+                .decodeFromString<app.lectura.model.Book>(f.readText())
+            book.tags.forEach { t -> org.junit.Assert.assertTrue("${f.name}: unknown tag $t", t in known) }
+        }
+    }
 }

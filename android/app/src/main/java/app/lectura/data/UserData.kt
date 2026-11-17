@@ -59,7 +59,11 @@ class UserData(private val context: Context, private val db: AppDatabase) {
      */
     suspend fun recordReview(word: SavedWord, grade: Int, stageDelta: Int = 0): SavedWord {
         val upd = Srs.schedule(word, grade).let {
-            it.copy(stage = (it.stage + stageDelta).coerceIn(0, MAX_STAGE), appVersion = AppVersion.code)
+            it.copy(
+                stage = (it.stage + stageDelta).coerceIn(0, MAX_STAGE),
+                appVersion = AppVersion.code,
+                lastReviewed = System.currentTimeMillis(),
+            )
         }
         db.withTransaction {
             db.words().update(upd)
@@ -67,6 +71,78 @@ class UserData(private val context: Context, private val db: AppDatabase) {
             stamp()
         }
         return upd
+    }
+
+    /**
+     * Дополнительная практика (слово ещё не пора повторять по плану).
+     * Верно — расписание не трогаем (повтор «раньше срока» не доказывает долгую память), только отмечаем,
+     * что слово вспоминали. Ошибка — слово забыто: возвращаем его в обычное повторение (как «Снова»).
+     */
+    suspend fun recordPractice(word: SavedWord, correct: Boolean): SavedWord {
+        val now = System.currentTimeMillis()
+        val upd = if (correct) {
+            word.copy(lastReviewed = now, practiceCount = word.practiceCount + 1, appVersion = AppVersion.code)
+        } else {
+            Srs.schedule(word, Srs.AGAIN).copy(
+                stage = (word.stage - 1).coerceAtLeast(0),
+                lastReviewed = now,
+                practiceCount = word.practiceCount + 1,
+                appVersion = AppVersion.code,
+            )
+        }
+        db.withTransaction {
+            db.words().update(upd)
+            bumpStats { it.copy(practice = it.practice + 1, correct = it.correct + if (correct) 1 else 0, reviews = it.reviews + 1) }
+            stamp()
+        }
+        return upd
+    }
+
+    /** Записать в статистику дня текущее состояние памяти словаря (для графика). */
+    suspend fun snapshotMemory() = withContext(Dispatchers.IO) {
+        val words = db.words().allOnce()
+        if (words.isEmpty()) return@withContext
+        val sum = Memory.summarize(words)
+        bumpStats {
+            it.copy(
+                memoryPct = sum.nowPct,
+                strongWords = sum.byLevel[Memory.Level.STRONG] ?: 0,
+                totalWords = sum.total,
+            )
+        }
+    }
+
+    /**
+     * «Я это слово знаю»: сохраняем сразу на средней ступени — оно не считается новым,
+     * попадает в практику, а повтор по плану — через неделю.
+     */
+    suspend fun markKnown(word: SavedWord): Unit = db.withTransaction {
+        val now = System.currentTimeMillis()
+        val existing = db.words().byKey(word.key)
+        val known = (existing ?: word).copy(
+            stage = maxOf(existing?.stage ?: 0, KNOWN_STAGE),
+            intervalDays = maxOf(existing?.intervalDays ?: 0, KNOWN_INTERVAL_DAYS),
+            reps = maxOf(existing?.reps ?: 0, 2),
+            due = maxOf(existing?.due ?: 0, now + KNOWN_INTERVAL_DAYS * 24L * 60 * 60 * 1000),
+            lastReviewed = now,
+            appVersion = AppVersion.code,
+        )
+        if (existing == null) db.words().insert(known) else db.words().update(known)
+        stamp()
+    }
+
+    /** Результат упражнения главы (лучший процент сохраняется). */
+    suspend fun recordChapterActivity(bookId: String, chapter: Int, kind: String, percent: Int) = db.withTransaction {
+        val cur = db.activity().get(bookId, chapter, kind)
+        db.activity().put(
+            ChapterActivity(
+                bookId, chapter, kind,
+                best = maxOf(cur?.best ?: 0, percent.coerceIn(0, 100)),
+                count = (cur?.count ?: 0) + 1,
+                updatedAt = System.currentTimeMillis(),
+            ),
+        )
+        stamp()
     }
 
     /** Упражнение без привязки к слову (ответ в диалоге, вопрос по главе). */
@@ -112,6 +188,7 @@ class UserData(private val context: Context, private val db: AppDatabase) {
             // Здесь добавлять шаги вида: if (from < 30000) { ... }
         }
         meta.put(AppMeta(MetaKeys.LAST_LAUNCH_VERSION, AppVersion.code.toString()))
+        snapshotMemory()
     }
 
     suspend fun info(): DataInfo = withContext(Dispatchers.IO) {
@@ -148,11 +225,17 @@ class UserData(private val context: Context, private val db: AppDatabase) {
                 WordDto(
                     it.key, it.word, it.lemma, it.ru, it.grammar, it.sentence, it.sentenceRu, it.bookId,
                     it.createdAt, it.due, it.intervalDays, it.ease, it.reps, it.lapses, it.appVersion,
-                    it.kind, it.stage,
+                    it.kind, it.stage, it.lastReviewed, it.practiceCount,
                 )
             },
+            activity = db.activity().allOnce().map {
+                ActivityDto(it.bookId, it.chapter, it.kind, it.best, it.count, it.updatedAt)
+            },
             stats = db.stats().allOnce().map {
-                StatsDto(it.day, it.reviews, it.correct, it.sentencesRead, it.speaking, it.newWords)
+                StatsDto(
+                    it.day, it.reviews, it.correct, it.sentencesRead, it.speaking, it.newWords,
+                    it.practice, it.memoryPct, it.strongWords, it.totalWords,
+                )
             },
         )
         context.contentResolver.openOutputStream(uri, "wt")!!.use {
@@ -186,15 +269,26 @@ class UserData(private val context: Context, private val db: AppDatabase) {
                             sentence = w.sentence, sentenceRu = w.sentenceRu, bookId = w.bookId,
                             createdAt = w.createdAt, due = w.due, intervalDays = w.intervalDays, ease = w.ease,
                             reps = w.reps, lapses = w.lapses, appVersion = w.appVersion,
-                            kind = w.kind, stage = w.stage,
+                            kind = w.kind, stage = w.stage, lastReviewed = w.lastReviewed, practiceCount = w.practiceCount,
                         ),
                     )
                     words++
                 }
             }
+            b.activity.forEach { a ->
+                val cur = db.activity().get(a.bookId, a.chapter, a.kind)
+                if (cur == null || a.best > cur.best) {
+                    db.activity().put(ChapterActivity(a.bookId, a.chapter, a.kind, a.best, a.count, a.updatedAt))
+                }
+            }
             b.stats.forEach { st ->
                 if (db.stats().get(st.day) == null) {
-                    db.stats().put(DailyStats(st.day, st.reviews, st.correct, st.sentencesRead, st.speaking, st.newWords))
+                    db.stats().put(
+                        DailyStats(
+                            st.day, st.reviews, st.correct, st.sentencesRead, st.speaking, st.newWords,
+                            st.practice, st.memoryPct, st.strongWords, st.totalWords,
+                        ),
+                    )
                 }
             }
             stamp()
@@ -228,6 +322,7 @@ data class Backup(
     val progress: List<ProgressDto> = emptyList(),
     val words: List<WordDto> = emptyList(),
     val stats: List<StatsDto> = emptyList(),
+    val activity: List<ActivityDto> = emptyList(),
 ) {
     companion object {
         const val FORMAT = 1
@@ -262,6 +357,8 @@ data class WordDto(
     val appVersion: Int = 0,
     val kind: String = SavedWord.KIND_WORD,
     val stage: Int = 0,
+    val lastReviewed: Long = 0,
+    val practiceCount: Int = 0,
 )
 
 @Serializable
@@ -272,8 +369,24 @@ data class StatsDto(
     val sentencesRead: Int = 0,
     val speaking: Int = 0,
     val newWords: Int = 0,
+    val practice: Int = 0,
+    val memoryPct: Int = -1,
+    val strongWords: Int = 0,
+    val totalWords: Int = 0,
+)
+
+@Serializable
+data class ActivityDto(
+    val bookId: String,
+    val chapter: Int,
+    val kind: String,
+    val best: Int = 0,
+    val count: Int = 0,
+    val updatedAt: Long = 0,
 )
 
 const val MAX_STAGE = 6
+const val KNOWN_STAGE = 3
+const val KNOWN_INTERVAL_DAYS = 7
 
 fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())

@@ -13,6 +13,8 @@ data class Book(
     val source: String = "",
     /** Персонажи (для разных голосов в диалогах). */
     val characters: List<Character> = emptyList(),
+    /** Теги из фиксированного справочника (см. model/Tags.kt и pipeline TAGS). */
+    val tags: List<String> = emptyList(),
     val chapters: List<Chapter>,
 )
 

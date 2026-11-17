@@ -87,7 +87,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.lectura.LecturaApp
+import app.lectura.data.ChapterActivity
 import app.lectura.data.SavedWord
+import app.lectura.data.WordStatus
+import app.lectura.data.vocabIndex
 import app.lectura.model.Book
 import app.lectura.model.Chapter
 import app.lectura.model.PhraseItem
@@ -103,6 +106,29 @@ class ReaderViewModel(private val app: LecturaApp, val bookId: String) : ViewMod
     val error = MutableStateFlow<String?>(null)
     val savedKeys = app.db.words().keys().map { it.toSet() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    /** Статус слов по форме и по начальной форме — для подсветки (учу / знаю), в том числе из других книг. */
+    val vocab = app.db.words().all().map { vocabIndex(it) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    /** «Я это слово знаю» — сразу средний уровень. */
+    fun markKnown(sentence: Sentence, tokenIndex: Int) {
+        val tk = sentence.tokens[tokenIndex]
+        val now = System.currentTimeMillis()
+        viewModelScope.launch {
+            app.userData.markKnown(
+                SavedWord(
+                    key = tk.key, word = tk.t, lemma = tk.l ?: tk.t, ru = tk.ru.orEmpty(),
+                    grammar = tk.g.orEmpty(), sentence = sentence.text, sentenceRu = sentence.ru,
+                    bookId = bookId, createdAt = now, due = now,
+                ),
+            )
+        }
+    }
+
+    fun markChapterRead(chapter: Int) = viewModelScope.launch {
+        runCatching { app.userData.recordChapterActivity(bookId, chapter, ChapterActivity.READ, 100) }
+    }
 
     init {
         viewModelScope.launch {
@@ -171,6 +197,7 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
     val book by vm.book.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
     val saved by vm.savedKeys.collectAsStateWithLifecycle()
+    val vocab by vm.vocab.collectAsStateWithLifecycle()
     val ps by app.player.state.collectAsStateWithLifecycle()
     val fontSize by app.prefs.fontSize.collectAsStateWithLifecycle()
     val showRu by app.prefs.showRu.collectAsStateWithLifecycle()
@@ -298,7 +325,7 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
                             sentences = para,
                             current = if (ps.bookId == bookId) ps.sentence else -1,
                             selection = selection,
-                            saved = saved,
+                            vocab = vocab,
                             fontSize = fontSize,
                             onWord = { s, t -> selection = Selection(s, t) },
                         )
@@ -312,6 +339,8 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
                     }
                 }
                 item {
+                    // Дочитали до конца главы — отмечаем её прочитанной.
+                    LaunchedEffect(bookId, chapterIdx) { vm.markChapterRead(chapterIdx) }
                     ChapterEnd(
                         chapter = chapter,
                         hasNext = chapterIdx + 1 < b.chapters.size,
@@ -336,7 +365,9 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
                 sentence = sentence,
                 tokenIndex = sel.token,
                 isSaved = token.key in saved,
+                status = vocab[token.key] ?: token.l?.lowercase()?.let { vocab[it] },
                 onToggleSave = { vm.toggleSave(sentence, sel.token) },
+                onKnown = { vm.markKnown(sentence, sel.token) },
                 savedKeys = saved,
                 onSavePhrase = { es, ru -> vm.savePhrase(es, ru, sentence.text, sentence.ru) },
                 onReadFromHere = {
@@ -451,13 +482,14 @@ private fun ParagraphText(
     sentences: List<Pair<Int, Sentence>>,
     current: Int,
     selection: Selection?,
-    saved: Set<String>,
+    vocab: Map<String, WordStatus>,
     fontSize: Float,
     onWord: (Int, Int) -> Unit,
 ) {
+    val knownColor = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF81C784) else Color(0xFF2E7D32)
     val colors = MaterialTheme.colorScheme
     val onWordState by rememberUpdatedState(onWord)
-    val text = remember(sentences, current, selection, saved, colors) {
+    val text = remember(sentences, current, selection, vocab, colors) {
         buildAnnotatedString {
             sentences.forEachIndexed { k, (si, s) ->
                 if (k > 0) append(" ")
@@ -465,10 +497,15 @@ private fun ParagraphText(
                 s.tokens.forEachIndexed { ti, tk ->
                     if (s.spaces[ti]) append(" ")
                     if (tk.isWord) {
-                        val isSaved = tk.key in saved
+                        val status = vocab[tk.key] ?: tk.l?.lowercase()?.let { vocab[it] }
+                        val isSaved = status == WordStatus.LEARNING
                         val isSelected = selection?.sentence == si && selection.token == ti
                         val style = SpanStyle(
-                            color = if (isSaved) colors.primary else Color.Unspecified,
+                            color = when (status) {
+                                WordStatus.LEARNING -> colors.primary
+                                WordStatus.KNOWN -> knownColor
+                                null -> Color.Unspecified
+                            },
                             textDecoration = if (isSaved) TextDecoration.Underline else null,
                             background = if (isSelected) colors.tertiaryContainer else Color.Unspecified,
                         )
@@ -549,7 +586,9 @@ private fun WordSheet(
     sentence: Sentence,
     tokenIndex: Int,
     isSaved: Boolean,
+    status: WordStatus?,
     onToggleSave: () -> Unit,
+    onKnown: () -> Unit,
     savedKeys: Set<String>,
     onSavePhrase: (es: String, ru: String) -> Unit,
     onReadFromHere: () -> Unit,
@@ -583,10 +622,19 @@ private fun WordSheet(
                 Button(onClick = onToggleSave) {
                     Icon(if (isSaved) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder, null)
                     Spacer(Modifier.width(8.dp))
-                    Text(if (isSaved) "В словаре" else "Сохранить")
+                    Text(if (isSaved) "В словаре" else "Учить")
                 }
-                OutlinedButton(onClick = { phraseMode = !phraseMode }) { Text(if (phraseMode) "Отмена" else "Выделить фразу") }
+                FilledTonalButton(onClick = onKnown, enabled = status != WordStatus.KNOWN) {
+                    Text(if (status == WordStatus.KNOWN) "Знаю ✓" else "Знаю")
+                }
+                OutlinedButton(onClick = { phraseMode = !phraseMode }) { Text(if (phraseMode) "Отмена" else "Фраза") }
             }
+            if (status == WordStatus.KNOWN) Text(
+                "Вы знаете это слово (или его форму) — оно в практике, но не как новое.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
 
             HorizontalDivider(Modifier.padding(vertical = 16.dp))
 

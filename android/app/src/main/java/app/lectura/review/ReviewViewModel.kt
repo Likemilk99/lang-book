@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lectura.LecturaApp
 import app.lectura.data.MAX_STAGE
+import app.lectura.data.Memory
 import app.lectura.data.SavedWord
 import app.lectura.data.Srs
 import app.lectura.model.ReplyItem
@@ -36,6 +37,14 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
     var dialogsAvailable by mutableStateOf(0)
         private set
     var speechAvailable by mutableStateOf(false)
+        private set
+
+    /** Все слова и фразы словаря (для практики и «памяти словаря»). */
+    var allWords by mutableStateOf<List<SavedWord>>(emptyList())
+        private set
+
+    /** Текущая сессия — дополнительная практика (вне расписания). */
+    var practice by mutableStateOf(false)
         private set
 
     // Настройки
@@ -86,6 +95,7 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
         nextDue = words.nextDue(now)
         speechAvailable = runCatching { SpeechInput(app).isAvailable() }.getOrDefault(false)
         val items = words.allOnce()
+        allWords = items
         // Материал из книг: варианты ответов и диалоги из пройденных глав.
         pool = runCatching { loadBookMaterial(items) }
             .onFailure { Log.w("Review", "book material", it) }
@@ -119,7 +129,22 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
         Pool(items, tokens.values.toList(), replies)
     }
 
-    fun start() {
+    fun start() = begin(due, isPractice = false)
+
+    /** Сколько слов можно взять в дополнительную практику прямо сейчас. */
+    val practiceAvailable: Int
+        get() = allWords.count { it.due > System.currentTimeMillis() }.coerceAtMost(PRACTICE_SIZE)
+
+    /** Дополнительная практика: слова, которые пора бы освежить, хотя по плану ещё рано. */
+    fun startPractice() = viewModelScope.launch {
+        writeJob?.join()
+        val fresh = app.db.words().allOnce()
+        allWords = fresh
+        begin(Memory.pickForPractice(fresh, PRACTICE_SIZE), isPractice = true)
+    }
+
+    private fun begin(items: List<SavedWord>, isPractice: Boolean) {
+        practice = isPractice
         app.prefs.reviewMode = mode.key
         app.prefs.reviewDirection = direction.key
         app.prefs.reviewAutoWord = autoWord
@@ -127,7 +152,7 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
         builder = ExerciseBuilder(pool, speechAvailable, direction)
         lastType = null
         queue.clear()
-        queue.addAll(due.map { Entry.Word(it) })
+        queue.addAll(items.map { Entry.Word(it) })
         if (mode == ReviewMode.MIXED && queue.isNotEmpty()) {
             pool.replies.shuffled().take(MAX_DIALOGS).forEach { r ->
                 queue.add(Random.nextInt(1, queue.size + 1), Entry.Dialog(r))
@@ -146,6 +171,8 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
             viewModelScope.launch {
                 writeJob?.join()
                 nextDue = app.db.words().nextDue(System.currentTimeMillis())
+                allWords = app.db.words().allOnce()
+                runCatching { app.userData.snapshotMemory() }
             }
             return
         }
@@ -194,7 +221,11 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
 
     private fun record(ex: Exercise.ForWord, grade: Int, delta: Int) {
         val w = ex.word
-        write { latest[w.id] = app.userData.recordReview(latest[w.id] ?: w, grade, delta) }
+        if (practice) {
+            write { latest[w.id] = app.userData.recordPractice(latest[w.id] ?: w, correct = grade >= Srs.HARD) }
+        } else {
+            write { latest[w.id] = app.userData.recordReview(latest[w.id] ?: w, grade, delta) }
+        }
         if (grade == Srs.AGAIN) {
             // Вернётся через несколько упражнений и другим типом. Копия — как её запишет recordReview.
             val again = Srs.schedule(w, grade).copy(stage = (w.stage + delta).coerceIn(0, MAX_STAGE))
@@ -262,6 +293,7 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
 
     companion object {
         const val MAX_DIALOGS = 3
+        const val PRACTICE_SIZE = 15
         private const val REQUEUE_GAP = 3
     }
 }

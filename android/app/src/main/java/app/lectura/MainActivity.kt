@@ -23,6 +23,8 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -31,6 +33,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import app.lectura.ui.BookStatsScreen
 import app.lectura.ui.LibraryScreen
 import app.lectura.ui.QuestionsScreen
 import app.lectura.ui.ShadowingScreen
@@ -93,7 +96,26 @@ private fun AppNav() {
         },
     ) { pad ->
         NavHost(nav, startDestination = "library", modifier = Modifier.padding(pad)) {
-            composable("library") { LibraryScreen(onOpen = { nav.navigate("reader/$it") }) }
+            composable("library") {
+                LibraryScreen(onOpen = { nav.navigate("reader/$it") }, onBookStats = { nav.navigate("bookstats/$it") })
+            }
+            composable("bookstats/{id}") { e ->
+                val id = e.arguments?.getString("id").orEmpty()
+                val scope = rememberCoroutineScope()
+                BookStatsScreen(
+                    bookId = id,
+                    onBack = { nav.popBackStack() },
+                    onOpenChapter = { ch ->
+                        scope.launch {
+                            val app = LecturaApp.instance
+                            val b = app.books.load(id)
+                            app.player.open(b, ch, 0)
+                            app.player.seekChapter(ch)
+                            nav.navigate("reader/$id")
+                        }
+                    },
+                )
+            }
             composable("reader/{id}") { e ->
                 ReaderScreen(
                     bookId = e.arguments?.getString("id").orEmpty(),

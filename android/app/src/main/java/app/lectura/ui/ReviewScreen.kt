@@ -42,7 +42,12 @@ fun ReviewScreen() {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             Column {
-                TopAppBar(title = { Text(if (inSession) "Повторение · осталось ${vm.remaining}" else "Повторение") })
+                TopAppBar(
+                    title = {
+                        val name = if (vm.practice && inSession) "Практика" else "Повторение"
+                        Text(if (inSession) "$name · осталось ${vm.remaining}" else name)
+                    },
+                )
                 if (inSession) {
                     LinearProgressIndicator(progress = { vm.progress }, modifier = Modifier.fillMaxWidth().height(3.dp))
                 }

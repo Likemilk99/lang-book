@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.lectura.LecturaApp
+import app.lectura.data.Memory
 import app.lectura.data.MAX_STAGE
 import app.lectura.data.SavedWord
 import kotlinx.coroutines.launch
@@ -73,8 +74,9 @@ fun VocabScreen(onReview: () -> Unit) {
                 if (words.isEmpty()) {
                     Text("Нажмите на слово в книге и сохраните его — оно появится здесь и в повторении.")
                 } else {
-                    FilledTonalButton(onClick = onReview, enabled = due > 0, modifier = Modifier.fillMaxWidth()) {
-                        Text(if (due > 0) "Повторить сейчас: $due" else "На сегодня всё повторено")
+                    MemoryCard(words, Modifier.padding(bottom = 8.dp))
+                    FilledTonalButton(onClick = onReview, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (due > 0) "Повторить сейчас: $due" else "По плану всё повторено · потренироваться")
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         VocabFilter.entries.forEach { f ->
@@ -103,7 +105,16 @@ fun VocabScreen(onReview: () -> Unit) {
                                 }
                             }
                             Text(w.ru, style = MaterialTheme.typography.bodyLarge)
-                            StageDots(w)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                StageDots(w)
+                                Spacer(Modifier.width(8.dp))
+                                val r = (Memory.recall(w, now) * 100).toInt()
+                                Text(
+                                    "память $r%",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (r < 70) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                             Text(
                                 w.sentence,
                                 style = MaterialTheme.typography.bodySmall,

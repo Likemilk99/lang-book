@@ -18,6 +18,7 @@ data class BookInfo(
     val level: String,
     val chapters: Int,
     val file: File,
+    val tags: List<String> = emptyList(),
 )
 
 /**
@@ -38,7 +39,7 @@ class BookRepository(private val context: Context, private val prefs: Prefs) {
         _books.value = dir.listFiles { f -> f.extension == "json" }.orEmpty()
             .mapNotNull { f ->
                 runCatching { parse(f) }.getOrNull()?.let {
-                    BookInfo(it.id, it.title, it.author, it.level, it.chapters.size, f)
+                    BookInfo(it.id, it.title, it.author, it.level, it.chapters.size, f, it.tags)
                 }
             }
             .sortedBy { it.title.lowercase() }
