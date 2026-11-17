@@ -8,21 +8,35 @@ import android.util.Log
 import androidx.room.Room
 import app.lectura.data.AppDatabase
 import app.lectura.data.BookRepository
+import app.lectura.data.MIGRATIONS
 import app.lectura.data.Prefs
+import app.lectura.data.UserData
 import app.lectura.playback.PlaybackService
 import app.lectura.playback.Player
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class LecturaApp : Application() {
     lateinit var prefs: Prefs
     lateinit var db: AppDatabase
     lateinit var books: BookRepository
+    lateinit var userData: UserData
     lateinit var player: Player
 
     override fun onCreate() {
         super.onCreate()
         instance = this
         prefs = Prefs(this)
-        db = Room.databaseBuilder(this, AppDatabase::class.java, "lectura.db").build()
+        // Никакого fallbackToDestructiveMigration: при отсутствии миграции лучше упасть, чем стереть прогресс.
+        db = Room.databaseBuilder(this, AppDatabase::class.java, "lectura.db")
+            .addMigrations(*MIGRATIONS)
+            .build()
+        userData = UserData(this, db)
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            runCatching { userData.onAppStart() }.onFailure { Log.e("LecturaApp", "data upgrade failed", it) }
+        }
         books = BookRepository(this, prefs)
         player = Player(this)
         getSystemService(NotificationManager::class.java).createNotificationChannel(

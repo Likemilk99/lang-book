@@ -13,7 +13,7 @@ Personal Android app for learning Spanish (Spain, es-ES) by reading adapted book
   - `model/Book.kt`: book format (Book → Chapter → Paragraph → Sentence → Token{t,l,ru,g}).
   - `playback/Player.kt`: single source of truth for the current position. Reads sentence by sentence and saves progress.
   - `playback/PlaybackService.kt`: foreground service with MediaSession, for listening with the screen off.
-  - `data/`: Room (words + progress), `Srs.kt` (SM-2), `BookRepository` (JSON files in `Android/data/app.lectura/files/books/`).
+  - `data/`: Room (words, progress, meta), `UserData.kt` (all user-data writes, version stamping, backup), `Srs.kt` (SM-2), `BookRepository` (JSON files in `Android/data/app.lectura/files/books/`).
   - `ui/`: Library, Reader (tap a word → bottom sheet), Vocab, Review.
 - Sample book: `android/app/src/main/assets/books/madrid.json`.
 
@@ -24,7 +24,16 @@ Personal Android app for learning Spanish (Spain, es-ES) by reading adapted book
 - Latest version: https://github.com/Likemilk99/lang-book/releases/latest/download/lectura.apk
 - Signing key: `~/.android/lectura-release.jks` + `.properties`, plus the `LECTURA_*` secrets on GitHub. **Never regenerate it**: a new key breaks updating the app on the phone.
 
+## User data (must survive updates)
+- Write user data **only through `UserData`**: it stamps `appVersion` on the record and updates `meta.lastSaveVersion/lastSaveAt`.
+- Room schema change → bump `version` + add an `AutoMigration`/`Migration`; new columns get a `defaultValue`. Never use `fallbackToDestructiveMigration`.
+- `android/app/schemas/*.json` is committed; CI fails if the schema doesn't match.
+- Data steps between app versions go in `UserData.onAppStart()` (`if (from < X)`).
+- Backup format (`Backup`, `FORMAT`): new fields only with defaults; an incompatible change means `FORMAT + 1`.
+- Testing an upgrade: install the previous release APK on the emulator (AVD `Pixel_8_Pro`), create data, install the new one with `adb install -r`, open «Данные».
+
 ## Rules
+- Content focus: conversational Spanish and dialogues (`--style dialog` by default in the pipeline).
 - Spanish is Peninsular only (vosotros, Spain vocabulary). The interface and translations are in Russian.
 - Book format changes must stay backward compatible (`ignoreUnknownKeys`, new fields optional).
 - The project's ancestor is Eppika (reading adapted books). Features are prioritised for personal use.

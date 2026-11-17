@@ -113,7 +113,7 @@ class ReaderViewModel(private val app: LecturaApp, val bookId: String) : ViewMod
                 app.db.words().deleteKey(tk.key)
             } else {
                 val now = System.currentTimeMillis()
-                app.db.words().insert(
+                app.userData.addWord(
                     SavedWord(
                         key = tk.key, word = tk.t, lemma = tk.l ?: tk.t, ru = tk.ru.orEmpty(),
                         grammar = tk.g.orEmpty(), sentence = sentence.text, sentenceRu = sentence.ru,

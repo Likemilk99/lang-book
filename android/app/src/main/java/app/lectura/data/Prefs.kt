@@ -23,6 +23,18 @@ class Prefs(context: Context) {
         sp.edit().putBoolean("showRu", v).apply()
     }
 
+    // Настройки тренировки
+    var reviewAutoWord: Boolean
+        get() = sp.getBoolean("reviewAutoWord", true)
+        set(v) = sp.edit().putBoolean("reviewAutoWord", v).apply()
+    var reviewAutoExample: Boolean
+        get() = sp.getBoolean("reviewAutoExample", false)
+        set(v) = sp.edit().putBoolean("reviewAutoExample", v).apply()
+    /** "es_ru" — испанское слово спереди, "ru_es" — русское спереди, "mixed" — вперемешку. */
+    var reviewDirection: String
+        get() = sp.getString("reviewDirection", "es_ru") ?: "es_ru"
+        set(v) = sp.edit().putString("reviewDirection", v).apply()
+
     var rate: Float
         get() = sp.getFloat("rate", 0.8f)
         set(v) = sp.edit().putFloat("rate", v).apply()

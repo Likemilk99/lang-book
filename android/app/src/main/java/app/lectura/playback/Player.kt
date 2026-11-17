@@ -8,7 +8,6 @@ import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import android.util.Log
 import app.lectura.LecturaApp
-import app.lectura.data.Progress
 import app.lectura.model.Book
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -187,6 +186,24 @@ class Player(private val app: LecturaApp) {
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "once")
     }
 
+    /** Произнести по очереди несколько фраз (например, слово и пример). Прерывает текущую речь. */
+    fun speakSequence(texts: List<String>) {
+        val items = texts.filter { it.isNotBlank() }
+        if (items.isEmpty()) return
+        if (_state.value.playing) pause()
+        generation++
+        tts.setSpeechRate(_state.value.rate)
+        items.forEachIndexed { i, t ->
+            tts.speak(t, if (i == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, "once$i")
+        }
+    }
+
+    /** Замолчать (если не идёт чтение книги — его не трогаем). */
+    fun stopSpeech() {
+        if (_state.value.playing) return
+        stopSpeaking()
+    }
+
     private fun speakCurrent() {
         val text = currentText
         if (text.isBlank()) {
@@ -224,7 +241,7 @@ class Player(private val app: LecturaApp) {
         val id = s.bookId ?: return
         io.launch {
             runCatching {
-                app.db.progress().put(Progress(id, s.chapter, s.sentence, System.currentTimeMillis()))
+                app.userData.saveProgress(id, s.chapter, s.sentence)
             }.onFailure { Log.w("Player", "progress", it) }
         }
     }

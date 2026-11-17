@@ -59,6 +59,17 @@ LEVEL_GUIDE = {
     ),
 }
 
+CONVERSATIONAL = (
+    "FOCUS ON SPOKEN, CONVERSATIONAL SPANISH: tell the story mostly through dialogue "
+    "(at least half of the sentences should be lines of dialogue). Show how people really "
+    "ask for things, ask questions and answer them, greet, apologise, agree/disagree, make plans, "
+    "order in a bar, buy things, ask for directions, talk about feelings and opinions. "
+    "Use natural high-frequency conversational chunks (¿Qué tal?, ¿Me pones…?, ¿Te apetece…?, "
+    "Vale, Venga, ¿En serio?, Me encanta, ¿Cuánto cuesta?, ¿Puedes…?) and repeat useful patterns "
+    "several times in slightly different forms. Format dialogue Spanish-style: each line starts with "
+    "an em dash (—), e.g. —¿Qué quieres? —pregunta Ana. Put each speaker's line in its own paragraph."
+)
+
 SPAIN_RULES = (
     "Use Peninsular (Spain) Spanish: vosotros forms, Spain vocabulary "
     "(coche, ordenador, móvil, zumo, patata, coger), Spain spelling conventions."
@@ -264,6 +275,7 @@ def adapt_chunk(chunk: str, idx: int, total: int, level: str, title: str, args) 
     system = (
         "You turn literature into graded Spanish readers for a native Russian speaker. "
         f"Target level: {level}. {LEVEL_GUIDE[level]} {SPAIN_RULES} "
+        f"{CONVERSATIONAL if args.style == 'dialog' else ''} "
         "Retell the given passage at this level: keep the plot, characters, names, key details and mood; "
         "drop digressions that are too complex. If the source is not Spanish, write the retelling in Spanish. "
         "Split the result into short paragraphs and each paragraph into sentences. "
@@ -280,6 +292,7 @@ def generate_story(topic: str, level: str, args) -> dict:
     system = (
         "You write original graded Spanish readers for a native Russian speaker. "
         f"Target level: {level}. {LEVEL_GUIDE[level]} {SPAIN_RULES} "
+        f"{CONVERSATIONAL if args.style == 'dialog' else ''} "
         "Write an engaging story with a clear plot, likeable characters, dialogue and a satisfying ending. "
         "Each chapter has short paragraphs; each paragraph is a list of sentences."
     )
@@ -324,6 +337,8 @@ def main() -> None:
     ap.add_argument("--author", default="")
     ap.add_argument("--level", default="A1", choices=list(LEVEL_GUIDE))
     ap.add_argument("--id", help="идентификатор книги (по умолчанию из названия)")
+    ap.add_argument("--style", default="dialog", choices=["dialog", "narrative"],
+                    help="dialog = упор на разговорные диалоги (по умолчанию), narrative = обычный пересказ")
     ap.add_argument("--model", default="sonnet", help="модель claude (sonnet / opus / haiku)")
     ap.add_argument("--effort", default="medium", help="effort для адаптации")
     ap.add_argument("--annotate-effort", default="low", help="effort для разметки слов")

@@ -73,6 +73,17 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/lectura-${{ steps.v.outputs.version }}.apk"
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/lectura.apk"
 
+      - name: Check Room schemas are committed
+        if: steps.v.outputs.exists == 'false'
+        run: |
+          # Сборка заново генерирует android/app/schemas/*. Если файл изменился или появился —
+          # значит схему БД поменяли без нового номера версии/миграции или забыли закоммитить.
+          if [ -n "$(git status --porcelain android/app/schemas)" ]; then
+            echo "::error::Room schema is not committed or changed without a DB version bump + migration. User progress could be lost."
+            git status --porcelain android/app/schemas
+            exit 1
+          fi
+
       - name: Publish GitHub Release
         if: steps.v.outputs.exists == 'false'
         env:

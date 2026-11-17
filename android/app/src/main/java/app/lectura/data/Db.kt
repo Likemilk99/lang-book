@@ -1,5 +1,7 @@
 package app.lectura.data
 
+import androidx.room.AutoMigration
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Delete
@@ -33,6 +35,8 @@ data class SavedWord(
     val ease: Double = 2.5,
     val reps: Int = 0,
     val lapses: Int = 0,
+    /** versionCode приложения, в котором запись последний раз сохранялась (0 = до версии 0.2.0). */
+    @ColumnInfo(defaultValue = "0") val appVersion: Int = 0,
 )
 
 @Entity(tableName = "progress")
@@ -41,6 +45,14 @@ data class Progress(
     val chapter: Int,
     val sentence: Int,
     val updatedAt: Long,
+    @ColumnInfo(defaultValue = "0") val appVersion: Int = 0,
+)
+
+/** Служебные пары ключ-значение: версии приложения, время последнего сохранения и т.п. */
+@Entity(tableName = "meta")
+data class AppMeta(
+    @PrimaryKey val key: String,
+    val value: String,
 )
 
 @Dao
@@ -50,6 +62,15 @@ interface WordDao {
 
     @Query("SELECT key FROM words")
     fun keys(): Flow<List<String>>
+
+    @Query("SELECT * FROM words")
+    suspend fun allOnce(): List<SavedWord>
+
+    @Query("SELECT * FROM words WHERE `key` = :key")
+    suspend fun byKey(key: String): SavedWord?
+
+    @Query("SELECT COUNT(*) FROM words")
+    suspend fun count(): Int
 
     @Query("SELECT * FROM words WHERE due <= :now ORDER BY due LIMIT 200")
     suspend fun due(now: Long): List<SavedWord>
@@ -66,7 +87,7 @@ interface WordDao {
     @Update
     suspend fun update(word: SavedWord)
 
-    @Query("DELETE FROM words WHERE key = :key")
+    @Query("DELETE FROM words WHERE `key` = :key")
     suspend fun deleteKey(key: String)
 
     @Delete
@@ -81,6 +102,9 @@ interface ProgressDao {
     @Query("SELECT * FROM progress")
     fun all(): Flow<List<Progress>>
 
+    @Query("SELECT * FROM progress")
+    suspend fun allOnce(): List<Progress>
+
     @Upsert
     suspend fun put(progress: Progress)
 
@@ -88,8 +112,39 @@ interface ProgressDao {
     suspend fun delete(bookId: String)
 }
 
-@Database(entities = [SavedWord::class, Progress::class], version = 1, exportSchema = false)
+@Dao
+interface MetaDao {
+    @Query("SELECT value FROM meta WHERE `key` = :key")
+    suspend fun get(key: String): String?
+
+    @Query("SELECT * FROM meta")
+    fun all(): Flow<List<AppMeta>>
+
+    @Upsert
+    suspend fun put(vararg items: AppMeta)
+}
+
+/**
+ * ПРАВИЛА ИЗМЕНЕНИЯ СХЕМЫ (данные пользователя должны переживать обновления):
+ *  1. Любое изменение сущностей => version + 1 и новая запись в autoMigrations
+ *     (или ручная Migration в [MIGRATIONS]). Только добавлять — не удалять и не переименовывать
+ *     колонки без явной миграции. Новые колонки — с defaultValue.
+ *  2. Файл схемы app/schemas/.../<version>.json коммитится; CI падает, если он не закоммичен.
+ *  3. fallbackToDestructiveMigration НЕ использовать никогда.
+ */
+@Database(
+    entities = [SavedWord::class, Progress::class, AppMeta::class],
+    version = 2,
+    exportSchema = true,
+    autoMigrations = [
+        AutoMigration(from = 1, to = 2),
+    ],
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun words(): WordDao
     abstract fun progress(): ProgressDao
+    abstract fun meta(): MetaDao
 }
+
+/** Ручные миграции (для изменений, которые AutoMigration не умеет). */
+val MIGRATIONS = arrayOf<androidx.room.migration.Migration>()

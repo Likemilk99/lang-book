@@ -62,7 +62,14 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
+}
+
+// Схемы Room коммитятся в репозиторий: по ним проверяются миграции БД между версиями приложения.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+    arg("room.generateKotlin", "true")
 }
 
 kotlin {

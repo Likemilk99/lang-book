@@ -18,11 +18,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -56,6 +58,7 @@ fun LibraryScreen(onOpen: (String) -> Unit) {
     val books by app.books.books.collectAsStateWithLifecycle()
     val progress by app.db.progress().all().collectAsState(initial = emptyList())
     var toDelete by remember { mutableStateOf<BookInfo?>(null) }
+    var showData by remember { mutableStateOf(false) }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { scope.launch { app.books.refresh() } }
 
@@ -69,7 +72,14 @@ fun LibraryScreen(onOpen: (String) -> Unit) {
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { TopAppBar(title = { Text("Книги") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Книги") },
+                actions = {
+                    IconButton(onClick = { showData = true }) { Icon(Icons.Filled.Storage, "Данные и резервная копия") }
+                },
+            )
+        },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { importer.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) },
@@ -123,6 +133,8 @@ fun LibraryScreen(onOpen: (String) -> Unit) {
             }
         }
     }
+
+    if (showData) DataDialog(onDismiss = { showData = false })
 
     toDelete?.let { b ->
         AlertDialog(
