@@ -1,0 +1,86 @@
+# Собирает подписанный APK и публикует GitHub Release, когда в main меняется
+# версия в android/version.properties (тег v<версия> ещё не существует).
+name: Release APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(grep -E '^version=' android/version.properties | cut -d= -f2 | tr -d '[:space:]')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Release v$VERSION already exists — nothing to do. Bump android/version.properties to publish."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK
+        if: steps.v.outputs.exists == 'false'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        if: steps.v.outputs.exists == 'false'
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode signing key
+        if: steps.v.outputs.exists == 'false'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.LECTURA_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Secret LECTURA_KEYSTORE_BASE64 is missing — APK would not install as an update."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "LECTURA_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      - name: Build release APK
+        if: steps.v.outputs.exists == 'false'
+        working-directory: android
+        env:
+          LECTURA_KEYSTORE_PASSWORD: ${{ secrets.LECTURA_KEYSTORE_PASSWORD }}
+          LECTURA_KEY_ALIAS: ${{ secrets.LECTURA_KEY_ALIAS }}
+          LECTURA_KEY_PASSWORD: ${{ secrets.LECTURA_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --console=plain
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/lectura-${{ steps.v.outputs.version }}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/lectura.apk"
+
+      - name: Publish GitHub Release
+        if: steps.v.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.v.outputs.version }}" \
+            "$RUNNER_TEMP/lectura-${{ steps.v.outputs.version }}.apk" \
+            "$RUNNER_TEMP/lectura.apk" \
+            --target "$GITHUB_SHA" \
+            --title "Lectura ${{ steps.v.outputs.version }}" \
+            --generate-notes

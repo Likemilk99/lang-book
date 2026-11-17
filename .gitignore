@@ -1,0 +1,6 @@
+.DS_Store
+books/.work/
+*.jks
+*.keystore
+keystore.properties
+__pycache__/
