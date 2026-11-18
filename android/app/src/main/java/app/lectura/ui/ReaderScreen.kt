@@ -88,6 +88,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.lectura.LecturaApp
 import app.lectura.data.ChapterActivity
+import app.lectura.data.ExpressionIndex
+import app.lectura.data.ExpressionMatch
 import app.lectura.data.SavedWord
 import app.lectura.data.WordStatus
 import app.lectura.data.vocabIndex
@@ -111,6 +113,9 @@ class ReaderViewModel(private val app: LecturaApp, val bookId: String) : ViewMod
     /** Статус слов по форме и по начальной форме — для подсветки (учу / знаю), в том числе из других книг. */
     val vocab = app.db.words().all().map { vocabIndex(it) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    /** Устойчивые выражения из словаря учебной программы («otra vez», «darse cuenta»…). */
+    val expressions = MutableStateFlow(ExpressionIndex(emptyList()))
 
     /** «Я это слово знаю» — сразу средний уровень. */
     fun markKnown(sentence: Sentence, tokenIndex: Int) {
@@ -145,6 +150,9 @@ class ReaderViewModel(private val app: LecturaApp, val bookId: String) : ViewMod
 
     init {
         viewModelScope.launch {
+            runCatching { expressions.value = ExpressionIndex.from(app.curriculum.vocab()) }
+        }
+        viewModelScope.launch {
             runCatching {
                 val b = app.books.load(bookId)
                 val p = app.db.progress().get(bookId)
@@ -155,19 +163,37 @@ class ReaderViewModel(private val app: LecturaApp, val bookId: String) : ViewMod
     }
 
     /** Сохранить фразу (несколько слов) как отдельную карточку. */
-    fun savePhrase(es: String, ru: String, sentence: String, sentenceRu: String) {
+    fun savePhrase(
+        es: String,
+        ru: String,
+        sentence: String,
+        sentenceRu: String,
+        known: Boolean = false,
+        lemma: String = es,
+        grammar: String = "фраза",
+    ) {
         val key = es.lowercase().trim()
-        if (key.isBlank() || key in savedKeys.value) return
+        if (key.isBlank() || (!known && key in savedKeys.value)) return
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            app.userData.addWord(
-                SavedWord(
-                    key = key, word = es.trim(), lemma = es.trim(), ru = ru.trim(), grammar = "фраза",
-                    sentence = sentence, sentenceRu = sentenceRu, bookId = bookId, createdAt = now, due = now,
-                    kind = SavedWord.KIND_PHRASE,
-                ),
+            val w = SavedWord(
+                key = key, word = es.trim(), lemma = lemma.trim(), ru = ru.trim(), grammar = grammar,
+                sentence = sentence, sentenceRu = sentenceRu, bookId = bookId, createdAt = now, due = now,
+                kind = SavedWord.KIND_PHRASE,
             )
+            if (known) app.userData.markKnown(w) else app.userData.addWord(w)
         }
+    }
+
+    /** Выражение из словаря: в карточку — как в тексте (если совпадает со словарной формой), иначе словарная форма. */
+    fun saveExpression(sentence: Sentence, m: ExpressionMatch, known: Boolean) {
+        val surface = phraseText(sentence, m.range)
+        val same = ExpressionIndex.fold(surface) == ExpressionIndex.fold(m.expr.es)
+        val word = if (same) surface.replaceFirstChar { it.lowercase() } else m.expr.es
+        savePhrase(
+            word, m.expr.ru, sentence.text, sentence.ru, known = known, lemma = m.expr.es,
+            grammar = if (same) "выражение" else "выражение · в тексте: $surface",
+        )
     }
 
     fun removeKey(key: String) = viewModelScope.launch { app.db.words().deleteKey(key) }
@@ -215,6 +241,7 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
     val fontSize by app.prefs.fontSize.collectAsStateWithLifecycle()
     val showRu by app.prefs.showRu.collectAsStateWithLifecycle()
     var selection by remember { mutableStateOf<Selection?>(null) }
+    val expressions by vm.expressions.collectAsStateWithLifecycle()
     var chaptersMenu by remember { mutableStateOf(false) }
     var moreMenu by remember { mutableStateOf(false) }
     var showPhrases by remember { mutableStateOf(false) }
@@ -224,6 +251,12 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
     val b = book
     val chapterIdx = if (ps.bookId == bookId) ps.chapter else 0
     val chapter = b?.chapters?.getOrNull(chapterIdx)
+    // Выражение, в которое входит выбранное слово («otra vez»): подсвечиваем его целиком.
+    val selectedExpression: ExpressionMatch? = remember(selection, chapter, expressions) {
+        val sel = selection ?: return@remember null
+        val sent = chapter?.sentences?.getOrNull(sel.sentence) ?: return@remember null
+        expressions.find(sent).firstOrNull { sel.token in it.range }
+    }
 
     // Абзацы главы вместе с «глобальными» номерами предложений внутри главы.
     val paragraphs = remember(chapter) {
@@ -345,6 +378,7 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
                             sentences = para,
                             current = if (ps.bookId == bookId) ps.sentence else -1,
                             selection = selection,
+                            highlight = selectedExpression?.range,
                             vocab = vocab,
                             fontSize = fontSize,
                             onWord = { s, t -> selection = Selection(s, t) },
@@ -396,6 +430,9 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
                 onKnown = { vm.markKnown(sentence, sel.token) },
                 savedKeys = saved,
                 onSavePhrase = { es, ru -> vm.savePhrase(es, ru, sentence.text, sentence.ru) },
+                expression = selectedExpression,
+                expressions = expressions,
+                onSaveExpression = { m, known -> vm.saveExpression(sentence, m, known) },
                 onReadFromHere = {
                     selection = null
                     app.player.seek(sel.sentence)
@@ -530,6 +567,7 @@ private fun ParagraphText(
     sentences: List<Pair<Int, Sentence>>,
     current: Int,
     selection: Selection?,
+    highlight: IntRange?,
     vocab: Map<String, WordStatus>,
     fontSize: Float,
     onWord: (Int, Int) -> Unit,
@@ -537,7 +575,7 @@ private fun ParagraphText(
     val knownColor = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF81C784) else Color(0xFF2E7D32)
     val colors = MaterialTheme.colorScheme
     val onWordState by rememberUpdatedState(onWord)
-    val text = remember(sentences, current, selection, vocab, colors) {
+    val text = remember(sentences, current, selection, highlight, vocab, colors) {
         buildAnnotatedString {
             sentences.forEachIndexed { k, (si, s) ->
                 if (k > 0) append(" ")
@@ -547,7 +585,7 @@ private fun ParagraphText(
                     if (tk.isWord) {
                         val status = vocab[tk.key] ?: tk.l?.lowercase()?.let { vocab[it] }
                         val isSaved = status == WordStatus.LEARNING
-                        val isSelected = selection?.sentence == si && selection.token == ti
+                        val isSelected = selection?.sentence == si && (selection.token == ti || (highlight != null && ti in highlight))
                         val style = SpanStyle(
                             color = when (status) {
                                 WordStatus.LEARNING -> colors.primary
@@ -639,6 +677,9 @@ private fun WordSheet(
     onKnown: () -> Unit,
     savedKeys: Set<String>,
     onSavePhrase: (es: String, ru: String) -> Unit,
+    expression: ExpressionMatch?,
+    expressions: ExpressionIndex,
+    onSaveExpression: (ExpressionMatch, Boolean) -> Unit,
     onReadFromHere: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -646,10 +687,15 @@ private fun WordSheet(
     val tk = sentence.tokens[tokenIndex]
     var showSentenceRu by remember(sentence) { mutableStateOf(false) }
     var phraseMode by remember(sentence, tokenIndex) { mutableStateOf(false) }
-    LaunchedEffect(tk) { player.speakOnce(tk.t) }
+    LaunchedEffect(tk) { if (expression == null) player.speakOnce(tk.t) } // иначе произнесётся выражение целиком
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
+            if (expression != null && !phraseMode) {
+                ExpressionCard(sentence, expression, savedKeys, onSaveExpression)
+                Spacer(Modifier.height(16.dp))
+                Text("Слово отдельно", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(tk.t, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
                 IconButton(onClick = { player.speakOnce(tk.t) }) { Icon(Icons.AutoMirrored.Filled.VolumeUp, "Произнести") }
@@ -687,7 +733,9 @@ private fun WordSheet(
                 FilledTonalButton(onClick = onKnown, enabled = status != WordStatus.KNOWN) {
                     Text(if (status == WordStatus.KNOWN) "Знаю ✓" else "Знаю")
                 }
-                OutlinedButton(onClick = { phraseMode = !phraseMode }) { Text(if (phraseMode) "Отмена" else "Фраза") }
+            }
+            OutlinedButton(onClick = { phraseMode = !phraseMode }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                Text(if (phraseMode) "Отмена" else "Выделить несколько слов (фразу)")
             }
             if (status == WordStatus.KNOWN) Text(
                 "Вы знаете это слово (или его форму) — оно в практике, но не как новое.",
@@ -699,7 +747,7 @@ private fun WordSheet(
             HorizontalDivider(Modifier.padding(vertical = 16.dp))
 
             if (phraseMode) {
-                PhraseSelector(sentence, tokenIndex, savedKeys) { es, ru ->
+                PhraseSelector(sentence, tokenIndex, expression?.range, expressions, savedKeys) { es, ru ->
                     onSavePhrase(es, ru)
                     phraseMode = false
                 }
@@ -710,7 +758,8 @@ private fun WordSheet(
                 buildAnnotatedString {
                     sentence.tokens.forEachIndexed { i, t ->
                         if (sentence.spaces[i]) append(" ")
-                        if (i == tokenIndex) withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(t.t) } else append(t.t)
+                        val bold = i == tokenIndex || (expression != null && i in expression.range)
+                        if (bold) withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(t.t) } else append(t.t)
                     }
                 },
                 style = MaterialTheme.typography.bodyLarge,
@@ -741,22 +790,28 @@ private fun WordSheet(
 /** Выбор диапазона слов в предложении: тап — начало, второй тап — конец. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PhraseSelector(sentence: Sentence, initial: Int, savedKeys: Set<String>, onSave: (String, String) -> Unit) {
+private fun PhraseSelector(
+    sentence: Sentence,
+    initial: Int,
+    initialRange: IntRange?,
+    expressions: ExpressionIndex,
+    savedKeys: Set<String>,
+    onSave: (String, String) -> Unit,
+) {
     val player = LecturaApp.instance.player
-    var start by remember { mutableStateOf(initial) }
-    var end by remember { mutableStateOf(initial) }
-    var picking by remember { mutableStateOf(true) } // следующий тап задаёт конец
+    var start by remember { mutableStateOf(initialRange?.first ?: initial) }
+    var end by remember { mutableStateOf(initialRange?.last ?: initial) }
+    var picking by remember { mutableStateOf(initialRange == null) } // следующий тап задаёт конец
     val range = minOf(start, end)..maxOf(start, end)
-    val es = buildString {
-        for (i in range) {
-            if (i != range.first && sentence.spaces[i]) append(' ')
-            append(sentence.tokens[i].t)
-        }
-    }.trim().trimEnd(',', ';', ':')
-    val autoRu = range.mapNotNull { sentence.tokens[it].ru?.takeIf { r -> r.isNotBlank() } }.joinToString(" ")
-    var ru by remember(range) { mutableStateOf(autoRu) }
+    val es = phraseText(sentence, range)
+    // Перевод: из словаря выражений, если фрагмент — известное выражение; иначе пословно (нужно проверить).
+    val dict = remember(sentence, range, expressions) {
+        expressions.lookup(es) ?: expressions.find(sentence).firstOrNull { it.range == range }?.expr
+    }
+    val autoRu = dict?.ru ?: range.mapNotNull { sentence.tokens[it].ru?.takeIf { r -> r.isNotBlank() } }.joinToString(" ")
+    var ru by remember(range, dict) { mutableStateOf(autoRu) }
 
-    Text("Нажмите на первое и последнее слово фразы", style = MaterialTheme.typography.labelLarge)
+    Text("Нажмите на первое, затем на последнее слово фразы", style = MaterialTheme.typography.labelLarge)
     Spacer(Modifier.height(8.dp))
     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         sentence.tokens.forEachIndexed { i, t ->
@@ -790,7 +845,7 @@ private fun PhraseSelector(sentence: Sentence, initial: Int, savedKeys: Set<Stri
     OutlinedTextField(
         value = ru,
         onValueChange = { ru = it },
-        label = { Text("Перевод (можно поправить)") },
+        label = { Text(if (dict != null) "Перевод из словаря (можно поправить)" else "Пословный перевод — проверьте и поправьте") },
         modifier = Modifier.fillMaxWidth(),
     )
     Text(
@@ -860,6 +915,48 @@ private fun GlossarySheet(
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+/** Текст фрагмента предложения (токены [range]) с правильными пробелами, без запятой в конце. */
+internal fun phraseText(sentence: Sentence, range: IntRange): String = buildString {
+    for (i in range) {
+        if (i != range.first && sentence.spaces[i]) append(' ')
+        append(sentence.tokens[i].t)
+    }
+}.trim().trimEnd(',', ';', ':')
+
+/** Карточка устойчивого выражения, в которое входит слово: перевод целиком, «Учить» / «Знаю». */
+@Composable
+private fun ExpressionCard(
+    sentence: Sentence,
+    m: ExpressionMatch,
+    savedKeys: Set<String>,
+    onSave: (ExpressionMatch, Boolean) -> Unit,
+) {
+    val player = LecturaApp.instance.player
+    val surface = phraseText(sentence, m.range)
+    val differs = ExpressionIndex.fold(surface) != ExpressionIndex.fold(m.expr.es)
+    val saved = surface.lowercase() in savedKeys || m.expr.es.lowercase() in savedKeys
+    LaunchedEffect(m) { player.speakOnce(surface) }
+    Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Text("Выражение · ${m.expr.level}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onTertiaryContainer)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(surface, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f, fill = false))
+                IconButton(onClick = { player.speakOnce(surface) }) { Icon(Icons.AutoMirrored.Filled.VolumeUp, "Произнести") }
+            }
+            if (differs) Text("словарная форма: ${m.expr.es}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onTertiaryContainer)
+            Text(m.expr.ru, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 4.dp))
+            if (saved) {
+                Text("✓ Выражение в словаре", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
+            } else {
+                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { onSave(m, false) }) { Text("Учить выражение") }
+                    FilledTonalButton(onClick = { onSave(m, true) }) { Text("Знаю") }
                 }
             }
         }

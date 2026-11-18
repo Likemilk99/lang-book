@@ -41,6 +41,7 @@ Personal Android app for learning Spanish (Spain, es-ES) by reading adapted book
 
 ## Rules
 - Typed and spoken answers are compared ignoring case and punctuation; digits equal words («3» = «tres», «1» = uno/un/una; `TextMatch`, `SpanishNumbers`). A wrong answer is shown word by word.
+- Multi-word expressions (~1000 from the curriculum vocab) are recognised in the reader (`data/Expressions.kt`, `ExpressionIndex`): tapping a word shows the whole expression with its translation; verb + preposition counts only before an infinitive; accents matter.
 - Spanish is read aloud wherever possible: an exercise sentence is spoken on appearance with a pause at the gap (`Player.speakWithPauses`), and the right answer after the reply.
 - Extra practice does not change the schedule when the answer is right; a wrong answer sends the word back into regular review.
 - «Знаю» = stage 3, interval 7 days. Words are matched by both form and lemma (`vocabIndex`).
