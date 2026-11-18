@@ -234,7 +234,8 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
     fun paragraphOf(sentence: Int) = paragraphs.indexOfFirst { p -> p.any { it.first == sentence } }.coerceAtLeast(0)
 
     LaunchedEffect(chapter) {
-        if (chapter != null) listState.scrollToItem(paragraphOf(ps.sentence) + 1)
+        // С начала главы — показываем заголовок (и словарик); иначе — абзац, где остановились.
+        if (chapter != null) listState.scrollToItem(if (ps.sentence == 0) 0 else paragraphOf(ps.sentence) + 1)
     }
     LaunchedEffect(ps.sentence, ps.playing) {
         if (!ps.playing || chapter == null) return@LaunchedEffect

@@ -17,6 +17,10 @@ Personal Android app for learning Spanish (Spain, es-ES) by reading adapted book
   - `ui/`: Library (StatsCard, level and topic filters, book progress), BookStatsScreen (per-chapter table), MemoryCard («Память словаря»), Reader (tap a word → bottom sheet, «Выделить фразу», chapter phrasebook, «Ещё» menu), Vocab, Review, QuestionsScreen, ShadowingScreen (shadowing and role-play).
   - `review/`: mixed session. `ExerciseBuilder` picks the exercise by the item's stage (ladder 0–6) and alternates types. Types: flashcards, listen-and-choose, fill-in from options, fill-in by typing, sentence building, say it aloud, dialogue reply.
   - `speech/Speech.kt`: es-ES recognition (on-device first, cloud as fallback), `SpeechMatch` (LCS over words ignoring accents), `SpeakButton`. `SpeechTts` is TTS with a wait for completion.
+- `pipeline/prepare_book.py --original`: public-domain originals with no text changes (authors who died before 1945, published before 1930; sources in `pipeline/sources/README.md`). Words are flagged rare/old (`Token.r`), each chapter gets a glossary, and versions of one work are linked through `workId`.
+- `pipeline/curriculum.py`: the syllabus (`assets/curriculum/vocab_*.json`, `grammar_*.json`, contract in `model/Curriculum.kt`) following the structure of the Plan Curricular del Instituto Cervantes (own wording, not a copy). A1–B2: about 4,800 words and 84 grammar topics with about 3,000 exercises.
+- `pipeline/library.py`: generates an adapted library per level so that it covers ≥ 90% of the level's vocabulary and every grammar topic (`Chapter.grammar`). Coverage reports are in `pipeline/coverage_*.md`.
+- `UserProgress` (`data/UserProgress.kt`, `ProgressService.compute`) is the single aggregate of user statistics, computed from Room. Level = 0.5·vocabulary + 0.5·grammar; 80% counts as covered.
 - Built-in books (`assets/books/`) refresh on the phone when their hash changes (`BookRepository.installBundled`).
 - Tests: `./gradlew testDebugUnitTest` (`BookFormatTest` checks the built-in books).
 
