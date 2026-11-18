@@ -72,6 +72,27 @@ class BookFormatTest {
                 if (r.prompt.isBlank()) err("$w: пустая реплика")
                 checkOptions(w, r.options, r.answer, ::err)
             }
+            ch.sentences.forEachIndexed { si, s ->
+                s.tokens.filter { it.r != null }.forEach { t ->
+                    if (t.r !in RARITY) err("$where, предл. ${si + 1}: r='${t.r}' у '${t.t}' (можно только $RARITY)")
+                    if (t.l == null) err("$where, предл. ${si + 1}: r у не-слова '${t.t}'")
+                }
+            }
+            val text = ch.sentences.joinToString(" ") { it.text }.lowercase()
+            ch.glossary.forEachIndexed { i, g ->
+                val w = "$where, словарик ${i + 1}"
+                if (g.l.isBlank() || g.ru.isBlank()) err("$w: пустые l/ru")
+                if (g.form.isNotBlank() && g.form.lowercase() !in text) err("$w: форма '${g.form}' не найдена в тексте главы")
+            }
+        }
+
+        if (book.kind !in setOf(Book.KIND_ADAPTED, Book.KIND_ORIGINAL)) err("неизвестный kind '${book.kind}'")
+        if (book.isOriginal) {
+            if (book.license.isBlank()) err("оригинал без license")
+            if (book.workId.isBlank()) err("оригинал без workId")
+            book.chapters.forEachIndexed { ci, ch ->
+                if (ch.glossary.isEmpty()) err("глава ${ci + 1}: у оригинала нет словарика (glossary)")
+            }
         }
     }
 
@@ -85,17 +106,50 @@ class BookFormatTest {
     @Test
     fun enrichedSampleBooksHaveContent() {
         // Книги в assets прошли шаг enrich в pipeline — проверяем, что поля реально заполнены.
+        // В оригиналах диалогов может не быть (или они архаичные), поэтому phrases и replies
+        // там необязательны; вопросы на понимание — в каждой главе любой книги.
         for (file in bookFiles()) {
             val book = json.decodeFromString(Book.serializer(), file.readText())
             assertTrue("${file.name}: нет персонажей", book.characters.isNotEmpty())
             assertTrue("${file.name}: нет ни одной реплики с sp",
                 book.chapters.any { ch -> ch.sentences.any { it.sp != null } })
             book.chapters.forEachIndexed { ci, ch ->
-                assertTrue("${file.name}, глава ${ci + 1}: нет phrases", ch.phrases.isNotEmpty())
                 assertTrue("${file.name}, глава ${ci + 1}: нет questions", ch.questions.isNotEmpty())
-                assertTrue("${file.name}, глава ${ci + 1}: нет replies", ch.replies.isNotEmpty())
+                if (!book.isOriginal) {
+                    assertTrue("${file.name}, глава ${ci + 1}: нет phrases", ch.phrases.isNotEmpty())
+                    assertTrue("${file.name}, глава ${ci + 1}: нет replies", ch.replies.isNotEmpty())
+                }
             }
         }
+    }
+
+    @Test
+    fun versionsOfOneWorkDiffer() {
+        // Книги с общим workId — это «лесенка» версий одного произведения (A2, B1, оригинал):
+        // у каждой своя пара (kind, level), иначе в библиотеке не понять, какая где.
+        val books = bookFiles().map { json.decodeFromString(Book.serializer(), it.readText()) }
+        val errors = mutableListOf<String>()
+        books.filter { it.workId.isNotBlank() }.groupBy { it.workId }.forEach { (work, list) ->
+            val keys = list.map { it.kind to it.level }
+            if (keys.size != keys.toSet().size) errors += "$work: повторяются (kind, level): $keys"
+            if (list.map { it.id }.toSet().size != list.size) errors += "$work: повторяются id"
+        }
+        if (errors.isNotEmpty()) fail(errors.joinToString("\n"))
+    }
+
+    @Test
+    fun ladderBecquerMonteAnimas() {
+        val ladder = bookFiles().map { json.decodeFromString(Book.serializer(), it.readText()) }
+            .filter { it.workId == "becquer-monte-animas" }
+        if (ladder.isEmpty()) return
+        val keys = ladder.map { it.kind to it.level }.toSet()
+        assertTrue("нет оригинала: $keys", ladder.any { it.isOriginal })
+        assertTrue("нет адаптации A2: $keys", Book.KIND_ADAPTED to "A2" in keys)
+        assertTrue("нет адаптации B1: $keys", Book.KIND_ADAPTED to "B1" in keys)
+    }
+
+    private companion object {
+        val RARITY = setOf("rare", "old")
     }
 
     @Test

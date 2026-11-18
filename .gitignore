@@ -5,3 +5,4 @@ books/.work/
 keystore.properties
 __pycache__/
 .claude/
+pipeline/sources/raw/
