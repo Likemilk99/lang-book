@@ -14,7 +14,7 @@ Personal Android app for learning Spanish (Spain, es-ES) by reading adapted book
   - `playback/Player.kt`: single source of truth for the current position. Reads sentence by sentence and saves progress.
   - `playback/PlaybackService.kt`: foreground service with MediaSession, for listening with the screen off.
   - `data/`: Room (words, progress, meta, daily_stats, chapter_activity), `UserData.kt` (all user-data writes, version stamping, backup, `markKnown`, `recordPractice`, `recordChapterActivity`), `Srs.kt` (SM-2), `Memory.kt` (recall estimate on the FSRS curve, picking words for extra practice), `BookStats.kt` (book vocabulary coverage by lemma, chapter exercises), `BookRepository` (JSON files in `Android/data/app.lectura/files/books/`).
-  - `ui/`: Library (StatsCard, level and topic filters, book progress), BookStatsScreen (per-chapter table), MemoryCard («Память словаря»), Reader (tap a word → bottom sheet, «Выделить фразу», chapter phrasebook, «Ещё» menu), Vocab, Review, QuestionsScreen, ShadowingScreen (shadowing and role-play).
+  - `ui/`: Library (StatsCard, level and topic filters, book progress), BookStatsScreen (per-chapter table), MemoryCard («Память словаря»), Reader (tap a word → bottom sheet, «Выделить фразу», chapter phrasebook, chapter glossary with «Учить все», «Ещё» menu), Vocab, Review, QuestionsScreen, ShadowingScreen (shadowing and role-play).
   - `review/`: mixed session. `ExerciseBuilder` picks the exercise by the item's stage (ladder 0–6) and alternates types. Types: flashcards, listen-and-choose, fill-in from options, fill-in by typing, sentence building, say it aloud, dialogue reply.
   - `speech/Speech.kt`: es-ES recognition (on-device first, cloud as fallback), `SpeechMatch` (LCS over words ignoring accents), `SpeakButton`. `SpeechTts` is TTS with a wait for completion.
 - `pipeline/prepare_book.py --original`: public-domain originals with no text changes (authors who died before 1945, published before 1930; sources in `pipeline/sources/README.md`). Words are flagged rare/old (`Token.r`), each chapter gets a glossary, and versions of one work are linked through `workId`.
@@ -41,8 +41,9 @@ Personal Android app for learning Spanish (Spain, es-ES) by reading adapted book
 
 ## Rules
 - Typed and spoken answers are compared ignoring case and punctuation; digits equal words («3» = «tres», «1» = uno/un/una; `TextMatch`, `SpanishNumbers`). A wrong answer is shown word by word.
-- Multi-word expressions (~1000 from the curriculum vocab) are recognised in the reader (`data/Expressions.kt`, `ExpressionIndex`): tapping a word shows the whole expression with its translation; verb + preposition counts only before an infinitive; accents matter.
+- Multi-word expressions (~1000 from the curriculum vocab) are recognised in the reader (`data/Expressions.kt`, `ExpressionIndex`): tapping a word shows the whole expression with its translation; verb + preposition counts only before an infinitive; accents matter. Saved phrases/expressions are highlighted in the text as a whole (`savedRanges`, `phraseIndex`); the expression card shows each word separately (curriculum level, other expressions with it).
 - Spanish is read aloud wherever possible: an exercise sentence is spoken on appearance with a pause at the gap (`Player.speakWithPauses`), and the right answer after the reply.
+- A review session is at most 20 words and phrases combined (`SessionBatch`): reviewed and most overdue first, at least 5 new ones (oldest added first). After it, «Ещё подход» takes the next 20.
 - Extra practice does not change the schedule when the answer is right; a wrong answer sends the word back into regular review.
 - «Знаю» = stage 3, interval 7 days. Words are matched by both form and lemma (`vocabIndex`).
 - Content focus: conversational Spanish and dialogues (`--style dialog` by default in the pipeline).

@@ -80,6 +80,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -92,6 +93,7 @@ import app.lectura.data.ExpressionIndex
 import app.lectura.data.ExpressionMatch
 import app.lectura.data.SavedWord
 import app.lectura.data.WordStatus
+import app.lectura.data.phraseIndex
 import app.lectura.data.vocabIndex
 import app.lectura.model.Book
 import app.lectura.model.Chapter
@@ -114,6 +116,10 @@ class ReaderViewModel(private val app: LecturaApp, val bookId: String) : ViewMod
     val vocab = app.db.words().all().map { vocabIndex(it) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
+    /** Сохранённые фразы и выражения → статус: подсвечиваем их в тексте целиком. */
+    val phrases = app.db.words().all().map { phraseIndex(it) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
     /** Устойчивые выражения из словаря учебной программы («otra vez», «darse cuenta»…). */
     val expressions = MutableStateFlow(ExpressionIndex(emptyList()))
 
@@ -134,14 +140,24 @@ class ReaderViewModel(private val app: LecturaApp, val bookId: String) : ViewMod
 
     /** Слово из словарика главы: «Учить» — как новое, «Знаю» — сразу средний уровень. */
     fun saveGlossary(item: GlossaryItem, chapter: Chapter, known: Boolean) {
+        val w = glossaryWord(item, chapter, System.currentTimeMillis())
+        viewModelScope.launch { if (known) app.userData.markKnown(w) else app.userData.addWord(w) }
+    }
+
+    /** «Учить все»: слова словарика, которых ещё нет в словаре, — в порядке словарика (так же и придут в повторение). */
+    fun saveGlossaryAll(items: List<GlossaryItem>, chapter: Chapter) {
+        val now = System.currentTimeMillis()
+        val words = items.mapIndexed { i, g -> glossaryWord(g, chapter, now + i) }
+        viewModelScope.launch { words.forEach { app.userData.addWord(it) } }
+    }
+
+    private fun glossaryWord(item: GlossaryItem, chapter: Chapter, now: Long): SavedWord {
         val form = item.form.ifBlank { item.l }
         val src = chapter.sentences.firstOrNull { s -> s.tokens.any { it.t.equals(form, ignoreCase = true) } }
-        val now = System.currentTimeMillis()
-        val w = SavedWord(
+        return SavedWord(
             key = form.lowercase(), word = form, lemma = item.l, ru = item.ru, grammar = item.note,
             sentence = src?.text.orEmpty(), sentenceRu = src?.ru.orEmpty(), bookId = bookId, createdAt = now, due = now,
         )
-        viewModelScope.launch { if (known) app.userData.markKnown(w) else app.userData.addWord(w) }
     }
 
     fun markChapterRead(chapter: Int) = viewModelScope.launch {
@@ -237,6 +253,7 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
     val error by vm.error.collectAsStateWithLifecycle()
     val saved by vm.savedKeys.collectAsStateWithLifecycle()
     val vocab by vm.vocab.collectAsStateWithLifecycle()
+    val phrases by vm.phrases.collectAsStateWithLifecycle()
     val ps by app.player.state.collectAsStateWithLifecycle()
     val fontSize by app.prefs.fontSize.collectAsStateWithLifecycle()
     val showRu by app.prefs.showRu.collectAsStateWithLifecycle()
@@ -380,6 +397,8 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
                             selection = selection,
                             highlight = selectedExpression?.range,
                             vocab = vocab,
+                            phrases = phrases,
+                            expressions = expressions,
                             fontSize = fontSize,
                             onWord = { s, t -> selection = Selection(s, t) },
                         )
@@ -429,6 +448,11 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
                 onToggleSave = { vm.toggleSave(sentence, sel.token) },
                 onKnown = { vm.markKnown(sentence, sel.token) },
                 savedKeys = saved,
+                vocab = vocab,
+                phraseStatus = selectedExpression?.let { m ->
+                    phrases[ExpressionIndex.phraseKey(m.expr.es)] ?: phrases[ExpressionIndex.phraseKey(phraseText(sentence, m.range))]
+                },
+                onLearnWord = { i -> if (sentence.tokens[i].key !in saved) vm.toggleSave(sentence, i) },
                 onSavePhrase = { es, ru -> vm.savePhrase(es, ru, sentence.text, sentence.ru) },
                 expression = selectedExpression,
                 expressions = expressions,
@@ -448,6 +472,7 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
             chapter = chapter,
             vocab = vocab,
             onSave = { item, known -> vm.saveGlossary(item, chapter, known) },
+            onSaveAll = { items -> vm.saveGlossaryAll(items, chapter) },
             onDismiss = { showGlossary = false },
         )
     }
@@ -569,28 +594,41 @@ private fun ParagraphText(
     selection: Selection?,
     highlight: IntRange?,
     vocab: Map<String, WordStatus>,
+    phrases: Map<String, WordStatus>,
+    expressions: ExpressionIndex,
     fontSize: Float,
     onWord: (Int, Int) -> Unit,
 ) {
     val knownColor = if (androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFF81C784) else Color(0xFF2E7D32)
     val colors = MaterialTheme.colorScheme
     val onWordState by rememberUpdatedState(onWord)
-    val text = remember(sentences, current, selection, highlight, vocab, colors) {
+    val text = remember(sentences, current, selection, highlight, vocab, phrases, expressions, colors) {
         buildAnnotatedString {
             sentences.forEachIndexed { k, (si, s) ->
                 if (k > 0) append(" ")
                 val start = length
+                // Сохранённые фразы («otra vez») — одним цветом и сплошным подчёркиванием, вместе с пробелами.
+                val phraseRanges = expressions.savedRanges(s, phrases)
                 s.tokens.forEachIndexed { ti, tk ->
-                    if (s.spaces[ti]) append(" ")
+                    val phrase = phraseRanges.firstOrNull { ti in it.first }
+                    if (s.spaces[ti]) {
+                        if (phrase != null && ti != phrase.first.first && phrase.second == WordStatus.LEARNING) {
+                            withStyle(SpanStyle(textDecoration = TextDecoration.Underline, color = colors.tertiary)) { append(" ") }
+                        } else {
+                            append(" ")
+                        }
+                    }
                     if (tk.isWord) {
-                        val status = vocab[tk.key] ?: tk.l?.lowercase()?.let { vocab[it] }
+                        val wordStatus = vocab[tk.key] ?: tk.l?.lowercase()?.let { vocab[it] }
+                        val status = phrase?.second ?: wordStatus
                         val isSaved = status == WordStatus.LEARNING
                         val isSelected = selection?.sentence == si && (selection.token == ti || (highlight != null && ti in highlight))
                         val style = SpanStyle(
-                            color = when (status) {
-                                WordStatus.LEARNING -> colors.primary
-                                WordStatus.KNOWN -> knownColor
-                                null -> Color.Unspecified
+                            color = when {
+                                phrase?.second == WordStatus.LEARNING -> colors.tertiary
+                                status == WordStatus.LEARNING -> colors.primary
+                                status == WordStatus.KNOWN -> knownColor
+                                else -> Color.Unspecified
                             },
                             textDecoration = if (isSaved) TextDecoration.Underline else null,
                             background = if (isSelected) colors.tertiaryContainer else Color.Unspecified,
@@ -676,6 +714,9 @@ private fun WordSheet(
     onToggleSave: () -> Unit,
     onKnown: () -> Unit,
     savedKeys: Set<String>,
+    vocab: Map<String, WordStatus>,
+    phraseStatus: WordStatus?,
+    onLearnWord: (Int) -> Unit,
     onSavePhrase: (es: String, ru: String) -> Unit,
     expression: ExpressionMatch?,
     expressions: ExpressionIndex,
@@ -692,7 +733,7 @@ private fun WordSheet(
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
             if (expression != null && !phraseMode) {
-                ExpressionCard(sentence, expression, savedKeys, onSaveExpression)
+                ExpressionCard(sentence, expression, savedKeys, phraseStatus, vocab, expressions, onLearnWord, onSaveExpression)
                 Spacer(Modifier.height(16.dp))
                 Text("Слово отдельно", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -869,9 +910,11 @@ private fun GlossarySheet(
     chapter: Chapter,
     vocab: Map<String, WordStatus>,
     onSave: (GlossaryItem, Boolean) -> Unit,
+    onSaveAll: (List<GlossaryItem>) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val player = LecturaApp.instance.player
+    val fresh = chapter.glossary.filter { g -> vocab[g.l.lowercase()] == null && vocab[g.form.lowercase()] == null }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         LazyColumn(
             contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 32.dp),
@@ -884,6 +927,26 @@ private fun GlossarySheet(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (fresh.isNotEmpty()) {
+                    Button(onClick = { onSaveAll(fresh) }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+                        Icon(Icons.Filled.BookmarkBorder, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (fresh.size == chapter.glossary.size) "Учить все слова (${fresh.size})" else "Учить остальные (${fresh.size})")
+                    }
+                    Text(
+                        "Слова, которые вы уже знаете, сначала отметьте «Знаю» — тогда они не попадут в новые.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                } else if (chapter.glossary.isNotEmpty()) {
+                    Text(
+                        "✓ Все слова словарика уже в словаре",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
             }
             itemsIndexed(chapter.glossary) { _, g ->
                 val status = vocab[g.l.lowercase()] ?: vocab[g.form.lowercase()]
@@ -922,43 +985,94 @@ private fun GlossarySheet(
 }
 
 /** Текст фрагмента предложения (токены [range]) с правильными пробелами, без запятой в конце. */
-internal fun phraseText(sentence: Sentence, range: IntRange): String = buildString {
-    for (i in range) {
-        if (i != range.first && sentence.spaces[i]) append(' ')
-        append(sentence.tokens[i].t)
-    }
-}.trim().trimEnd(',', ';', ':')
+internal fun phraseText(sentence: Sentence, range: IntRange): String = ExpressionIndex.phraseOf(sentence, range)
 
-/** Карточка устойчивого выражения, в которое входит слово: перевод целиком, «Учить» / «Знаю». */
+/** Карточка устойчивого выражения, в которое входит слово: перевод целиком, из каких слов состоит, «Учить» / «Знаю». */
 @Composable
 private fun ExpressionCard(
     sentence: Sentence,
     m: ExpressionMatch,
     savedKeys: Set<String>,
+    phraseStatus: WordStatus?,
+    vocab: Map<String, WordStatus>,
+    expressions: ExpressionIndex,
+    onLearnWord: (Int) -> Unit,
     onSave: (ExpressionMatch, Boolean) -> Unit,
 ) {
     val player = LecturaApp.instance.player
     val surface = phraseText(sentence, m.range)
     val differs = ExpressionIndex.fold(surface) != ExpressionIndex.fold(m.expr.es)
-    val saved = surface.lowercase() in savedKeys || m.expr.es.lowercase() in savedKeys
+    val saved = phraseStatus != null || surface.lowercase() in savedKeys || m.expr.es.lowercase() in savedKeys
+    val onCard = MaterialTheme.colorScheme.onTertiaryContainer
     LaunchedEffect(m) { player.speakOnce(surface) }
     Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Text("Выражение · ${m.expr.level}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onTertiaryContainer)
+            Text("Выражение · ${m.expr.level}", style = MaterialTheme.typography.labelMedium, color = onCard)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(surface, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f, fill = false))
                 IconButton(onClick = { player.speakOnce(surface) }) { Icon(Icons.AutoMirrored.Filled.VolumeUp, "Произнести") }
             }
-            if (differs) Text("словарная форма: ${m.expr.es}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onTertiaryContainer)
+            if (differs) Text("словарная форма: ${m.expr.es}", style = MaterialTheme.typography.bodyMedium, color = onCard)
             Text(m.expr.ru, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 4.dp))
             if (saved) {
-                Text("✓ Выражение в словаре", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
+                Text(
+                    if (phraseStatus == WordStatus.KNOWN) "✓ Выражение в словаре · знаю" else "✓ Выражение в словаре · учу",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
             } else {
                 Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { onSave(m, false) }) { Text("Учить выражение") }
                     FilledTonalButton(onClick = { onSave(m, true) }) { Text("Знаю") }
                 }
             }
+
+            // Из каких слов: употребляется ли слово само по себе (есть в программе — с уровнем) и где ещё встречается.
+            HorizontalDivider(Modifier.padding(vertical = 12.dp), color = onCard.copy(alpha = 0.2f))
+            Text("Слова по отдельности", style = MaterialTheme.typography.labelLarge, color = onCard)
+            for (i in m.range) {
+                val tk = sentence.tokens[i]
+                if (!tk.isWord) continue
+                val entry = expressions.word(tk)
+                val st = vocab[tk.key] ?: tk.l?.lowercase()?.let { vocab[it] }
+                val lemma = entry?.es ?: tk.l
+                Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            buildAnnotatedString {
+                                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(tk.t) }
+                                if (!lemma.isNullOrBlank() && !lemma.equals(tk.t, ignoreCase = true)) append(" → $lemma")
+                                val ru = entry?.ru ?: tk.ru
+                                if (!ru.isNullOrBlank()) append(" — $ru")
+                            },
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            if (entry != null) "само по себе — частое слово, уровень ${entry.level}" else "само по себе почти не встречается — учите в выражении",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = onCard,
+                        )
+                        val also = if (entry == null || ExpressionIndex.fold(tk.t) in FUNCTION_WORDS) emptyList() else expressions.containing(tk, m.expr, limit = 3)
+                        if (also.isNotEmpty()) Text(
+                            "ещё: " + also.joinToString(", ") { "${it.es} — ${it.ru}" },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = onCard,
+                        )
+                    }
+                    when {
+                        st == WordStatus.KNOWN -> Text("знаю ✓", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        st == WordStatus.LEARNING -> Text("учу ✓", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        entry != null -> TextButton(onClick = { onLearnWord(i) }) { Text("Учить") }
+                    }
+                }
+            }
         }
     }
 }
+
+/** Служебные слова: список «где ещё встречается» для них бесполезен (их сотни). */
+private val FUNCTION_WORDS = setOf(
+    "a", "al", "de", "del", "en", "con", "por", "para", "que", "el", "la", "los", "las", "lo", "un", "una", "uno",
+    "y", "o", "se", "me", "te", "nos", "os", "le", "les", "no", "sin", "sobre", "es", "ser", "estar", "hay", "tener", "hacer",
+)

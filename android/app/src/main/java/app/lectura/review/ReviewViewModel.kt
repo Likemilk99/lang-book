@@ -34,6 +34,9 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
     /** Слова и фразы, которые пора повторить (на экране настройки). */
     var due by mutableStateOf<List<SavedWord>>(emptyList())
         private set
+    /** Сколько ещё ждёт повторения после подхода (0 — всё повторено). */
+    var dueLeft by mutableStateOf(0)
+        private set
     var dialogsAvailable by mutableStateOf(0)
         private set
     var speechAvailable by mutableStateOf(false)
@@ -129,7 +132,17 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
         Pool(items, tokens.values.toList(), replies)
     }
 
-    fun start() = begin(due, isPractice = false)
+    /** Подход: не больше [SessionBatch.SIZE] слов и фраз. */
+    fun start() = begin(SessionBatch.pick(due), isPractice = false)
+
+    /** «Ещё подход»: дождаться записи ответов и взять следующие слова из плановых. */
+    fun continueReview() = viewModelScope.launch {
+        writeJob?.join()
+        val now = System.currentTimeMillis()
+        due = app.db.words().due(now).shuffled()
+        nextDue = app.db.words().nextDue(now)
+        if (due.isNotEmpty()) begin(SessionBatch.pick(due), isPractice = false)
+    }
 
     /** Сколько слов можно взять в дополнительную практику прямо сейчас. */
     val practiceAvailable: Int
@@ -145,6 +158,7 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
 
     private fun begin(items: List<SavedWord>, isPractice: Boolean) {
         practice = isPractice
+        dueLeft = 0
         app.prefs.reviewMode = mode.key
         app.prefs.reviewDirection = direction.key
         app.prefs.reviewAutoWord = autoWord
@@ -170,7 +184,9 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
             current = null
             viewModelScope.launch {
                 writeJob?.join()
-                nextDue = app.db.words().nextDue(System.currentTimeMillis())
+                val now = System.currentTimeMillis()
+                dueLeft = if (practice) 0 else app.db.words().due(now).size
+                nextDue = app.db.words().nextDue(now)
                 allWords = app.db.words().allOnce()
                 runCatching { app.userData.snapshotMemory() }
             }

@@ -70,12 +70,21 @@ fun SetupPanel(vm: ReviewViewModel) {
     MemoryCard(vm.allWords, Modifier.padding(bottom = 12.dp))
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp)) {
-            Text("К повторению: ${vm.due.size}", style = MaterialTheme.typography.titleLarge)
+            Text("К повторению: ${countText(vm.due.size)}", style = MaterialTheme.typography.titleLarge)
             if (phrases > 0) {
                 Text(
                     "слов: ${vm.due.size - phrases}, фраз: $phrases",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (vm.due.size > SessionBatch.SIZE) {
+                Text(
+                    "За один подход — ${SessionBatch.SIZE}: сначала те, что вы уже учили и можете забыть, потом новые. " +
+                        "Остальные — следующими подходами.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
             Spacer(Modifier.height(16.dp))
@@ -125,7 +134,9 @@ fun SetupPanel(vm: ReviewViewModel) {
             )
 
             Spacer(Modifier.height(20.dp))
-            Button(onClick = { vm.start() }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Начать") }
+            Button(onClick = { vm.start() }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                Text("Начать (${minOf(vm.due.size, SessionBatch.SIZE)})")
+            }
             if (vm.practiceAvailable > 0) {
                 OutlinedButton(onClick = { vm.startPractice() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                     Text("Дополнительная практика (${vm.practiceAvailable})")
@@ -192,7 +203,18 @@ fun FinishedView(vm: ReviewViewModel, onAgain: () -> Unit) {
                 }
             }
         }
-        vm.nextDue?.let {
+        if (vm.dueLeft > 0 && results.isNotEmpty()) {
+            Button(onClick = { vm.continueReview() }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(56.dp)) {
+                Text("Ещё подход: ${minOf(vm.dueLeft, SessionBatch.SIZE)}", style = MaterialTheme.typography.titleMedium)
+            }
+            Text(
+                "Ещё ждут повторения: ${countText(vm.dueLeft)}. Можно сделать перерыв и вернуться позже.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        vm.nextDue?.takeIf { vm.dueLeft == 0 }?.let {
             Text(
                 "Следующее повторение: " + SimpleDateFormat("d MMM, HH:mm", Locale.forLanguageTag("ru")).format(Date(it)),
                 modifier = Modifier.padding(top = 16.dp),
@@ -207,3 +229,6 @@ fun FinishedView(vm: ReviewViewModel, onAgain: () -> Unit) {
         MemoryCard(vm.allWords, Modifier.padding(top = 16.dp))
     }
 }
+
+/** Плановые выбираются из БД не больше 200 за раз. */
+private fun countText(n: Int) = if (n >= 200) "200+" else n.toString()

@@ -18,8 +18,11 @@ data class ExpressionMatch(val start: Int, val end: Int, val expr: Expression) {
  * с токеном по форме или по начальной форме; глагол на -se совпадает и без -se
  * («darse cuenta» ↔ «me di cuenta»: di → dar). Слова должны идти подряд.
  */
-class ExpressionIndex(expressions: List<Expression>) {
+class ExpressionIndex(expressions: List<Expression>, words: List<Expression> = emptyList()) {
     private class Entry(val expr: Expression, val words: List<String>)
+
+    /** Отдельные слова программы (начальная форма → слово с уровнем): «vez — раз · A1». */
+    private val singles: Map<String, Expression> = words.associateBy { fold(it.es) }
 
     /** Первое слово → выражения, длинные раньше коротких. */
     private val byFirst: Map<String, List<Entry>> = expressions
@@ -36,6 +39,69 @@ class ExpressionIndex(expressions: List<Expression>) {
 
     /** Выражение, записанное ровно так (для выделенного вручную фрагмента). */
     fun lookup(text: String): Expression? = byText[fold(text)]
+
+    /** Слово выражения как отдельное слово программы (по форме или начальной форме, «darse» → «dar»). */
+    fun word(tk: Token): Expression? {
+        val keys = listOfNotNull(tk.l?.let { fold(it) }, tk.l?.let { fold(it).removeSuffix("se") }, fold(tk.t))
+        return keys.firstNotNullOfOrNull { singles[it] }
+    }
+
+    /** Другие выражения с этим словом («vez» → a veces, tal vez…), короткие и простые первыми. */
+    fun containing(tk: Token, except: Expression, limit: Int = 4): List<Expression> {
+        // + множественное число: «vez» → «a veces», «día» → «buenos días»
+        val keys = forms(tk).flatMap { k -> listOf(k, k + "s", k + "es", if (k.endsWith("z")) k.dropLast(1) + "ces" else k) }.toSet()
+        return byFirst.values.asSequence().flatten()
+            .filter { e -> e.expr !== except && e.words.any { w -> w in keys || (w.endsWith("se") && w.dropLast(2) in keys) } }
+            .map { it.expr }
+            .sortedWith(compareBy({ it.level }, { it.es.length }))
+            .take(limit)
+            .toList()
+    }
+
+    /**
+     * Сохранённые пользователем фразы в предложении — для подсветки в тексте. [saved] — карта
+     * [phraseKey] сохранённой фразы (и её словарной формы) → статус. Выражение из словаря находим
+     * в любой форме («me di cuenta» ← «darse cuenta»), свою фразу — по точному совпадению слов.
+     */
+    fun savedRanges(sentence: Sentence, saved: Map<String, WordStatus>): List<Pair<IntRange, WordStatus>> {
+        if (saved.isEmpty()) return emptyList()
+        val out = ArrayList<Pair<IntRange, WordStatus>>()
+        for (m in find(sentence)) {
+            val st = saved[phraseKey(m.expr.es)] ?: saved[phraseKey(phraseOf(sentence, m.range))] ?: continue
+            out += m.range to st
+        }
+        val toks = sentence.tokens
+        for ((key, st) in saved) {
+            val ws = key.split(' ')
+            if (ws.size < 2) continue
+            var i = 0
+            while (i < toks.size) {
+                val r = matchWords(toks, i, ws)
+                if (r != null && out.none { (o, _) -> o.first <= r.last && r.first <= o.last }) {
+                    out += r to st
+                    i = r.last + 1
+                } else {
+                    i++
+                }
+            }
+        }
+        return out
+    }
+
+    /** Слова [ws] подряд с токена [i] (знаки препинания между словами пропускаем). */
+    private fun matchWords(toks: List<Token>, i: Int, ws: List<String>): IntRange? {
+        if (!toks[i].isWord) return null
+        var j = i
+        var k = 0
+        while (k < ws.size && j < toks.size) {
+            val tk = toks[j]
+            if (!tk.isWord) { j++; continue }
+            if (fold(tk.t) != ws[k]) return null
+            k++
+            j++
+        }
+        return if (k == ws.size) i until j else null
+    }
 
     /** Все выражения предложения; перекрывающиеся — оставляем более длинное (и более раннее). */
     fun find(sentence: Sentence): List<ExpressionMatch> {
@@ -122,10 +188,25 @@ class ExpressionIndex(expressions: List<Expression>) {
             return if (f == "á") "a" else f
         }
 
-        fun from(vocab: Map<String, VocabList>): ExpressionIndex = ExpressionIndex(
-            vocab.entries.flatMap { (level, list) ->
-                list.themes.flatMap { t -> t.words.filter { ' ' in it.l.trim() }.map { Expression(it.l.trim(), it.ru, level) } }
-            }.distinctBy { fold(it.es) },
-        )
+        /** Текст фрагмента предложения, как он написан (с пробелами между словами). */
+        fun phraseOf(sentence: Sentence, range: IntRange): String = buildString {
+            for (i in range) {
+                if (i != range.first && sentence.spaces[i]) append(' ')
+                append(sentence.tokens[i].t)
+            }
+        }.trim().trimEnd(',', ';', ':')
+
+        /** Ключ сохранённой фразы для подсветки: слова через пробел, без регистра и знаков. */
+        fun phraseKey(s: String): String =
+            s.split(' ').map { fold(it) }.filter { it.isNotEmpty() }.joinToString(" ")
+
+        fun from(vocab: Map<String, VocabList>): ExpressionIndex {
+            // Уровни идут A1→B2: слово берём с самого раннего уровня.
+            val all = vocab.entries.sortedBy { it.key }.flatMap { (level, list) ->
+                list.themes.flatMap { t -> t.words.map { Expression(it.l.trim(), it.ru, level) } }
+            }
+            val (multi, single) = all.partition { ' ' in it.es }
+            return ExpressionIndex(multi.distinctBy { fold(it.es) }, single.distinctBy { fold(it.es) })
+        }
     }
 }

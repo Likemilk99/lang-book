@@ -14,10 +14,26 @@ fun vocabIndex(words: List<SavedWord>): Map<String, WordStatus> {
     val map = HashMap<String, WordStatus>()
     for (w in words) {
         if (w.isPhrase) continue
-        val st = if (w.stage >= KNOWN_STAGE || w.intervalDays >= KNOWN_INTERVAL_DAYS) WordStatus.KNOWN else WordStatus.LEARNING
+        val st = w.status
         for (k in listOf(w.key, w.lemma.lowercase())) {
             if (k.isBlank()) continue
             if (map[k] != WordStatus.KNOWN) map[k] = st
+        }
+    }
+    return map
+}
+
+private val SavedWord.status: WordStatus
+    get() = if (stage >= KNOWN_STAGE || intervalDays >= KNOWN_INTERVAL_DAYS) WordStatus.KNOWN else WordStatus.LEARNING
+
+/** Сохранённые фразы и выражения: ключ ([ExpressionIndex.phraseKey]) карточки и её словарной формы → статус. */
+fun phraseIndex(words: List<SavedWord>): Map<String, WordStatus> {
+    val map = HashMap<String, WordStatus>()
+    for (w in words) {
+        if (!w.isPhrase) continue
+        for (k in listOf(w.key, w.word, w.lemma).map { ExpressionIndex.phraseKey(it) }) {
+            if (k.isBlank()) continue
+            if (map[k] != WordStatus.KNOWN) map[k] = w.status
         }
     }
     return map

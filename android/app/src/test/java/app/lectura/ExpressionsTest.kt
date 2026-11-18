@@ -2,6 +2,7 @@ package app.lectura
 
 import app.lectura.data.Expression
 import app.lectura.data.ExpressionIndex
+import app.lectura.data.WordStatus
 import app.lectura.model.Sentence
 import app.lectura.model.Token
 import org.junit.Assert.assertEquals
@@ -63,5 +64,31 @@ class ExpressionsTest {
         assertTrue(idx.find(s("No" to "no", "se" to "se", "encuentra" to "encontrar")).isEmpty())
         assertEquals(1, idx.find(s("No" to "no", "sé" to "saber", "." to null)).size)
         assertTrue(idx.find(s("Es" to "ser", "más" to "más", "fuerte" to "fuerte")).isEmpty())
+    }
+
+    private val withWords = ExpressionIndex(
+        listOf(Expression("otra vez", "снова", "A1"), Expression("a veces", "иногда", "A1"), Expression("tal vez", "возможно", "A2"), Expression("darse cuenta", "понять", "B2")),
+        listOf(Expression("otro", "другой", "A1"), Expression("vez", "раз", "A1"), Expression("dar", "давать", "A1")),
+    )
+
+    @Test
+    fun componentWordsAndOtherExpressions() {
+        assertEquals("другой", withWords.word(Token("otra", "otro"))?.ru)
+        assertEquals("A1", withWords.word(Token("vez", "vez"))?.level)
+        assertEquals(null, withWords.word(Token("repente", "repente")))
+        val otraVez = withWords.lookup("otra vez")!!
+        assertEquals(listOf("a veces", "tal vez"), withWords.containing(Token("vez", "vez"), otraVez).map { it.es })
+        assertEquals(listOf("darse cuenta"), withWords.containing(Token("di", "dar"), otraVez).map { it.es })
+    }
+
+    @Test
+    fun savedPhrasesAreFoundInText() {
+        val saved = mapOf("otra vez" to WordStatus.LEARNING, "darse cuenta" to WordStatus.KNOWN, "buenos días" to WordStatus.LEARNING)
+        val sent = s("Otra" to "otro", "vez" to "vez", "me" to "yo", "di" to "dar", "cuenta" to "cuenta", "." to null)
+        assertEquals(listOf(0..1 to WordStatus.LEARNING, 3..4 to WordStatus.KNOWN), withWords.savedRanges(sent, saved))
+        // своя фраза не из словаря — по точным словам
+        assertEquals(listOf(1..2 to WordStatus.LEARNING), withWords.savedRanges(s("¡" to null, "Buenos" to "bueno", "días" to "día", "!" to null), saved))
+        assertTrue(withWords.savedRanges(s("otra" to "otro", "casa" to "casa"), saved).isEmpty())
+        assertEquals("otra vez", ExpressionIndex.phraseKey("Otra vez,"))
     }
 }
