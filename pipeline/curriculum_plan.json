@@ -1,0 +1,957 @@
+{
+ "levels": [
+  {
+   "level": "A1",
+   "topics": [
+    {
+     "id": "a1-sustantivos-genero",
+     "title": "Род существительных: мужской и женский",
+     "titleEs": "El género de los sustantivos",
+     "scope": "Typical masculine/feminine endings (-o/-a, -ción/-sión/-dad/-tad, -e and consonant endings), common exceptions (el día, el problema, la mano, la foto) and gender pairs for people and professions (el/la estudiante, actor/actriz). Highlights mismatches with Russian gender (el coche, la leche). Uses el/la only as gender markers; full article use is taught in a1-articulos.",
+     "related": [
+      "a1-sustantivos-plural",
+      "a1-articulos",
+      "a1-adjetivos-concordancia"
+     ]
+    },
+    {
+     "id": "a1-sustantivos-plural",
+     "title": "Множественное число существительных",
+     "titleEs": "El número de los sustantivos",
+     "scope": "Plural formation (-s after vowel, -es after consonant, -z → -ces), written-accent changes (canción → canciones, joven → jóvenes), invariable nouns (el/los lunes, la/las crisis) and the inclusive masculine plural (los padres, los hermanos). Agreement of adjectives with plural nouns is taught in a1-adjetivos-concordancia.",
+     "related": [
+      "a1-sustantivos-genero",
+      "a1-articulos",
+      "a1-adjetivos-concordancia"
+     ]
+    },
+    {
+     "id": "a1-articulos",
+     "title": "Артикли: определённый и неопределённый",
+     "titleEs": "Los artículos determinados e indeterminados",
+     "scope": "Forms el/la/los/las and un/una/unos/unas, the basic rule of first mention vs known/unique referent, no article with professions after ser (soy médico) and with indefinite plurals/uncountables (bebo agua), contractions al/del, and el before stressed a- (el agua). Written for speakers of a language without articles. The neuter article lo is left for b2-articulo-lo.",
+     "related": [
+      "a1-sustantivos-genero",
+      "a1-hay-estar",
+      "b2-articulo-lo"
+     ]
+    },
+    {
+     "id": "a1-ser-pronombres-sujeto",
+     "title": "Личные местоимения и глагол ser",
+     "titleEs": "Los pronombres personales sujeto y el verbo ser",
+     "scope": "Subject pronouns including the Peninsular system tú/usted, vosotros/ustedes, and why subject pronouns are usually omitted; present tense of ser and its first uses: identity, name, nationality, origin (ser de), profession, description. The contrast with estar is taught in a1-ser-estar.",
+     "related": [
+      "a1-presente-regular",
+      "a1-ser-estar",
+      "a1-adjetivos-concordancia",
+      "a2-pronombres-preposicion"
+     ]
+    },
+    {
+     "id": "a1-adjetivos-concordancia",
+     "title": "Прилагательные: согласование в роде и числе",
+     "titleEs": "El adjetivo: concordancia y posición",
+     "scope": "Adjective gender and number agreement (-o/-a, invariable -e/consonant, nationalities like español/española, alemán/alemana), default position after the noun, and apocope of bueno/malo/grande (buen, mal, gran). Comparative and superlative forms are left for a2-comparacion; meaning change with ser/estar is for b1-ser-estar-adjetivos.",
+     "related": [
+      "a1-sustantivos-genero",
+      "a1-ser-pronombres-sujeto",
+      "a2-comparacion"
+     ]
+    },
+    {
+     "id": "a1-presente-regular",
+     "title": "Настоящее время: правильные глаголы",
+     "titleEs": "El presente de indicativo: verbos regulares",
+     "scope": "Regular -ar, -er, -ir conjugations in all six persons (including vosotros), negation with no, and basic uses: present actions, habits, general facts. Stem-changing and irregular verbs come in a1-presente-cambio-vocalico and a1-presente-irregulares.",
+     "related": [
+      "a1-ser-pronombres-sujeto",
+      "a1-presente-cambio-vocalico",
+      "a1-presente-irregulares"
+     ]
+    },
+    {
+     "id": "a1-interrogativos",
+     "title": "Вопросительные слова",
+     "titleEs": "Los interrogativos",
+     "scope": "Qué, quién/quiénes, cuál/cuáles, dónde/adónde/de dónde, cuándo, cómo, cuánto/a/os/as, por qué vs porque, written accents and inverted question marks, yes/no questions by intonation, and the basic qué vs cuál choice. Indirect questions are taught in b1-estilo-indirecto.",
+     "related": [
+      "a1-presente-regular",
+      "a1-numeros",
+      "b1-estilo-indirecto"
+     ]
+    },
+    {
+     "id": "a1-numeros",
+     "title": "Числа",
+     "titleEs": "Los números cardinales y ordinales",
+     "scope": "Cardinal numbers from 0 to millions (spelling of 16-29, y only between tens and units, uno/un/una, agreement of doscientos/doscientas), first ordinals primero–décimo with primer/tercer, and grammatical contexts: age with tener, prices, quantities with hay. Telling time and dates are taught in a1-hora-fecha.",
+     "related": [
+      "a1-hora-fecha",
+      "a1-interrogativos",
+      "a1-hay-estar"
+     ]
+    },
+    {
+     "id": "a1-hay-estar",
+     "title": "Hay и estar: наличие и местонахождение",
+     "titleEs": "Hay / está(n): existencia y ubicación",
+     "scope": "Present of estar for location and the contrast hay + un/una/numeral/no article (existence) vs el/mi/este + está(n) (location of a known item); location adverbs and phrases (aquí, allí, cerca de, lejos de, al lado de, encima de, debajo de, entre). Estar for states and the ser/estar contrast come in a1-ser-estar.",
+     "related": [
+      "a1-articulos",
+      "a1-ser-estar",
+      "a1-preposiciones"
+     ]
+    },
+    {
+     "id": "a1-ser-estar",
+     "title": "Ser и estar: два глагола «быть»",
+     "titleEs": "Ser y estar: usos básicos",
+     "scope": "Core contrast: ser for identity, characteristics, material, time and price vs estar for location, temporary states and moods (estoy cansado), and estar bien/mal vs ser bueno/malo. Adjectives that change meaning (ser/estar listo) and estar + participle as result are left for b1-ser-estar-adjetivos.",
+     "related": [
+      "a1-ser-pronombres-sujeto",
+      "a1-hay-estar",
+      "b1-ser-estar-adjetivos"
+     ]
+    },
+    {
+     "id": "a1-demostrativos",
+     "title": "Указательные слова: este, ese, aquel",
+     "titleEs": "Los demostrativos",
+     "scope": "The three degrees of distance (este/ese/aquel and their feminine and plural forms), the link to aquí/ahí/allí, use as determiners and pronouns (current RAE norm without written accent), and the neuter forms esto/eso/aquello for unknown things or ideas.",
+     "related": [
+      "a1-hay-estar",
+      "a1-posesivos-atonos",
+      "a1-articulos"
+     ]
+    },
+    {
+     "id": "a1-posesivos-atonos",
+     "title": "Притяжательные слова: mi, tu, su",
+     "titleEs": "Los posesivos átonos",
+     "scope": "Forms mi/tu/su/nuestro/vuestro/su and their plurals, agreement with the possessed thing rather than the owner, the ambiguity of su and how to clarify it (de él, de usted), and why Spanish uses no possessive where Russian uses «свой». Stressed possessives (mío, el mío) are taught in a2-posesivos-tonicos.",
+     "related": [
+      "a1-demostrativos",
+      "a2-posesivos-tonicos",
+      "a1-adjetivos-concordancia"
+     ]
+    },
+    {
+     "id": "a1-presente-cambio-vocalico",
+     "title": "Глаголы с чередованием в корне: e→ie, o→ue, e→i",
+     "titleEs": "El presente: verbos con cambio vocálico",
+     "scope": "Stem-changing verbs in the present (querer, empezar, poder, volver, dormir, jugar u→ue, pedir, repetir) and the «boot» pattern where nosotros/vosotros remain regular. Verbs with irregular yo forms are taught in a1-presente-irregulares.",
+     "related": [
+      "a1-presente-regular",
+      "a1-presente-irregulares",
+      "a1-verbos-reflexivos"
+     ]
+    },
+    {
+     "id": "a1-presente-irregulares",
+     "title": "Неправильные глаголы в настоящем времени",
+     "titleEs": "El presente: verbos irregulares",
+     "scope": "Verbs with irregular yo (hago, pongo, salgo, traigo, doy, veo, sé, conozco, -zco verbs), verbs combining irregular yo with a stem change (tener, venir, decir) and fully irregular ir and oír. Builds on the regular and stem-changing patterns already learned.",
+     "related": [
+      "a1-presente-cambio-vocalico",
+      "a1-presente-regular",
+      "a1-ir-a-infinitivo"
+     ]
+    },
+    {
+     "id": "a1-hora-fecha",
+     "title": "Время, дни недели и даты",
+     "titleEs": "La hora, los días de la semana y las fechas",
+     "scope": "Telling and asking the time (es la una / son las dos, y cuarto, menos veinte, de la mañana/tarde/noche), a las for scheduled events, days of the week with el/los (el lunes vs los lunes), dates (el 3 de mayo), months, seasons and years. Builds on a1-numeros.",
+     "related": [
+      "a1-numeros",
+      "a1-ser-pronombres-sujeto",
+      "a1-preposiciones"
+     ]
+    },
+    {
+     "id": "a1-verbos-reflexivos",
+     "title": "Возвратные глаголы",
+     "titleEs": "Los verbos reflexivos",
+     "scope": "Reflexive pronouns me/te/se/nos/os/se with daily routine verbs (levantarse, ducharse, acostarse, vestirse), including stem-changing ones, and pronoun placement with conjugated verbs and infinitives (me voy a duchar / voy a ducharme). Verbs whose meaning changes with se (ir/irse) and the accidental se are for b1-verbos-pronominales.",
+     "related": [
+      "a1-presente-cambio-vocalico",
+      "a1-hora-fecha",
+      "b1-verbos-pronominales"
+     ]
+    },
+    {
+     "id": "a1-gustar",
+     "title": "Глагол gustar и похожие глаголы",
+     "titleEs": "Gustar, encantar y otros verbos similares",
+     "scope": "Structure me/te/le/nos/os/les + gusta/gustan + subject, emphasis with a mí / a Juan le, agreement/disagreement (a mí también / tampoco / a mí sí / a mí no), and similar verbs: encantar, interesar, doler, parecer, quedar bien. The full system of indirect object pronouns is taught in a2-pronombres-oi.",
+     "related": [
+      "a1-muy-mucho",
+      "a2-pronombres-oi",
+      "a2-pronombres-preposicion",
+      "b1-subjuntivo-emociones"
+     ]
+    },
+    {
+     "id": "a1-preposiciones",
+     "title": "Основные предлоги",
+     "titleEs": "Las preposiciones básicas",
+     "scope": "Core uses of a, en, de, con, sin, desde/hasta, de…a, entre: movement vs location (ir a / estar en / venir de), means of transport (en coche, a pie), origin and material (de), time (en verano, a las tres). Por and para are left for a2-por-para; personal a is introduced in a2-pronombres-od.",
+     "related": [
+      "a1-hay-estar",
+      "a1-hora-fecha",
+      "a2-por-para",
+      "a2-pronombres-preposicion"
+     ]
+    },
+    {
+     "id": "a1-muy-mucho",
+     "title": "Muy, mucho, poco, bastante, demasiado",
+     "titleEs": "Cuantificadores: muy, mucho, poco, bastante, demasiado",
+     "scope": "Muy + adjective/adverb vs mucho with verbs and nouns, agreement of mucho/poco/bastante/demasiado before nouns (muchas personas) vs invariable use after verbs, and poco vs un poco. Indefinite pronouns such as algo, nadie, ninguno are taught in a2-indefinidos-negacion.",
+     "related": [
+      "a1-gustar",
+      "a1-adjetivos-concordancia",
+      "a2-indefinidos-negacion",
+      "a2-comparacion"
+     ]
+    },
+    {
+     "id": "a1-ir-a-infinitivo",
+     "title": "Планы и намерения: ir a + infinitivo",
+     "titleEs": "Ir a + infinitivo y otros verbos + infinitivo",
+     "scope": "Ir a + infinitive for plans and near future with time markers (mañana, el fin de semana, la semana que viene), plus querer, poder, preferir, pensar + infinitive for wishes, ability and intentions. The simple future tense is taught in a2-futuro-simple.",
+     "related": [
+      "a1-presente-irregulares",
+      "a1-obligacion",
+      "a2-futuro-simple"
+     ]
+    },
+    {
+     "id": "a1-obligacion",
+     "title": "Долженствование: tener que, hay que, deber",
+     "titleEs": "Expresar obligación: tener que, hay que, deber",
+     "scope": "Personal obligation with tener que + infinitive and deber + infinitive vs impersonal hay que + infinitive, and the negative contrast no tener que (not necessary) vs no hay que / no se puede. Deber de for probability is left for b2-perifrasis-avanzadas.",
+     "related": [
+      "a1-ir-a-infinitivo",
+      "a1-hay-estar",
+      "a2-se-impersonal"
+     ]
+    },
+    {
+     "id": "a1-estar-gerundio",
+     "title": "Estar + gerundio: действие в процессе",
+     "titleEs": "Estar + gerundio",
+     "scope": "Formation of the gerund (regular, -yendo, stem-changing durmiendo/pidiendo), estar + gerund for actions in progress now vs the simple present for habits, and pronoun placement (me estoy duchando / estoy duchándome). Past progressive (estaba + gerundio) is in a2-indefinido-vs-imperfecto; llevar/seguir + gerundio in b1-perifrasis-duracion.",
+     "related": [
+      "a1-presente-regular",
+      "a1-verbos-reflexivos",
+      "a2-indefinido-vs-imperfecto",
+      "b1-perifrasis-duracion"
+     ]
+    }
+   ]
+  },
+  {
+   "level": "A2",
+   "topics": [
+    {
+     "id": "a2-pronombres-od",
+     "title": "Прямое дополнение: местоимения lo, la, los, las",
+     "titleEs": "Los pronombres de objeto directo",
+     "scope": "Direct object pronouns me, te, lo, la, nos, os, los, las, personal a before human direct objects, placement before conjugated verbs or attached to infinitives and gerunds, and neuter lo (no lo sé). Leísmo de persona is mentioned for recognition only; doubling with fronted objects is for b2 levels.",
+     "related": [
+      "a2-pronombres-oi",
+      "a2-pronombres-combinados",
+      "a1-estar-gerundio"
+     ]
+    },
+    {
+     "id": "a2-pronombres-oi",
+     "title": "Косвенное дополнение: местоимения le, les",
+     "titleEs": "Los pronombres de objeto indirecto",
+     "scope": "Indirect object pronouns me, te, le, nos, os, les with verbs of giving and communicating (dar, decir, regalar, preguntar, enviar), obligatory doubling (le escribo a mi madre), and the difference from direct object pronouns. Combining two pronouns is taught in a2-pronombres-combinados.",
+     "related": [
+      "a2-pronombres-od",
+      "a2-pronombres-combinados",
+      "a1-gustar"
+     ]
+    },
+    {
+     "id": "a2-pronombres-combinados",
+     "title": "Два местоимения вместе: me lo, se lo",
+     "titleEs": "La combinación de pronombres: OI + OD",
+     "scope": "Order indirect + direct object (me lo, te la, nos los), the change le/les → se (se lo doy), clarification of se (a él, a ella, a usted), and placement with infinitives and gerunds including written accents (dármelo, explicándoselo). Use with the imperative is practised in a2-imperativo-pronombres.",
+     "related": [
+      "a2-pronombres-od",
+      "a2-pronombres-oi",
+      "a2-imperativo-pronombres"
+     ]
+    },
+    {
+     "id": "a2-pronombres-preposicion",
+     "title": "Местоимения после предлогов: para mí, conmigo",
+     "titleEs": "Los pronombres con preposición",
+     "scope": "Prepositional forms mí, ti, él, ella, usted, nosotros…, special forms conmigo/contigo, exceptions entre tú y yo and según tú, and emphatic or contrastive doubling (a mí me parece, a ti te toca). Consigo only for recognition.",
+     "related": [
+      "a1-ser-pronombres-sujeto",
+      "a1-gustar",
+      "a2-pronombres-oi"
+     ]
+    },
+    {
+     "id": "a2-posesivos-tonicos",
+     "title": "Ударные притяжательные: mío, tuyo, el suyo",
+     "titleEs": "Los posesivos tónicos",
+     "scope": "Stressed possessives mío, tuyo, suyo, nuestro, vuestro after nouns (un amigo mío), as predicates (es mío) and as pronouns with the article (el mío, la tuya), with agreement and clarification of suyo. Builds on a1-posesivos-atonos.",
+     "related": [
+      "a1-posesivos-atonos",
+      "a2-pronombres-preposicion",
+      "b2-articulo-lo"
+     ]
+    },
+    {
+     "id": "a2-comparacion",
+     "title": "Сравнение: más que, tan como, el más",
+     "titleEs": "Comparativos y superlativos",
+     "scope": "Comparatives más/menos… que, tan… como, tanto/a/os/as… como, igual que, irregular mejor/peor/mayor/menor, más de + number; relative superlative (el más alto de…) and absolute superlative -ísimo with spelling changes. Comparisons with clauses (más de lo que pensaba) are left for b2-articulo-lo.",
+     "related": [
+      "a1-adjetivos-concordancia",
+      "a1-muy-mucho",
+      "b2-articulo-lo"
+     ]
+    },
+    {
+     "id": "a2-indefinidos-negacion",
+     "title": "Неопределённые слова и отрицание: algo, nada, alguien, nadie",
+     "titleEs": "Los indefinidos y la negación",
+     "scope": "Algo/nada, alguien/nadie, alguno/ninguno with apocope (algún, ningún), todo, otro, cada, varios, and Spanish double negation (no viene nadie / nadie viene, no… nunca, tampoco, ni… ni), with attention to Russian-like and unlike patterns. Subjunctive after negative antecedents (no hay nadie que sepa) is in b1-relativas-subjuntivo.",
+     "related": [
+      "a1-muy-mucho",
+      "a2-pronombres-od",
+      "b1-relativas-subjuntivo"
+     ]
+    },
+    {
+     "id": "a2-preterito-perfecto",
+     "title": "Pretérito perfecto: что я сделал сегодня",
+     "titleEs": "El pretérito perfecto",
+     "scope": "Haber + past participle, irregular participles (hecho, dicho, visto, puesto, escrito, vuelto, roto, abierto), pronoun placement, and Peninsular uses: actions today/this week/this year, life experiences (alguna vez, nunca, ya, todavía no, aún no). Contrast with indefinido is taught in a2-perfecto-vs-indefinido.",
+     "related": [
+      "a2-preterito-indefinido-regular",
+      "a2-perfecto-vs-indefinido",
+      "b2-perfecto-subjuntivo"
+     ]
+    },
+    {
+     "id": "a2-preterito-indefinido-regular",
+     "title": "Pretérito indefinido: правильные глаголы",
+     "titleEs": "El pretérito indefinido: verbos regulares",
+     "scope": "Regular forms of -ar and -er/-ir verbs, spelling changes (busqué, llegué, empecé, leyó, oyeron), time markers (ayer, anoche, el año pasado, en 2010, hace dos años) and use for completed actions in a finished period and in biographies. Irregular verbs follow in a2-preterito-indefinido-irregular.",
+     "related": [
+      "a2-preterito-perfecto",
+      "a2-preterito-indefinido-irregular",
+      "a2-perfecto-vs-indefinido"
+     ]
+    },
+    {
+     "id": "a2-preterito-indefinido-irregular",
+     "title": "Pretérito indefinido: неправильные глаголы",
+     "titleEs": "El pretérito indefinido: verbos irregulares",
+     "scope": "Ser/ir (fui), dar, verbs with irregular stems (tuve, estuve, hice, puse, pude, quise, supe, vine, dije, traje, conduje), and -ir verbs with e→i, o→u in the third person (pidió, durmieron). Uses are those from the regular topic; no new contrasts.",
+     "related": [
+      "a2-preterito-indefinido-regular",
+      "a2-perfecto-vs-indefinido",
+      "b1-imperfecto-subjuntivo"
+     ]
+    },
+    {
+     "id": "a2-perfecto-vs-indefinido",
+     "title": "Pretérito perfecto или indefinido?",
+     "titleEs": "Contraste pretérito perfecto / pretérito indefinido",
+     "scope": "Choosing between the two tenses in the Peninsular norm: time frame that includes the present (hoy, este mes) vs closed period (ayer, en 2019), experience vs a concrete moment (¿Has estado en Roma? – Sí, estuve en 2015), with a brief note on Latin American usage. Imperfecto is introduced separately.",
+     "related": [
+      "a2-preterito-perfecto",
+      "a2-preterito-indefinido-regular",
+      "b1-relato-pasado"
+     ]
+    },
+    {
+     "id": "a2-preterito-imperfecto",
+     "title": "Pretérito imperfecto: описание и привычки в прошлом",
+     "titleEs": "El pretérito imperfecto",
+     "scope": "Forms (regular and the only irregulars ser, ir, ver), uses for descriptions of people, places and circumstances in the past, past habits (antes, de pequeño, siempre, todos los días) and the contrast antes… ahora. Its contrast with indefinido in narration comes in a2-indefinido-vs-imperfecto.",
+     "related": [
+      "a2-indefinido-vs-imperfecto",
+      "a2-perifrasis-fase",
+      "b1-relato-pasado"
+     ]
+    },
+    {
+     "id": "a2-indefinido-vs-imperfecto",
+     "title": "Indefinido и imperfecto в рассказе",
+     "titleEs": "Contraste pretérito indefinido / pretérito imperfecto",
+     "scope": "Events vs background in narration, interrupted actions with estaba + gerundio (estaba duchándome cuando sonó el teléfono), cuando vs mientras, and the perfective/imperfective parallel with Russian aspect and where it fails. Integration with pluscuamperfecto is left for b1-relato-pasado.",
+     "related": [
+      "a2-preterito-imperfecto",
+      "a2-preterito-indefinido-irregular",
+      "b1-relato-pasado",
+      "a1-estar-gerundio"
+     ]
+    },
+    {
+     "id": "a2-perifrasis-fase",
+     "title": "Перифразы: empezar a, acabar de, volver a, soler",
+     "titleEs": "Perífrasis verbales: empezar a, acabar de, volver a, soler",
+     "scope": "Empezar a / ponerse a basics, terminar de, acabar de (just did), volver a (again), soler + infinitive in present and imperfecto (solía), across the tenses learned so far. Duration perífrasis (llevar, seguir, dejar de) are for b1-perifrasis-duracion.",
+     "related": [
+      "a1-ir-a-infinitivo",
+      "a2-preterito-imperfecto",
+      "b1-perifrasis-duracion"
+     ]
+    },
+    {
+     "id": "a2-imperativo-afirmativo",
+     "title": "Повелительное наклонение: утвердительная форма",
+     "titleEs": "El imperativo afirmativo",
+     "scope": "Affirmative imperative for tú, vosotros, usted, ustedes: regular, stem-changing and irregular tú forms (di, haz, ve, pon, sal, sé, ten, ven), uses for instructions, advice, permission and offers (pasa, pasa). Pronoun attachment is the next topic; the negative imperative is in b1-imperativo-negativo.",
+     "related": [
+      "a2-imperativo-pronombres",
+      "b1-imperativo-negativo",
+      "a1-presente-irregulares"
+     ]
+    },
+    {
+     "id": "a2-imperativo-pronombres",
+     "title": "Императив с местоимениями: siéntate, dímelo",
+     "titleEs": "El imperativo con pronombres",
+     "scope": "Enclitic pronouns with the affirmative imperative, written accents (dímelo, cómpraselo), reflexive forms including vosotros loss of -d (sentaos, but idos) and usted forms (siéntese). Negative imperative with preverbal pronouns is in b1-imperativo-negativo.",
+     "related": [
+      "a2-imperativo-afirmativo",
+      "a2-pronombres-combinados",
+      "b1-imperativo-negativo"
+     ]
+    },
+    {
+     "id": "a2-futuro-simple",
+     "title": "Будущее время (futuro simple)",
+     "titleEs": "El futuro simple",
+     "scope": "Regular forms and irregular stems (tendré, pondré, saldré, vendré, podré, sabré, habré, haré, diré, querré), uses for predictions, promises and future facts, and contrast with ir a + infinitive and presente for scheduled plans. Future of probability is in b1-probabilidad.",
+     "related": [
+      "a1-ir-a-infinitivo",
+      "a2-condicionales-reales",
+      "b1-probabilidad",
+      "b1-futuro-perfecto"
+     ]
+    },
+    {
+     "id": "a2-condicionales-reales",
+     "title": "Реальное условие: si + presente",
+     "titleEs": "Las oraciones condicionales reales",
+     "scope": "Si + presente with presente, futuro, ir a or imperativo in the main clause (si llueve, nos quedamos / no salgas), and the rule that futuro is not used after si. Potential conditions (si tuviera) are in b1-condicionales-potenciales.",
+     "related": [
+      "a2-futuro-simple",
+      "a2-imperativo-afirmativo",
+      "b1-condicionales-potenciales"
+     ]
+    },
+    {
+     "id": "a2-condicional-simple",
+     "title": "Condicional: вежливость и советы",
+     "titleEs": "El condicional simple",
+     "scope": "Forms (future stems + -ía), polite requests (¿podría…?, querría, me gustaría), advice (deberías, yo que tú / yo en tu lugar + condicional) and wishes. Hypothetical si-clauses are in b1-condicionales-potenciales, probability in the past in b1-probabilidad.",
+     "related": [
+      "a2-futuro-simple",
+      "b1-condicionales-potenciales",
+      "b1-probabilidad"
+     ]
+    },
+    {
+     "id": "a2-se-impersonal",
+     "title": "Безличное se: aquí se habla español",
+     "titleEs": "Construcciones impersonales con se",
+     "scope": "Se + verb for general statements, rules and instructions (aquí se come bien, no se puede fumar, se habla español), agreement with plural nouns in simple cases (se venden pisos) and recipes; alternatives with generic tú and impersonal ellos. Passive voice and fine pasiva refleja vs impersonal contrasts are in b2-voz-pasiva.",
+     "related": [
+      "a1-obligacion",
+      "b2-voz-pasiva",
+      "b1-verbos-pronominales"
+     ]
+    },
+    {
+     "id": "a2-por-para",
+     "title": "Por и para: основные значения",
+     "titleEs": "Por y para: usos básicos",
+     "scope": "Para: purpose, recipient, destination, deadline, opinion (para mí); por: cause (gracias por), means (por teléfono), movement through or approximate place, parts of the day (por la mañana), exchange and price. Purpose clauses with para que are in b1-subjuntivo-finales; nuanced uses in b2-por-para-matices.",
+     "related": [
+      "a1-preposiciones",
+      "b1-subjuntivo-finales",
+      "b2-por-para-matices"
+     ]
+    },
+    {
+     "id": "a2-conectores-basicos",
+     "title": "Связки в простом тексте: porque, pero, por eso, cuando",
+     "titleEs": "Conectores básicos del discurso",
+     "scope": "Linking and sequencing in simple texts: y/e, o/u, pero, porque, por eso, primero/luego/después/al final, antes de / después de + infinitivo, cuando and mientras + indicativo. More formal causal, consecutive and adversative connectors are in b1-conectores-causa-consecuencia.",
+     "related": [
+      "a2-indefinido-vs-imperfecto",
+      "b1-conectores-causa-consecuencia",
+      "b1-subjuntivo-temporales"
+     ]
+    }
+   ]
+  },
+  {
+   "level": "B1",
+   "topics": [
+    {
+     "id": "b1-pluscuamperfecto",
+     "title": "Pretérito pluscuamperfecto: предпрошедшее время",
+     "titleEs": "El pretérito pluscuamperfecto",
+     "scope": "Había + participio and its use for actions prior to another past moment (cuando llegué, ya se había ido), with ya, todavía no, nunca antes in the past and explanations of past situations. Integrated narration with all past tenses is in b1-relato-pasado.",
+     "related": [
+      "a2-indefinido-vs-imperfecto",
+      "b1-relato-pasado",
+      "b2-pluscuamperfecto-subjuntivo"
+     ]
+    },
+    {
+     "id": "b1-relato-pasado",
+     "title": "Рассказ в прошлом: все прошедшие времена вместе",
+     "titleEs": "El relato en pasado: contraste de los tiempos del pasado",
+     "scope": "Combining perfecto, indefinido, imperfecto and pluscuamperfecto in anecdotes and stories, with narrative connectors (de repente, en ese momento, al cabo de, al final, resulta que). No new forms; focuses on choosing the tense from context.",
+     "related": [
+      "b1-pluscuamperfecto",
+      "a2-perfecto-vs-indefinido",
+      "a2-indefinido-vs-imperfecto"
+     ]
+    },
+    {
+     "id": "b1-perifrasis-duracion",
+     "title": "Перифразы длительности: llevar, seguir, dejar de",
+     "titleEs": "Perífrasis de duración: llevar, seguir, dejar de",
+     "scope": "Llevar + time + gerundio and llevar sin + infinitivo, seguir + gerundio / seguir sin, dejar de + infinitivo, and related duration expressions hace… que, desde hace, desde que. Advanced aspectual perífrasis (ir + gerundio, llegar a) are in b2-perifrasis-avanzadas.",
+     "related": [
+      "a2-perifrasis-fase",
+      "a1-estar-gerundio",
+      "b2-perifrasis-avanzadas"
+     ]
+    },
+    {
+     "id": "b1-verbos-pronominales",
+     "title": "Глаголы с se: смена значения и «случайное» se",
+     "titleEs": "Verbos pronominales y el se involuntario",
+     "scope": "Verbs that change meaning with se (ir/irse, dormir/dormirse, quedar/quedarse, llevar/llevarse, acordarse de), intensifying se (comerse, beberse) and accidental se (se me olvidó, se le cayó, se nos ha roto). Impersonal and passive se are covered in a2-se-impersonal and b2-voz-pasiva; verbs of change in b2-verbos-cambio.",
+     "related": [
+      "a1-verbos-reflexivos",
+      "a2-se-impersonal",
+      "b2-verbos-cambio"
+     ]
+    },
+    {
+     "id": "b1-ser-estar-adjetivos",
+     "title": "Ser и estar с прилагательными: смена значения",
+     "titleEs": "Ser y estar: adjetivos que cambian de significado",
+     "scope": "Adjectives with different meanings with ser vs estar (listo, aburrido, rico, malo, despierto, orgulloso, verde), estar for subjective impressions (la sopa está buenísima, estás muy guapa hoy) and estar + participio for resulting states (la puerta está abierta). Ser + participio passive is in b2-voz-pasiva.",
+     "related": [
+      "a1-ser-estar",
+      "b2-voz-pasiva",
+      "b2-verbos-cambio"
+     ]
+    },
+    {
+     "id": "b1-futuro-perfecto",
+     "title": "Futuro perfecto: habré hecho",
+     "titleEs": "El futuro perfecto",
+     "scope": "Habré + participio and its temporal use for actions completed before a future point (para las ocho ya habré terminado). Its use for conjecture about the recent past is taught in b1-probabilidad.",
+     "related": [
+      "a2-futuro-simple",
+      "b1-probabilidad",
+      "b2-condicional-compuesto"
+     ]
+    },
+    {
+     "id": "b1-probabilidad",
+     "title": "Предположения: futuro и condicional вероятности",
+     "titleEs": "Expresar probabilidad: futuro y condicional",
+     "scope": "Conjecture with futuro simple about the present (estará en casa), futuro perfecto about the recent past (habrá salido) and condicional about the past (serían las tres), contrasted with certain statements. Adverbs quizás, tal vez, a lo mejor are in b1-subjuntivo-opinion-duda.",
+     "related": [
+      "b1-futuro-perfecto",
+      "a2-condicional-simple",
+      "b1-subjuntivo-opinion-duda"
+     ]
+    },
+    {
+     "id": "b1-relativos-indicativo",
+     "title": "Относительные местоимения: que, donde, quien, lo que",
+     "titleEs": "Las oraciones de relativo con indicativo",
+     "scope": "Relative clauses with que, donde, quien/quienes, el/la/los/las que, lo que, and basic preposition + article + que (la chica con la que hablé), with indicative and known antecedents. Subjunctive relatives are in b1-relativas-subjuntivo; el cual, cuyo and explicative clauses in b2-relativos-avanzados.",
+     "related": [
+      "b1-relativas-subjuntivo",
+      "b2-relativos-avanzados",
+      "b2-articulo-lo"
+     ]
+    },
+    {
+     "id": "b1-conectores-causa-consecuencia",
+     "title": "Причина, следствие, противопоставление: como, ya que, así que, sin embargo",
+     "titleEs": "Conectores causales, consecutivos y adversativos",
+     "scope": "Causal como (sentence-initial), ya que, puesto que, es que, debido a; consecutive así que, por lo tanto, de modo que + indicativo; adversative sin embargo, en cambio, and aunque + indicativo for known facts. Concessive subjunctive is in b2-concesivas; advanced consecutive clauses in b2-consecutivas-finales.",
+     "related": [
+      "a2-conectores-basicos",
+      "b2-concesivas",
+      "b2-consecutivas-finales",
+      "b2-marcadores-discurso"
+     ]
+    },
+    {
+     "id": "b1-subjuntivo-formas",
+     "title": "Presente de subjuntivo: образование",
+     "titleEs": "El presente de subjuntivo: formas",
+     "scope": "The concept of mood and formation of the present subjunctive: regular verbs, spelling changes (busque, llegue), stem-changers including -ir verbs (pidamos, durmamos), yo-based irregulars (tenga, haga, conozca) and fully irregular sea, esté, vaya, haya, sepa, dé. Uses are distributed among the following subjunctive topics.",
+     "related": [
+      "b1-imperativo-negativo",
+      "b1-subjuntivo-deseos",
+      "a1-presente-irregulares"
+     ]
+    },
+    {
+     "id": "b1-imperativo-negativo",
+     "title": "Отрицательный императив",
+     "titleEs": "El imperativo negativo",
+     "scope": "No + present subjunctive forms for tú, vosotros, usted, ustedes, pronouns placed before the verb (no te sientes, no se lo digas) and transformation between affirmative and negative (dímelo → no me lo digas). Affirmative imperative was covered in a2-imperativo-afirmativo and a2-imperativo-pronombres.",
+     "related": [
+      "b1-subjuntivo-formas",
+      "a2-imperativo-pronombres",
+      "b1-subjuntivo-influencia"
+     ]
+    },
+    {
+     "id": "b1-subjuntivo-deseos",
+     "title": "Subjuntivo для пожеланий: quiero que, ojalá",
+     "titleEs": "Expresar deseos: querer que, esperar que, ojalá",
+     "scope": "Same subject + infinitive vs different subject + que + subjunctive (quiero ir / quiero que vayas), esperar que, preferir que, ojalá + presente de subjuntivo and formulaic wishes with que (que te mejores, que lo pases bien). Ojalá + imperfecto is in b1-imperfecto-subjuntivo.",
+     "related": [
+      "b1-subjuntivo-formas",
+      "b1-subjuntivo-influencia",
+      "b1-imperfecto-subjuntivo"
+     ]
+    },
+    {
+     "id": "b1-subjuntivo-influencia",
+     "title": "Просьбы, советы и запреты: pedir que, recomendar que",
+     "titleEs": "Influir en los demás: peticiones, consejos y prohibiciones",
+     "scope": "Verbs of influence pedir, decir (as order), recomendar, aconsejar, sugerir, prohibir, permitir, dejar + que + subjunctive, and the alternative construction with infinitive (te prohíbo salir). Decir with indicative vs subjunctive is consolidated in b2-indicativo-subjuntivo-contrastes.",
+     "related": [
+      "b1-subjuntivo-deseos",
+      "b1-imperativo-negativo",
+      "b2-indicativo-subjuntivo-contrastes"
+     ]
+    },
+    {
+     "id": "b1-subjuntivo-emociones",
+     "title": "Чувства и реакции: me alegra que, me molesta que",
+     "titleEs": "Expresar sentimientos: me alegra que, me molesta que",
+     "scope": "Gustar-type verbs + infinitive vs que + subjunctive (me molesta esperar / me molesta que llegues tarde), alegrarse de que, tener miedo de que, odiar, no soportar, estar harto de que. Past correlation (me molestó que no llamara) is in b2-correlacion-temporal.",
+     "related": [
+      "a1-gustar",
+      "b1-subjuntivo-valoracion",
+      "b2-correlacion-temporal"
+     ]
+    },
+    {
+     "id": "b1-subjuntivo-valoracion",
+     "title": "Оценка: es importante que, está bien que",
+     "titleEs": "Valorar: es importante que, es normal que",
+     "scope": "Impersonal value judgements (es importante, es necesario, es normal, es una pena, está bien, me parece fatal) + infinitive for general statements vs que + subjunctive for specific subjects, contrasted with certainty expressions es verdad / está claro / es evidente que + indicativo.",
+     "related": [
+      "b1-subjuntivo-emociones",
+      "b1-subjuntivo-opinion-duda",
+      "b2-indicativo-subjuntivo-contrastes"
+     ]
+    },
+    {
+     "id": "b1-subjuntivo-opinion-duda",
+     "title": "Мнение и сомнение: creo que / no creo que, quizás",
+     "titleEs": "Opinión y duda: creo que / no creo que, quizás",
+     "scope": "Creo/pienso/me parece que + indicativo vs no creo / no pienso que + subjuntivo, dudar que, and probability adverbs: quizás, tal vez, posiblemente + indicativo or subjuntivo vs a lo mejor + indicativo. No es que and negative questions are in b2-indicativo-subjuntivo-contrastes.",
+     "related": [
+      "b1-subjuntivo-valoracion",
+      "b1-probabilidad",
+      "b2-indicativo-subjuntivo-contrastes"
+     ]
+    },
+    {
+     "id": "b1-subjuntivo-finales",
+     "title": "Цель: para + infinitivo и para que + subjuntivo",
+     "titleEs": "Las oraciones finales: para / para que",
+     "scope": "Expressing purpose with para + infinitivo (same subject) vs para que + subjuntivo (different subject), ¿para qué? questions, and a / a que after verbs of movement (vengo a que me ayudes). Formal purpose connectors (a fin de que) are in b2-consecutivas-finales.",
+     "related": [
+      "a2-por-para",
+      "b1-subjuntivo-temporales",
+      "b2-consecutivas-finales"
+     ]
+    },
+    {
+     "id": "b1-subjuntivo-temporales",
+     "title": "Когда: cuando + subjuntivo для будущего",
+     "titleEs": "Las oraciones temporales: cuando + subjuntivo",
+     "scope": "Cuando + indicativo for habits and past vs cuando + subjuntivo for future events (cuando llegues, llámame), the same contrast with hasta que, en cuanto, mientras, después de que, and antes de que (always subjunctive) vs antes de + infinitivo. Advanced temporal connectors and past correlation are in b2-temporales-avanzadas.",
+     "related": [
+      "a2-conectores-basicos",
+      "b1-subjuntivo-finales",
+      "b2-temporales-avanzadas"
+     ]
+    },
+    {
+     "id": "b1-relativas-subjuntivo",
+     "title": "Придаточные с subjuntivo: busco a alguien que sepa",
+     "titleEs": "Las oraciones de relativo con subjuntivo",
+     "scope": "Known vs unknown or non-existent antecedent (tengo un piso que tiene terraza / busco un piso que tenga terraza), negative antecedents (no hay nadie que, no conozco ningún), and open-choice relatives (lo que quieras, donde prefieras, como digas). Builds on b1-relativos-indicativo.",
+     "related": [
+      "b1-relativos-indicativo",
+      "a2-indefinidos-negacion",
+      "b2-relativos-avanzados"
+     ]
+    },
+    {
+     "id": "b1-estilo-indirecto",
+     "title": "Косвенная речь: dice que…",
+     "titleEs": "El estilo indirecto: transmitir información",
+     "scope": "Reporting with the introductory verb in present or perfecto (dice / ha dicho que) without tense shift: changes of persons, pronouns and deictics, indirect questions with si and interrogatives, and reported orders and requests with subjunctive (dice que vengas). Reporting with past introductory verbs and full tense shift is in b2-estilo-indirecto-pasado.",
+     "related": [
+      "a1-interrogativos",
+      "b1-subjuntivo-influencia",
+      "b2-estilo-indirecto-pasado"
+     ]
+    },
+    {
+     "id": "b1-imperfecto-subjuntivo",
+     "title": "Imperfecto de subjuntivo: образование",
+     "titleEs": "El imperfecto de subjuntivo: formas",
+     "scope": "Formation from the third person plural of indefinido (-ra forms, with -se for recognition), irregular verbs, and first uses: ojalá + imperfecto for unlikely wishes, quisiera and me gustaría que + imperfecto, como si. Full tense correlation is in b2-correlacion-temporal.",
+     "related": [
+      "a2-preterito-indefinido-irregular",
+      "b1-condicionales-potenciales",
+      "b2-correlacion-temporal"
+     ]
+    },
+    {
+     "id": "b1-condicionales-potenciales",
+     "title": "Маловероятное условие: si tuviera…",
+     "titleEs": "Las oraciones condicionales potenciales",
+     "scope": "Si + imperfecto de subjuntivo + condicional for unlikely or hypothetical present/future situations (si tuviera tiempo, viajaría), contrasted with real conditions, and the rule against condicional after si. Unreal past and mixed conditionals are in b2-condicionales-irreales.",
+     "related": [
+      "a2-condicionales-reales",
+      "b1-imperfecto-subjuntivo",
+      "b2-condicionales-irreales"
+     ]
+    }
+   ]
+  },
+  {
+   "level": "B2",
+   "topics": [
+    {
+     "id": "b2-perfecto-subjuntivo",
+     "title": "Pretérito perfecto de subjuntivo",
+     "titleEs": "El pretérito perfecto de subjuntivo",
+     "scope": "Haya + participio and its use with all B1 subjunctive triggers when the action is past or completed relative to the present or future (no creo que haya llegado, espero que hayas descansado, cuando hayas terminado). Past correlation with imperfecto is in b2-correlacion-temporal.",
+     "related": [
+      "a2-preterito-perfecto",
+      "b1-subjuntivo-opinion-duda",
+      "b2-correlacion-temporal"
+     ]
+    },
+    {
+     "id": "b2-correlacion-temporal",
+     "title": "Согласование времён в subjuntivo",
+     "titleEs": "La correlación de tiempos con subjuntivo",
+     "scope": "Choosing the subjunctive tense from the main verb: present/future → presente or perfecto de subjuntivo; past or conditional (quería, me molestó, sería mejor) → imperfecto de subjuntivo, across desire, emotion, valuation and doubt clauses. Pluscuamperfecto de subjuntivo is the next topic.",
+     "related": [
+      "b1-imperfecto-subjuntivo",
+      "b2-perfecto-subjuntivo",
+      "b2-pluscuamperfecto-subjuntivo"
+     ]
+    },
+    {
+     "id": "b2-pluscuamperfecto-subjuntivo",
+     "title": "Pluscuamperfecto de subjuntivo",
+     "titleEs": "El pluscuamperfecto de subjuntivo",
+     "scope": "Hubiera/hubiese + participio for past actions prior to a past main verb or counterfactual past: ojalá hubiera…, me habría gustado que…, no creía que hubiera…, como si hubiera…. Use in conditional sentences is in b2-condicionales-irreales.",
+     "related": [
+      "b2-correlacion-temporal",
+      "b2-condicional-compuesto",
+      "b2-condicionales-irreales"
+     ]
+    },
+    {
+     "id": "b2-condicional-compuesto",
+     "title": "Condicional compuesto: habría hecho",
+     "titleEs": "El condicional compuesto",
+     "scope": "Habría + participio for unrealized past actions (yo habría ido), past advice and reproach (habrías tenido que / deberías haber), and probability about a moment prior to a past point (ya habría salido). Its role in unreal conditionals is in b2-condicionales-irreales.",
+     "related": [
+      "a2-condicional-simple",
+      "b1-futuro-perfecto",
+      "b2-condicionales-irreales"
+     ]
+    },
+    {
+     "id": "b2-condicionales-irreales",
+     "title": "Нереальное условие в прошлом: si hubiera sabido…",
+     "titleEs": "Las oraciones condicionales irreales y mixtas",
+     "scope": "Si + pluscuamperfecto de subjuntivo + condicional compuesto or hubiera for unreal past conditions, mixed conditionals (si hubiera estudiado, ahora tendría trabajo), and de + infinitivo compuesto (de haberlo sabido). Other conditional connectors are in b2-condicionales-nexos.",
+     "related": [
+      "b1-condicionales-potenciales",
+      "b2-pluscuamperfecto-subjuntivo",
+      "b2-condicional-compuesto",
+      "b2-condicionales-nexos"
+     ]
+    },
+    {
+     "id": "b2-condicionales-nexos",
+     "title": "Другие условные союзы: en caso de que, a no ser que",
+     "titleEs": "Otros nexos condicionales",
+     "scope": "Conditional connectors requiring subjunctive: en caso de que, siempre que / siempre y cuando, con tal de que, a no ser que, a menos que, salvo que, como + subjuntivo (warning/threat), plus de + infinitivo and por si (acaso) + indicativo. Builds on si-clauses from b1/b2.",
+     "related": [
+      "b2-condicionales-irreales",
+      "a2-condicionales-reales",
+      "b2-concesivas"
+     ]
+    },
+    {
+     "id": "b2-temporales-avanzadas",
+     "title": "Временные придаточные: nada más, en cuanto, una vez que",
+     "titleEs": "Oraciones temporales: nexos avanzados y correlación",
+     "scope": "Al / nada más + infinitivo, en cuanto, tan pronto como, una vez que, apenas, cada vez que, desde que, hasta que, with indicative vs subjunctive and past correlation (me dijo que lo llamara cuando llegara). Builds on b1-subjuntivo-temporales.",
+     "related": [
+      "b1-subjuntivo-temporales",
+      "b2-correlacion-temporal",
+      "b2-estilo-indirecto-pasado"
+     ]
+    },
+    {
+     "id": "b2-concesivas",
+     "title": "Уступка: aunque + indicativo или subjuntivo",
+     "titleEs": "Las oraciones concesivas",
+     "scope": "Aunque and a pesar de que + indicativo (new fact) vs subjuntivo (hypothesis or shared, irrelevant fact), aunque + imperfecto de subjuntivo for hypotheses, por mucho / más que, aun así, y eso que, a pesar de + noun/infinitive, and reduplicative forms (digan lo que digan, pase lo que pase).",
+     "related": [
+      "b1-conectores-causa-consecuencia",
+      "b2-condicionales-nexos",
+      "b2-marcadores-discurso"
+     ]
+    },
+    {
+     "id": "b2-consecutivas-finales",
+     "title": "Следствие и цель: tan… que, de ahí que, a fin de que",
+     "titleEs": "Oraciones consecutivas y finales: nexos avanzados",
+     "scope": "Intensive consequence tan/tanto… que and tal… que, de ahí que + subjuntivo, de manera/modo que + indicativo (consequence) vs subjuntivo (purpose), and formal purpose connectors a fin de que, con el objetivo de que, no vaya a ser que, with past correlation. Builds on b1-subjuntivo-finales and b1-conectores-causa-consecuencia.",
+     "related": [
+      "b1-subjuntivo-finales",
+      "b1-conectores-causa-consecuencia",
+      "b2-marcadores-discurso"
+     ]
+    },
+    {
+     "id": "b2-indicativo-subjuntivo-contrastes",
+     "title": "Indicativo или subjuntivo: сложные случаи",
+     "titleEs": "Indicativo y subjuntivo: contrastes y verbos de doble construcción",
+     "scope": "Verbs whose mood changes meaning (decir, escribir: inform vs order; sentir: perceive vs regret; comprender/entender que), el hecho de que, no es que + subjuntivo… sino que, negated imperatives of opinion (no digas que…), and negative questions (¿no crees que…?). Consolidates b1 subjunctive triggers.",
+     "related": [
+      "b1-subjuntivo-opinion-duda",
+      "b1-subjuntivo-influencia",
+      "b1-subjuntivo-valoracion"
+     ]
+    },
+    {
+     "id": "b2-relativos-avanzados",
+     "title": "Относительные местоимения: el cual, cuyo, quien",
+     "titleEs": "Los relativos: el cual, cuyo, quien y las relativas explicativas",
+     "scope": "Restrictive vs non-restrictive (explicative) relative clauses and punctuation, el cual / lo cual, cuyo/a/os/as agreement, quien with prepositions and as a generalizing subject (quien lo sepa, que lo diga), relative adverbs donde/como/cuando, and preposition + article + que with verbs of régimen (el tema del que te hablé).",
+     "related": [
+      "b1-relativos-indicativo",
+      "b1-relativas-subjuntivo",
+      "b2-articulo-lo"
+     ]
+    },
+    {
+     "id": "b2-estilo-indirecto-pasado",
+     "title": "Косвенная речь в прошлом: dijo que…",
+     "titleEs": "El estilo indirecto en pasado",
+     "scope": "Reporting with past introductory verbs and tense shift (presente → imperfecto, indefinido/perfecto → pluscuamperfecto, futuro → condicional, imperativo/presente de subjuntivo → imperfecto de subjuntivo), deictic changes (ayer → el día anterior, aquí → allí) and reporting verbs (comentar, asegurar, negar, recomendar, reconocer). Builds on b1-estilo-indirecto.",
+     "related": [
+      "b1-estilo-indirecto",
+      "b2-correlacion-temporal",
+      "b2-temporales-avanzadas"
+     ]
+    },
+    {
+     "id": "b2-voz-pasiva",
+     "title": "Пассивный залог и безличные конструкции",
+     "titleEs": "La voz pasiva y la impersonalidad",
+     "scope": "Ser + participio with agent por (journalistic and formal style), estar + participio for results, pasiva refleja with agreement (se construyeron casas) vs impersonal se with persons (se busca a los responsables), and other impersonal strategies (uno, third person plural). Builds on a2-se-impersonal and b1-ser-estar-adjetivos.",
+     "related": [
+      "a2-se-impersonal",
+      "b1-ser-estar-adjetivos",
+      "b2-por-para-matices"
+     ]
+    },
+    {
+     "id": "b2-articulo-lo",
+     "title": "Нейтральный артикль lo",
+     "titleEs": "El artículo neutro lo",
+     "scope": "Lo + adjective (lo bueno, lo mejor, lo importante es…), lo de, lo que as abstract noun phrase, intensifying lo + adjective/adverb + que (no sabes lo cansada que estoy), and comparisons with clauses (más de lo que pensaba). Lo as object pronoun was covered in a2-pronombres-od.",
+     "related": [
+      "a1-articulos",
+      "a2-comparacion",
+      "b2-relativos-avanzados"
+     ]
+    },
+    {
+     "id": "b2-verbos-cambio",
+     "title": "Глаголы изменения: ponerse, volverse, hacerse, quedarse",
+     "titleEs": "Los verbos de cambio",
+     "scope": "Ways to express «стать»: ponerse (temporary change of state or mood), volverse (character or deep change), hacerse (gradual or voluntary: profession, ideology, wealth), quedarse (result or loss: quedarse ciego, sin trabajo), convertirse en, llegar a ser. Builds on b1-verbos-pronominales and b1-ser-estar-adjetivos.",
+     "related": [
+      "b1-verbos-pronominales",
+      "b1-ser-estar-adjetivos",
+      "b2-perifrasis-avanzadas"
+     ]
+    },
+    {
+     "id": "b2-perifrasis-avanzadas",
+     "title": "Расширенные перифразы: ponerse a, llegar a, estar a punto de",
+     "titleEs": "Perífrasis verbales avanzadas",
+     "scope": "Ponerse a / echarse a + infinitivo, estar a punto de, llegar a, acabar por / acabar + gerundio, ir + gerundio, andar + gerundio, venir a + infinitivo (approximation), tener + participio, dar por + participio, and deber vs deber de (obligation vs probability). Builds on a2-perifrasis-fase and b1-perifrasis-duracion.",
+     "related": [
+      "a2-perifrasis-fase",
+      "b1-perifrasis-duracion",
+      "b2-verbos-cambio"
+     ]
+    },
+    {
+     "id": "b2-por-para-matices",
+     "title": "Por и para: тонкие различия",
+     "titleEs": "Por y para: contraste avanzado",
+     "scope": "Estar por vs estar para, por + infinitivo for unfinished actions (está por hacer), cause vs purpose minimal pairs (lo hice por ti / para ti), para expressing comparison or contrast (para ser extranjero, habla bien), por for substitution and support (votar por), agent of passive, and set phrases (por si acaso, por lo visto, para colmo). Builds on a2-por-para.",
+     "related": [
+      "a2-por-para",
+      "b1-subjuntivo-finales",
+      "b2-voz-pasiva"
+     ]
+    },
+    {
+     "id": "b2-marcadores-discurso",
+     "title": "Дискурсивные маркеры: en primer lugar, no obstante, es decir",
+     "titleEs": "Los marcadores del discurso",
+     "scope": "Text-organizing markers for argumentative writing and speech: ordering (en primer lugar, por un lado… por otro), additive (además, encima, incluso), contrastive (no obstante, en cambio, sin embargo), reformulating (es decir, o sea, mejor dicho), exemplifying, reinforcing (de hecho, en realidad) and concluding (en resumen, en definitiva), with punctuation. Clause-level connectors with mood choice are in b2-concesivas and b2-consecutivas-finales.",
+     "related": [
+      "b1-conectores-causa-consecuencia",
+      "b2-concesivas",
+      "b2-consecutivas-finales"
+     ]
+    }
+   ]
+  }
+ ]
+}
