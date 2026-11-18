@@ -8,6 +8,13 @@
        python3 pipeline/prepare_book.py --topic "кот, который живёт в Мадриде" --chapters 5
   3) Только обогащение готовой книги (файл перезаписывается на месте):
        python3 pipeline/prepare_book.py --enrich books/madrid.json
+  4) Оригинал без изменений (общественное достояние), с разметкой, словариком и т.д.:
+       python3 pipeline/prepare_book.py --original --source pipeline/sources/becquer-monte.txt \
+           --title "El monte de las ánimas" --author "Gustavo Adolfo Bécquer" --level B2 \
+           --work-id becquer-monte-animas --year 1861 --license "Общественное достояние: автор умер в 1870 г."
+     Текст не пересказывается: только нормализуются пробелы, убираются сноски и примечания.
+     Главы — по заголовкам самого произведения («# Часть», «## Раздел», римские цифры,
+     CAPÍTULO …), длинные разделы режутся по ~900–1300 слов на границе абзацев.
 
 В конце режимов 1 и 2 тоже идёт обогащение (отключается --no-enrich): по одному запросу
 на главу — кто говорит каждую реплику (Sentence.sp, Book.characters), разговорные фразы
@@ -153,6 +160,86 @@ For EACH input sentence, in the same order, return:
       ru = Russian meaning of this word IN THIS CONTEXT, short (1-4 words)
       g  = short grammar note IN RUSSIAN. Verbs: Spanish tense name + person/number, e.g. "presente, 3 л. ед. ч.", "pretérito indefinido, 1 л. мн. ч.", "infinitivo", "gerundio". If the form is irregular, add "(неправ.)". Nouns: "сущ., м. р." / "сущ., ж. р., мн. ч.". Others: "прил.", "нареч.", "предлог", "артикль", "местоим.", "союз".
 Return exactly as many sentences as were given."""
+
+# Для оригиналов: тот же формат + пометка редких/устаревших слов (Token.r).
+ANNOTATE_SCHEMA_ORIGINAL = json.loads(json.dumps(ANNOTATE_SCHEMA))
+ANNOTATE_SCHEMA_ORIGINAL["properties"]["sentences"]["items"]["properties"]["tokens"]["items"]["properties"]["r"] = {
+    "type": "string", "enum": ["rare", "old"],
+}
+
+ANNOTATE_ORIGINAL_EXTRA = """
+These sentences come from an ORIGINAL, unadapted literary text written in {year_txt}
+(author: {author}). The text is old/literary Peninsular Spanish; do not modernise it — "t" must
+reproduce the author's text EXACTLY, character for character, including old spellings and accents.
+- ru (sentence and word): translate faithfully in the sense the word has IN THIS OLD/LITERARY
+  CONTEXT (e.g. "aposento" = "покои, комната", "mozo" = "юноша/парень", "dueña" = "дуэнья"),
+  in natural literary Russian.
+- g: as above; also say when a form is vosotros ("…, 2 л. мн. ч. (vosotros)"), vos ("(vos, устар.)"),
+  vuestra merced ("(вежл., устар.)"), enclitic pronoun on a finite verb ("díjole = le dijo, устар."),
+  future subjunctive ("futuro de subjuntivo, устар.") or another old usage. -ra/-se subjunctive forms
+  are normal modern Spanish: just name the tense.
+- Old orthography of common words (á/é/ó/ú as one-letter words, fué, dió, vió, fuí, obscuro, oir):
+  keep "t" as written, give the MODERN spelling in "l" (a, ser/ir, dar, ver, oscuro, oír) and add
+  "(старая орфография: сейчас «…»)" to g. Do not mark these with "r".
+- r: ONLY for words a learner should NOT memorise:
+    "old"  = archaic word, form or meaning no longer used in modern Spain (vuestra merced, aposento,
+             díjole, fuere, maguer, asaz, the old meaning of a still-existing word, old spellings);
+    "rare" = literary, poetic or very rare word that even a B2 learner would not need
+             (e.g. "fragor", "céfiro", "zarzal", "ojiva", "cendal").
+  Omit "r" for every normal word, including literary-but-common ones (sombra, hermoso, sangre, susurro).
+  Never put "r" on punctuation."""
+
+GLOSSARY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title_ru": {"type": "string", "description": "Russian translation of the chapter title"},
+        "glossary": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "l": {"type": "string", "description": "dictionary form (lemma)"},
+                    "ru": {"type": "string", "description": "Russian meaning in this chapter"},
+                    "note": {"type": "string", "description": "short note in Russian, may be empty"},
+                    "form": {"type": "string", "description": "the form exactly as it appears in the text"},
+                },
+                "required": ["l", "ru", "note", "form"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["title_ru", "glossary"],
+    "additionalProperties": False,
+}
+
+GLOSSARY_SYSTEM = """You prepare a pre-reading glossary for one chapter of an ORIGINAL (unadapted) Spanish
+literary text, for a native Russian speaker reading it at about B1–B2 level.
+Return:
+- title_ru: a natural Russian translation of the chapter title (roman numerals stay as they are,
+  e.g. "El monte de las ánimas, I" → "Гора духов, I").
+- glossary: 8 to 15 KEY words or fixed expressions of this chapter that are beyond A2 level AND matter
+  for understanding the plot or atmosphere of THIS chapter (things, places, actions the story turns on;
+  archaic words that occur repeatedly). Skip words that are merely decorative or appear once in a
+  description. In READING ORDER (order of first occurrence in the chapter).
+  * l: dictionary form (infinitive / masculine singular / singular);
+  * ru: Russian meaning as used in this chapter (1–4 words);
+  * note: 0–1 short sentence in Russian when useful: old or literary usage, modern equivalent in
+    Spain, cultural context (e.g. "устар.; сейчас говорят «habitación»"). Empty string if nothing to add;
+  * form: the word EXACTLY as it is written in the text at its first occurrence (same accents and
+    capitalisation), so it can be found by search."""
+
+ENRICH_ORIGINAL_EXTRA = """
+IMPORTANT — this chapter is an ORIGINAL, unadapted literary text (19th/early 20th century), not a
+graded reader. Adjust the tasks:
+- speakers/characters: as above (old texts also use «», quotes or no marks — use the logic of the text).
+- phrases: 0 to 6. Only chunks from the DIALOGUE that are STILL NATURAL in modern Spain and worth
+  reusing; skip archaic or bookish ones (vuestra merced, os digo que…). If nothing qualifies, return [].
+  In the note, mention if the register is formal or old-fashioned.
+- questions: 3 to 5, in SIMPLE MODERN Spanish (B1), about the plot of the chapter; answers short.
+- replies: ONLY if the chapter has real dialogue between people. Prompts must be modern, natural
+  Spanish adapted from that dialogue (not archaic). 0 to 4 items; if there is no real dialogue, return [].
+"""
+
 
 _STR = {"type": "string"}
 _STR_LIST = {"type": "array", "items": _STR}
@@ -365,6 +452,284 @@ def split_chunks(text: str, words_per_chunk: int) -> list[str]:
     return chunks
 
 
+# ---------------------------------------------------------------- originals: text, chapters, sentences
+
+_ROMAN = r"[IVXLC]+"
+# Заголовок раздела: «I», «II.», «CAPÍTULO III», «Capítulo 3. Título», «PRIMERA PARTE»…
+_HEADING_RE = re.compile(
+    rf"^(?:(?:CAP[IÍ]TULO|Cap[ií]tulo)\s+(?:{_ROMAN}|\d+)\b.*|{_ROMAN}\.?|(?:PARTE|Parte)\s+{_ROMAN}\b.*)$"
+)
+_TOC_HEAD_RE = re.compile(r"^(?:[IÍ]NDICE|CONTENIDO|TABLA DE MATERIAS|CONTENTS)\.?$", re.I)
+
+
+def clean_original(text: str) -> str:
+    """Убирает разметку Gutenberg и примечания, сохраняя текст автора; абзацы — через пустую строку."""
+    text = text.replace("\r\n", "\n").replace("﻿", "")
+    # Примечания транскрибера / издателя в квадратных скобках (могут занимать несколько строк).
+    text = re.sub(r"\[(?:Nota del transcriptor|Nota del editor|Transcriber'?s? [Nn]ote|Illustration|Ilustración|imagen)"
+                  r"[^\]]*\]", "", text, flags=re.S | re.I)
+    # Маркеры сносок: [1], [A], [12], (1) сразу после слова или знака.
+    text = re.sub(r"(?<=[^\s\[])\[(?:\d{1,3}|[A-Z])\]", "", text)
+    text = re.sub(r"(?<=[\w.,;:!?»])\((?:\d{1,3})\)", "", text)
+    # Курсив/жирный в plain text Gutenberg: _слово_, =слово=.
+    text = re.sub(r"_([^_\n]+(?:\n[^_\n]+)*)_", r"\1", text)
+    text = re.sub(r"=([^=\n]+)=", r"\1", text)
+    paras = []
+    for raw in re.split(r"\n\s*\n", text):
+        lines = [ln.strip() for ln in raw.strip().split("\n")]
+        if not any(lines):
+            continue
+        # Текст самих сносок ([1] Текст…) и строки из одних звёздочек/черт.
+        if re.match(r"^\[(?:\d{1,3}|[A-Z])\]\s", lines[0]) or re.fullmatch(r"[\s*.·_=-]+", " ".join(lines)):
+            continue
+        # Явная разметка заголовков (# Часть / ## Раздел) — отдельной строкой.
+        if lines[0].startswith("#"):
+            paras.append(lines[0])
+            lines = lines[1:]
+            if not any(lines):
+                continue
+        p = " ".join(ln for ln in lines if ln)
+        # Перенос слова через дефис на конце строки: «pala- bra» → «palabra».
+        p = re.sub(r"(\w)- (\w)", lambda m: m.group(1) + m.group(2) if m.group(2).islower() else m.group(0), p)
+        p = re.sub(r"\s+", " ", p).strip()
+        p = re.sub(r"\s+([,.;:!?»)])", r"\1", p)
+        p = re.sub(r"([¿¡«(])\s+", r"\1", p)
+        p = p.replace("--", "—")
+        if p:
+            paras.append(p)
+    # Оглавление: заголовок ÍNDICE и следующие за ним короткие строки.
+    out, in_toc = [], False
+    for p in paras:
+        if _TOC_HEAD_RE.match(p):
+            in_toc = True
+            continue
+        if in_toc and len(p.split()) <= 12 and not p.startswith("#"):
+            continue
+        in_toc = False
+        out.append(p)
+    return "\n\n".join(out)
+
+
+def _is_heading(p: str) -> bool:
+    return p.startswith("#") or bool(_HEADING_RE.match(p))
+
+
+def split_original(text: str, min_words: int = 900, max_words: int = 1300) -> list[dict]:
+    """Делит очищенный текст на главы: [{"title", "paragraphs": [str]}].
+
+    Части («# Título») никогда не склеиваются друг с другом; разделы внутри части («## II»,
+    римские цифры, CAPÍTULO) — склеиваются, пока глава короче min_words; длинный раздел
+    режется по max_words на границе абзаца.
+    """
+    paras = [p for p in text.split("\n\n") if p.strip()]
+    parts: list[dict] = []  # {"title", "sections": [{"label", "paras"}]}
+    for p in paras:
+        if p.startswith("# ") or (p.startswith("#") and not p.startswith("##")):
+            parts.append({"title": p.lstrip("#").strip(), "sections": []})
+            continue
+        if not parts:
+            parts.append({"title": "", "sections": []})
+        secs = parts[-1]["sections"]
+        if _is_heading(p):
+            secs.append({"label": p.lstrip("#").strip().rstrip("."), "paras": []})
+            continue
+        if not secs:
+            secs.append({"label": "", "paras": []})
+        secs[-1]["paras"].append(p)
+
+    def wc(ps: list[str]) -> int:
+        return sum(len(x.split()) for x in ps)
+
+    chapters: list[dict] = []
+    for part in parts:
+        secs = [s for s in part["sections"] if s["paras"]]
+        # 1) Длинные разделы → куски по ~max_words (равными долями).
+        pieces: list[dict] = []
+        for s in secs:
+            n = wc(s["paras"])
+            k = max(1, -(-n // max_words))
+            target = n / k
+            cur, cn, idx = [], 0, 0
+            for para in s["paras"]:
+                w = len(para.split())
+                if cur and cn + w / 2 > target * (idx + 1) and idx < k - 1:
+                    pieces.append({"label": s["label"], "paras": cur, "cont": idx > 0})
+                    cur, idx = [], idx + 1
+                cur.append(para)
+                cn += w
+            pieces.append({"label": s["label"], "paras": cur, "cont": idx > 0})
+        # 2) Короткие соседние куски склеиваем, пока глава < min_words.
+        groups: list[list[dict]] = []
+        for pc in pieces:
+            if groups and wc([x for g in groups[-1] for x in g["paras"]]) < min_words \
+                    and wc([x for g in groups[-1] for x in g["paras"]]) + wc(pc["paras"]) <= max_words + 200:
+                groups[-1].append(pc)
+            else:
+                groups.append([pc])
+        # Хвост короче трети нормы — к предыдущей главе.
+        if len(groups) > 1 and wc([x for g in groups[-1] for x in g["paras"]]) < min_words // 3:
+            groups[-2].extend(groups.pop())
+        for gi, g in enumerate(groups):
+            labels = list(dict.fromkeys(pc["label"] for pc in g if pc["label"]))
+            cont = g[0]["cont"]
+            if not labels:
+                # Часть без разделов, порезанная по длине: I, II, III…
+                sec = to_roman(gi + 1) if len(groups) > 1 else ""
+            elif len(labels) == 1:
+                sec = labels[0] + (" (continuación)" if cont else "")
+            else:
+                sec = f"{labels[0]}–{labels[-1]}" if all(re.fullmatch(_ROMAN, x) for x in labels) else ", ".join(labels)
+            title = ", ".join(x for x in (part["title"], sec) if x) or part["title"]
+            chapters.append({"title": title, "part": part["title"], "sec": sec,
+                             "paragraphs": [x for pc in g for x in pc["paras"]]})
+    # Главы без заголовков нумеруем римскими цифрами.
+    for i, ch in enumerate(chapters):
+        if not ch["title"]:
+            ch["title"] = to_roman(i + 1)
+    return chapters
+
+
+def unify_part_titles(chapters: list[dict]) -> None:
+    """Переводы заголовков глав одной части делаем одинаковыми: «Гора духов, I», «Гора духов, II»…
+    (каждую главу переводит отдельный запрос, и название части могло выйти по-разному)."""
+    part_ru: dict[str, str] = {}
+    for ch in chapters:
+        part, sec, ru = ch.get("part", ""), ch.get("sec", ""), ch.get("title_ru", "")
+        if not part or not sec or not ru:
+            continue
+        if part not in part_ru:
+            # Отрезаем перевод раздела с конца: «Гора духов, I (продолжение)» → «Гора духов».
+            head = re.sub(r",?\s*[IVXLC]+(?:\s*[–-]\s*[IVXLC]+)?(?:\s*\([^)]*\))?\s*$", "", ru).strip() or ru
+            part_ru[part] = head
+        ch["title_ru"] = f"{part_ru[part]}, {sec.replace('(continuación)', '(продолжение)')}"
+
+
+def to_roman(n: int) -> str:
+    out = ""
+    for v, s in ((1000, "M"), (900, "CM"), (500, "D"), (400, "CD"), (100, "C"), (90, "XC"),
+                 (50, "L"), (40, "XL"), (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")):
+        while n >= v:
+            out, n = out + s, n - v
+    return out
+
+
+# Сокращения, после которых точка не конец предложения.
+_ABBREV = {
+    "sr", "sra", "srta", "sres", "d", "dª", "dña", "da", "ud", "uds", "vd", "vds", "v", "vv", "vm", "excmo",
+    "excma", "ilmo", "ilma", "s", "sto", "sta", "fr", "fray", "p", "pbro", "dr", "dra", "lic", "etc", "pág",
+    "págs", "cap", "núm", "art", "vol", "cía", "ntra", "nra", "sto", "mr", "mme", "mlle", "st", "gral",
+    "cfr", "cf", "ej", "c", "ib", "id", "op", "ms", "n", "pl", "fol",
+}
+_OPENERS = "¿¡«“\"'(—–"
+
+
+def split_sentences(par: str, long_words: int = 60) -> list[str]:
+    """Режет абзац на предложения, не меняя ни одного символа (кроме пробела на границе).
+
+    Граница — после . ! ? … (и закрывающих » ” ) ' "), если дальше пробел и заглавная буква,
+    ¿ ¡ « или тире новой реплики с заглавной. Не режет после сокращений (Sr., D., Dña.) и
+    инициалов, и перед ремаркой автора («—¿Vienes? —preguntó él.»).
+    Очень длинные (> long_words слов) предложения дополнительно режутся по «; » / «: ».
+    """
+    out, start, i, n = [], 0, 0, len(par)
+    # Короткие цитаты («…», “…”, "…") не режем: иначе кавычка уходит в другое предложение.
+    protected = [False] * n
+    for m in re.finditer(r"«[^«»]*»|“[^“”]*”|\"[^\"]*\"", par):
+        if len(m.group(0).split()) <= 60:
+            last = m.end() - 2  # знаки прямо перед закрывающей кавычкой могут завершать предложение
+            while last > m.start() and par[last] in ".!?…":
+                last -= 1
+            for k in range(m.start(), last + 1):
+                protected[k] = True
+    while i < n:
+        c = par[i]
+        if c in ".!?…" and protected[i]:
+            i += 1
+            continue
+        if c in ".!?…":
+            j = i + 1
+            while j < n and par[j] in ".!?…":
+                j += 1
+            while j < n and par[j] in "»”\"')]":
+                j += 1
+            if j < n and par[j] == " ":
+                k = j + 1
+                nxt = par[k] if k < n else ""
+                nxt2 = par[k + 1] if k + 1 < n else ""
+                boundary = False
+                if nxt.isupper() or nxt.isdigit() or nxt in "¿¡«“\"'(":
+                    boundary = True
+                elif nxt in "—–" and (nxt2.isupper() or nxt2 in "¿¡«"):
+                    boundary = True
+                if boundary and c == ".":
+                    m = re.search(r"([\wªº]+)\.$", par[start:i + 1])
+                    if m and (m.group(1).lower() in _ABBREV or (len(m.group(1)) == 1 and m.group(1).isupper())):
+                        boundary = False
+                if boundary:
+                    out.append(par[start:j])
+                    start = j + 1
+                    i = j + 1
+                    continue
+            i = j
+            continue
+        i += 1
+    if start < n:
+        out.append(par[start:])
+    out = [s.strip() for s in out if s.strip()]
+
+    res = []
+    for s in out:
+        res.extend(_split_long(s, long_words))
+    assert " ".join(res) == par, f"split_sentences changed text:\n{par}\n---\n{' '.join(res)}"
+    return res
+
+
+def _split_long(s: str, long_words: int) -> list[str]:
+    words = s.split()
+    if len(words) <= long_words:
+        return [s]
+    # Кандидаты: «; » и «: » вне кавычек «» (не режем внутри цитаты).
+    cands, depth = [], 0
+    for i, c in enumerate(s):
+        if c in "«“":
+            depth += 1
+        elif c in "»”":
+            depth = max(0, depth - 1)
+        elif c in ";:" and depth == 0 and i + 1 < len(s) and s[i + 1] == " ":
+            cands.append(i + 1)
+    if not cands:
+        return [s]
+    # Ближайшая к середине точка, где обе части ≥ 12 слов.
+    best = None
+    for pos in cands:
+        a, b = len(s[:pos].split()), len(s[pos:].split())
+        if a >= 12 and b >= 12 and (best is None or abs(a - b) < best[0]):
+            best = (abs(a - b), pos)
+    if best is None:
+        return [s]
+    pos = best[1]
+    return _split_long(s[:pos].strip(), long_words) + _split_long(s[pos:].strip(), long_words)
+
+
+_TOKEN_RE = re.compile(r"\w+(?:[-'’]\w+)*|\.\.\.|[^\w\s]", re.U)
+
+
+def realign_tokens(src: str, tokens: list[dict]) -> list[dict]:
+    """Если токены модели не воспроизводят исходник, строим токены из исходника заново
+    и переносим разметку (l/ru/g/r) с совпавших токенов модели."""
+    import difflib
+    words = _TOKEN_RE.findall(src)
+    a = [w.lower() for w in words]
+    b = [t["t"].lower() for t in tokens]
+    out = [{"t": w} for w in words]
+    sm = difflib.SequenceMatcher(a=a, b=b, autojunk=False)
+    for blk in sm.get_matching_blocks():
+        for k in range(blk.size):
+            tk = tokens[blk.b + k]
+            out[blk.a + k] = {"t": words[blk.a + k], **{f: tk[f] for f in ("l", "ru", "g", "r") if f in tk}}
+    return out
+
+
 # ---------------------------------------------------------------- claude -p
 
 def claude_json(prompt: str, system: str, schema: dict, model: str, effort: str, retries: int = 2) -> dict:
@@ -441,16 +806,62 @@ def generate_story(topic: str, level: str, args) -> dict:
 
 def annotate(sentences: list[str], args) -> list[dict]:
     numbered = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(sentences))
-    res = claude_json(
-        f"Annotate these {len(sentences)} sentences:\n\n{numbered}",
-        ANNOTATE_SYSTEM, ANNOTATE_SCHEMA, args.model, args.annotate_effort,
-    )
-    out = res["sentences"]
-    if len(out) != len(sentences):
-        raise RuntimeError(f"expected {len(sentences)} sentences, got {len(out)}")
+    system, schema = ANNOTATE_SYSTEM, ANNOTATE_SCHEMA
+    if getattr(args, "original", False):
+        year_txt = str(args.year) if args.year else "the 19th or early 20th century"
+        system += ANNOTATE_ORIGINAL_EXTRA.format(year_txt=year_txt, author=args.author or "unknown")
+        schema = ANNOTATE_SCHEMA_ORIGINAL
+    out: list = []
+    for attempt in range(2):
+        res = claude_json(
+            f"Annotate these {len(sentences)} sentences:\n\n{numbered}",
+            system, schema, args.model, args.annotate_effort,
+        )
+        out = res["sentences"]
+        if len(out) == len(sentences):
+            break
+        print(f"   ! разметка: ждали {len(sentences)} предл., пришло {len(out)} (попытка {attempt + 1})",
+              file=sys.stderr)
+    else:
+        if len(sentences) == 1:
+            raise RuntimeError(f"expected 1 sentence, got {len(out)}")
+        # Модель сбивается на длинном блоке — делим пополам.
+        mid = len(sentences) // 2
+        return annotate(sentences[:mid], args) + annotate(sentences[mid:], args)
     for src, s in zip(sentences, out):
         s["src"] = src
     return out
+
+
+def glossary_chapter(title: str, paragraphs: list[str], args) -> dict:
+    """Перевод заголовка и словарик главы оригинала (8–15 ключевых слов выше A2)."""
+    text = "\n\n".join(paragraphs)
+    prompt = (f"Book: {args.title} ({args.author}, {args.year or 'n.d.'}).\n"
+              f"Chapter title: {title}\n\n<chapter>\n{text}\n</chapter>")
+    return claude_json(prompt, GLOSSARY_SYSTEM, GLOSSARY_SCHEMA, args.model, args.enrich_effort)
+
+
+def clean_glossary(items: list[dict], chapter_text: str) -> list[dict]:
+    """Оставляет слова, которые реально есть в тексте главы, без повторов, в порядке чтения."""
+    low = chapter_text.lower()
+    out, seen = [], set()
+    for it in items:
+        l, ru = (it.get("l") or "").strip(), (it.get("ru") or "").strip()
+        form = (it.get("form") or "").strip() or l
+        if not l or not ru or norm_key(l) in seen:
+            continue
+        m = re.search(rf"(?<!\w){re.escape(form.lower())}(?!\w)", low)
+        if not m:
+            m = re.search(rf"(?<!\w){re.escape(l.lower())}(?!\w)", low)
+            if not m:
+                continue
+            form = chapter_text[m.start():m.end()]
+        else:
+            form = chapter_text[m.start():m.end()]
+        seen.add(norm_key(l))
+        out.append((m.start(), {"l": l, "ru": ru, "note": (it.get("note") or "").strip(), "form": form}))
+    out.sort(key=lambda x: x[0])
+    return [x[1] for x in out[:15]]
 
 
 # ---------------------------------------------------------------- enrich
@@ -489,7 +900,7 @@ def chapter_sentences(ch: dict) -> list[dict]:
 
 
 def enrich_chapter(ch: dict, ci: int, total: int, level: str, book_title: str,
-                   known: list[dict], args) -> dict:
+                   known: list[dict], args, original: bool = False) -> dict:
     blocks, n = [], 0
     for p in ch["paragraphs"]:
         lines = []
@@ -504,6 +915,8 @@ def enrich_chapter(ch: dict, ci: int, total: int, level: str, book_title: str,
         f"The chapter has {n} sentences (blank line = new paragraph):\n\n" + "\n\n".join(blocks)
     )
     system = ENRICH_SYSTEM.format(level=level, level_guide=LEVEL_GUIDE[level], spain=SPAIN_RULES)
+    if original:
+        system += ENRICH_ORIGINAL_EXTRA
     res = claude_json(prompt, system, ENRICH_SCHEMA, args.model, args.enrich_effort)
     res["n"] = n
     return res
@@ -531,6 +944,7 @@ def enrich_book(book: dict, work: Path, args) -> None:
     """Добавляет в книгу characters, Sentence.sp и Chapter.phrases/questions/replies (на месте)."""
     chapters = book["chapters"]
     level = book.get("level") if book.get("level") in LEVEL_GUIDE else "A1"
+    original = book.get("kind") == "original"
 
     registry: dict[str, dict] = {}  # norm_key(name) -> {"name", "gender"}
 
@@ -558,7 +972,7 @@ def enrich_book(book: dict, work: Path, args) -> None:
                 print(f"   ✓ глава {ci + 1}/{len(chapters)} (кэш)")
                 return data
             print(f"   ! {path.name}: глава изменилась ({data.get('n')} → {n} предл.), пересчитываю")
-        data = enrich_chapter(chapters[ci], ci, len(chapters), level, book["title"], known, args)
+        data = enrich_chapter(chapters[ci], ci, len(chapters), level, book["title"], known, args, original)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"   ✓ глава {ci + 1}/{len(chapters)}: {chapters[ci]['title']}")
@@ -703,7 +1117,10 @@ def tag_book(book: dict, args) -> None:
         "the book really covers (a tag only if a meaningful part of the book is about it). "
         "Always include exactly one or two genre tags (everyday/adventure/mystery/romance/humor/classic/nonfiction)."
     )
-    prompt = f"Catalog:\n{catalog}\n\nBook: {book['title']} (level {book.get('level', '')}).\nChapters:\n" + "\n".join(chapters)
+    kind = ("an ORIGINAL unadapted classic text (use the genre tag 'classic' + the story's genre)"
+            if book.get("kind") == "original" else "a graded reader")
+    prompt = (f"Catalog:\n{catalog}\n\nBook: {book['title']} (level {book.get('level', '')}; {kind}).\n"
+              "Chapters:\n" + "\n".join(chapters))
     res = claude_json(prompt, system, schema, args.model, "low")
     tags = [t for t in dict.fromkeys(res.get("tags", [])) if t in TAGS]
     book["tags"] = tags
@@ -713,6 +1130,18 @@ def tag_book(book: dict, args) -> None:
 def write_book(path: Path, book: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(book, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+
+
+def _deaccent(s: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", s.lower()) if not unicodedata.combining(c))
+
+
+def old_spelling_only(tk: dict) -> bool:
+    """Слово устарело только написанием (á, fué, oir, éstas): учить его можно, r не ставим."""
+    t, l = tk.get("t", ""), tk.get("l") or ""
+    if "орфограф" in (tk.get("g") or ""):
+        return True
+    return t.lower() != l.lower() and _deaccent(t) == _deaccent(l)
 
 
 def tokens_ok(src: str, tokens: list[dict]) -> bool:
@@ -754,10 +1183,22 @@ def main() -> None:
     ap.add_argument("--batch", type=int, default=15, help="предложений в одном запросе разметки")
     ap.add_argument("--jobs", type=int, default=4, help="параллельных запросов claude")
     ap.add_argument("--push", action="store_true", help="скопировать на телефон через adb")
+    ap.add_argument("--original", action="store_true",
+                    help="(--source) оригинальный текст без адаптации: разметка, словарик, редкие слова")
+    ap.add_argument("--work-id", default="", help="общий id произведения (связывает адаптации и оригинал)")
+    ap.add_argument("--year", type=int, default=0, help="год первой публикации оригинала")
+    ap.add_argument("--license", default="", help='например "Общественное достояние: автор умер в 1870 г."')
+    ap.add_argument("--source-note", default="", help="текст поля source (по умолчанию — имя файла)")
+    ap.add_argument("--min-words", type=int, default=900, help="(--original) минимум слов в главе")
+    ap.add_argument("--max-words", type=int, default=1300, help="(--original) максимум слов в главе")
     args = ap.parse_args()
 
     if args.source and not args.title:
         ap.error("--title обязателен вместе с --source")
+    if args.original and not args.source:
+        ap.error("--original работает только с --source")
+    if args.original and not args.license:
+        ap.error("для --original нужен --license (почему текст в общественном достоянии)")
 
     if args.tags:
         book = json.loads(args.tags.read_text(encoding="utf-8"))
@@ -791,9 +1232,35 @@ def main() -> None:
         title = args.title or story["title"]
         chapters = story["chapters"]
         source_note = f"Оригинальная история: {args.topic}"
+    elif args.original:
+        title = args.title
+        parts = split_original(clean_original(read_source(args.source)), args.min_words, args.max_words)
+        parts = parts[args.skip_chunks:]
+        if args.max_chunks:
+            parts = parts[: args.max_chunks]
+        chapters = [{"title": pt["title"], "part": pt["part"], "sec": pt["sec"],
+                     "paragraphs": [split_sentences(p) for p in pt["paragraphs"]],
+                     "raw": pt["paragraphs"]} for pt in parts]
+        print(f"▶ Оригинал: {len(chapters)} гл.: " + "; ".join(
+            f"{c['title']} ({sum(len(p.split()) for p in c['raw'])} сл.)" for c in chapters))
+        source_note = f"Оригинальный текст: {args.source.name}"
+
+        def do_gloss(i: int) -> dict:
+            r = cached(work / f"gloss_{i:03d}.json",
+                       lambda: glossary_chapter(chapters[i]["title"], chapters[i]["raw"], args))
+            print(f"   ✓ словарик главы {i + 1}/{len(chapters)}: {r['title_ru']}")
+            return r
+
+        print(f"▶ Словарики и переводы заголовков (параллельно: {args.jobs})…")
+        with cf.ThreadPoolExecutor(args.jobs) as ex:
+            for ch, g in zip(chapters, ex.map(do_gloss, range(len(chapters)))):
+                ch["title_ru"] = g["title_ru"].strip()
+                ch["glossary"] = clean_glossary(g["glossary"], "\n\n".join(ch["raw"]))
+        unify_part_titles(chapters)
     else:
         title = args.title
-        chunks = split_chunks(read_source(args.source), args.chunk_words)[args.skip_chunks:]
+        text = re.sub(r"(?m)^#+[ \t]*", "", read_source(args.source))  # разметка заголовков не нужна
+        chunks = split_chunks(text, args.chunk_words)[args.skip_chunks:]
         if args.max_chunks:
             chunks = chunks[: args.max_chunks]
         print(f"▶ Адаптирую {len(chunks)} фрагм. под {args.level} (параллельно: {args.jobs})…")
@@ -828,20 +1295,31 @@ def main() -> None:
             annotated.setdefault(ci, []).append((bi, list(zip([pi for pi, _ in items], res))))
 
     # 3. Сборка книги
-    bad = 0
+    bad = realigned = 0
     out_chapters = []
     for ci, ch in enumerate(chapters):
         paragraphs: dict[int, list] = {}
         for _, pairs in sorted(annotated.get(ci, [])):
             for pi, s in pairs:
-                if not tokens_ok(s["src"], s["tokens"]):
+                tokens = s["tokens"]
+                for tk in tokens:
+                    if tk.get("r") not in ("rare", "old") or "l" not in tk or old_spelling_only(tk):
+                        tk.pop("r", None)
+                if not tokens_ok(s["src"], tokens):
                     bad += 1
-                paragraphs.setdefault(pi, []).append({"ru": s["ru"], "tokens": s["tokens"]})
-        out_chapters.append({
+                    if args.original:
+                        # Текст оригинала должен остаться буква в букву.
+                        tokens = realign_tokens(s["src"], tokens)
+                        realigned += 1
+                paragraphs.setdefault(pi, []).append({"ru": s["ru"], "tokens": tokens})
+        out_ch = {
             "title": ch["title"],
             "titleRu": ch.get("title_ru", ""),
             "paragraphs": [{"sentences": paragraphs[k]} for k in sorted(paragraphs)],
-        })
+        }
+        if ch.get("glossary"):
+            out_ch["glossary"] = ch["glossary"]
+        out_chapters.append(out_ch)
 
     book = {
         "format": 1,
@@ -850,9 +1328,16 @@ def main() -> None:
         "author": args.author,
         "level": args.level,
         "lang": "es-ES",
-        "source": source_note,
-        "chapters": out_chapters,
+        "source": args.source_note or source_note,
+        "kind": "original" if args.original else "adapted",
     }
+    if args.work_id:
+        book["workId"] = args.work_id
+    if args.year:
+        book["year"] = args.year
+    if args.license:
+        book["license"] = args.license
+    book["chapters"] = out_chapters
     out = BOOKS_DIR / f"{book_id}.json"
     write_book(out, book)
     n_sent = sum(len(p["sentences"]) for c in out_chapters for p in c["paragraphs"])
@@ -860,7 +1345,18 @@ def main() -> None:
                   for t in s["tokens"] if "l" in t)
     print(f"✅ {out}  — {len(out_chapters)} гл., {n_sent} предл., {n_words} слов")
     if bad:
-        print(f"   (в {bad} предл. токены не совпали с исходником буква в букву — не критично)")
+        print(f"   (в {bad} предл. токены не совпали с исходником буква в букву"
+              + (f"; пересобраны из исходника: {realigned})" if realigned else " — не критично)"))
+    if args.original:
+        n_r = {"rare": 0, "old": 0}
+        for c in out_chapters:
+            for p in c["paragraphs"]:
+                for s in p["sentences"]:
+                    for t in s["tokens"]:
+                        if t.get("r") in n_r:
+                            n_r[t["r"]] += 1
+        print(f"   Редких слов: {n_r['rare']}, устаревших: {n_r['old']}; "
+              f"словарик: {sum(len(c.get('glossary', [])) for c in out_chapters)} слов")
 
     # 4. Обогащение: говорящие, разговорные фразы, вопросы, «выбери ответ»
     if not args.no_enrich:
