@@ -27,6 +27,10 @@ class Prefs(context: Context) {
     var reviewAutoWord: Boolean
         get() = sp.getBoolean("reviewAutoWord", true)
         set(v) = sp.edit().putBoolean("reviewAutoWord", v).apply()
+    /** Грамматика: читать предложение упражнения вслух при показе и правильный ответ после. */
+    var grammarAutoSpeak: Boolean
+        get() = sp.getBoolean("grammarAutoSpeak", true)
+        set(v) = sp.edit().putBoolean("grammarAutoSpeak", v).apply()
     var reviewAutoExample: Boolean
         get() = sp.getBoolean("reviewAutoExample", false)
         set(v) = sp.edit().putBoolean("reviewAutoExample", v).apply()

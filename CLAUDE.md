@@ -40,6 +40,8 @@ Personal Android app for learning Spanish (Spain, es-ES) by reading adapted book
 - Testing an upgrade: install the previous release APK on the emulator (AVD `Pixel_8_Pro`), create data, install the new one with `adb install -r`, open «Данные».
 
 ## Rules
+- Typed and spoken answers are compared ignoring case and punctuation; digits equal words («3» = «tres», «1» = uno/un/una; `TextMatch`, `SpanishNumbers`). A wrong answer is shown word by word.
+- Spanish is read aloud wherever possible: an exercise sentence is spoken on appearance with a pause at the gap (`Player.speakWithPauses`), and the right answer after the reply.
 - Extra practice does not change the schedule when the answer is right; a wrong answer sends the word back into regular review.
 - «Знаю» = stage 3, interval 7 days. Words are matched by both form and lemma (`vocabIndex`).
 - Content focus: conversational Spanish and dialogues (`--style dialog` by default in the pipeline).

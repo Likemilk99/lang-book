@@ -19,6 +19,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.Locale
 
+/** Тишина на месте пропуска «___» при озвучке упражнения. */
+const val GAP_PAUSE_MS = 1100L
+
 /**
  * Читает книгу вслух по предложениям через системный TTS.
  * Единственный источник правды о текущей позиции (книга / глава / предложение):
@@ -234,6 +237,24 @@ class Player(private val app: LecturaApp) {
         tts.setSpeechRate(_state.value.rate)
         items.forEachIndexed { i, t ->
             tts.speak(t, if (i == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, "once$i")
+        }
+    }
+
+    /**
+     * Предложение с пропусками: части читаются подряд, на месте каждого пропуска — тишина
+     * ([pauseMs]), чтобы было слышно, где не хватает слова. Прерывает текущую речь.
+     */
+    fun speakWithPauses(parts: List<String>, pauseMs: Long = GAP_PAUSE_MS) {
+        if (parts.all { it.isBlank() }) return
+        if (_state.value.playing) pause()
+        generation++
+        applySpeaker(null)
+        tts.setSpeechRate(_state.value.rate)
+        var first = true
+        fun mode() = (if (first) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD).also { first = false }
+        parts.forEachIndexed { i, p ->
+            if (i > 0) tts.playSilentUtterance(pauseMs, mode(), "gap$i")
+            if (p.isNotBlank()) tts.speak(p.trim(), mode(), null, "once$i")
         }
     }
 

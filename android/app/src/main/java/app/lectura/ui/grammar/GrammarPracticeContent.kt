@@ -24,6 +24,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
@@ -71,6 +72,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.lectura.LecturaApp
+import app.lectura.model.GrammarExercise
+import app.lectura.review.TextMatch
 import app.lectura.data.GrammarProgress
 import app.lectura.review.Bad
 import app.lectura.review.DontKnow
@@ -86,6 +89,7 @@ internal fun GrammarPracticeContent(topicId: String, onBack: () -> Unit, vmKey: 
     val app = LecturaApp.instance
     val player = app.player
     val vm: GrammarPracticeVm = viewModel(key = vmKey) { GrammarPracticeVm(topicId) }
+    var autoSpeak by remember { mutableStateOf(app.prefs.grammarAutoSpeak) }
     LaunchedEffect(Unit) { vm.ensureStarted() }
     DisposableEffect(Unit) { onDispose { player.stopSpeech() } }
     val exit = {
@@ -117,6 +121,18 @@ internal fun GrammarPracticeContent(topicId: String, onBack: () -> Unit, vmKey: 
                         }
                     },
                     navigationIcon = { IconButton(onClick = exit) { Icon(Icons.Filled.Close, "Закрыть") } },
+                    actions = {
+                        IconButton(onClick = {
+                            autoSpeak = !autoSpeak
+                            app.prefs.grammarAutoSpeak = autoSpeak
+                            if (!autoSpeak) player.stopSpeech()
+                        }) {
+                            Icon(
+                                if (autoSpeak) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeOff,
+                                if (autoSpeak) "Автоозвучка включена" else "Автоозвучка выключена",
+                            )
+                        }
+                    },
                 )
                 if (!vm.loading && !vm.finished && vm.items.isNotEmpty()) {
                     val done = vm.pos + (if (vm.current != null) 1 else 0)
@@ -137,7 +153,7 @@ internal fun GrammarPracticeContent(topicId: String, onBack: () -> Unit, vmKey: 
                 vm.finished -> FinishedView(vm, onAgain = { vm.start() }, onTopic = exit)
                 else -> {
                     val item = vm.items[vm.pos]
-                    key(item.id) { ExerciseView(vm, item) }
+                    key(item.id) { ExerciseView(vm, item, autoSpeak) }
                 }
             }
         }
@@ -161,10 +177,18 @@ private fun EmptyBank(noTopic: Boolean, onBack: () -> Unit) {
 }
 
 @Composable
-private fun ColumnScope.ExerciseView(vm: GrammarPracticeVm, item: PracticeItem) {
+private fun ColumnScope.ExerciseView(vm: GrammarPracticeVm, item: PracticeItem, autoSpeak: Boolean) {
     val result = vm.current
     val answered = result != null
     val ex = item.ex
+    val player = LecturaApp.instance.player
+    // Испанский — вслух: при показе предложение с паузой на месте пропуска, после ответа — правильный вариант.
+    LaunchedEffect(Unit) {
+        if (autoSpeak && !answered) player.speakWithPauses(GrammarLogic.promptSpeech(ex))
+    }
+    LaunchedEffect(answered) {
+        if (autoSpeak && answered) player.speakOnce(GrammarLogic.fullSentence(ex))
+    }
     Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(top = 12.dp)) {
         when (ex.type) {
             "choice" -> ChoiceView(item, result, vm::answer)
@@ -213,6 +237,19 @@ private fun GapSentence(sentence: String, answer: String, revealed: Boolean, cor
     )
 }
 
+/** Прослушать предложение упражнения ещё раз (с паузой на месте пропуска). */
+@Composable
+private fun ListenPrompt(ex: GrammarExercise, answered: Boolean) {
+    if (answered) return
+    val parts = remember(ex) { GrammarLogic.promptSpeech(ex) }
+    if (parts.all { it.isBlank() }) return
+    val player = LecturaApp.instance.player
+    TextButton(onClick = { player.speakWithPauses(parts) }, modifier = Modifier.fillMaxWidth()) {
+        Icon(Icons.AutoMirrored.Filled.VolumeUp, null, modifier = Modifier.padding(end = 6.dp))
+        Text("Прослушать")
+    }
+}
+
 @Composable
 private fun PromptHint(text: String) {
     if (text.isBlank()) return
@@ -254,6 +291,7 @@ private fun ChoiceView(item: PracticeItem, result: ItemResult?, onAnswer: (Verdi
     Instruction("Выберите правильный вариант")
     GapSentence(ex.sentence, ex.answer, revealed = result != null, correct = result?.correct == true)
     PromptHint(ex.prompt)
+    ListenPrompt(ex, result != null)
     RuReveal(ex.ru, result != null)
     Spacer(Modifier.height(16.dp))
     OptionList(options, correctIdx, chosen) { i ->
@@ -305,6 +343,7 @@ private fun InputView(item: PracticeItem, result: ItemResult?, onAnswer: (Verdic
     Instruction("Впишите пропущенное")
     GapSentence(ex.sentence, ex.answer, revealed = result != null, correct = result?.correct == true)
     PromptHint(ex.prompt)
+    ListenPrompt(ex, result != null)
     RuReveal(ex.ru, result != null)
     Spacer(Modifier.height(16.dp))
     TextAnswer(
@@ -333,6 +372,7 @@ private fun TransformView(item: PracticeItem, result: ItemResult?, onAnswer: (Ve
                 modifier = Modifier.padding(16.dp),
             )
         }
+        ListenPrompt(ex, result != null)
     }
     RuReveal(ex.ru, result != null)
     Spacer(Modifier.height(16.dp))
@@ -435,7 +475,15 @@ private fun FeedbackCard(r: ItemResult) {
                 Text(
                     buildAnnotatedString {
                         append("Ваш ответ: ")
-                        withStyle(SpanStyle(textDecoration = if (r.verdict == Verdict.WRONG) TextDecoration.LineThrough else null)) {
+                        if (r.verdict == Verdict.WRONG) {
+                            // Слова, которых нет в правильном ответе, — красным и зачёркнуты.
+                            val accepted = if (ex.type == "input") GrammarLogic.inputAccepted(ex) else GrammarLogic.transformAccepted(ex)
+                            TextMatch.wordDiff(r.given, accepted).forEachIndexed { i, (w, ok) ->
+                                if (i > 0) append(" ")
+                                if (ok) append(w)
+                                else withStyle(SpanStyle(color = Bad, textDecoration = TextDecoration.LineThrough, fontWeight = FontWeight.SemiBold)) { append(w) }
+                            }
+                        } else {
                             append(r.given)
                         }
                     },

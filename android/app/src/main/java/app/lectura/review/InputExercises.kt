@@ -112,11 +112,11 @@ fun ClozeInputView(ex: Exercise.ClozeInput, answered: Boolean, onAnswer: (Answer
 
     fun check() {
         if (text.isBlank() || answered) return
-        val typed = TextMatch.norm(text)
-        val right = listOf(ex.cloze.answer, ex.word.word)
+        // Можно вписать и одно слово, и всё предложение целиком.
+        val right = listOf(ex.cloze.answer, ex.word.word, ex.cloze.before + ex.cloze.answer + ex.cloze.after)
         val result = when {
-            right.any { TextMatch.norm(it) == typed } -> Answer(Outcome.CORRECT)
-            right.any { TextMatch.loose(it) == TextMatch.loose(text) } ->
+            right.any { TextMatch.same(text, it) } -> Answer(Outcome.CORRECT)
+            right.any { TextMatch.sameLoose(text, it) } ->
                 Answer(Outcome.HARD, "Почти! Обратите внимание на ударения и ñ: «${ex.cloze.answer}»")
             else -> Answer(Outcome.WRONG, "Вы написали: «${text.trim()}»")
         }

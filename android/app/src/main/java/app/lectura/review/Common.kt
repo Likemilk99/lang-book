@@ -98,6 +98,15 @@ fun ClozeText(cloze: Cloze, revealed: Boolean) {
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth(),
     )
+    if (!revealed) {
+        androidx.compose.material3.TextButton(
+            onClick = { LecturaApp.instance.player.speakWithPauses(listOf(cloze.before, cloze.after)) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(Icons.AutoMirrored.Filled.VolumeUp, null, modifier = Modifier.padding(end = 6.dp))
+            Text("Прослушать")
+        }
+    }
 }
 
 @Composable

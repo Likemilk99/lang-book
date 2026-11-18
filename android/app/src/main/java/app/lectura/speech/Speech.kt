@@ -499,11 +499,11 @@ object SpeechMatch {
 
     /** Нижний регистр, без диакритики (á→a, ñ→n, ü→u), без пунктуации, числа — словами. */
     internal fun normalizeWords(s: String): List<String> {
-        val lower = s.lowercase(SPANISH)
-        val plain = Normalizer.normalize(lower, Normalizer.Form.NFD).replace(MARKS, "")
-        return plain.replace(NON_WORD, " ").split(' ')
+        val lower = Normalizer.normalize(SpanishNumbers.joinThousands(s), Normalizer.Form.NFC).lowercase(SPANISH)
+        val words = lower.replace(NON_WORD, " ").split(' ')
             .filter { it.isNotEmpty() }
             .flatMap { expandNumber(it) }
+        return words.map { Normalizer.normalize(it, Normalizer.Form.NFD).replace(MARKS, "") }
     }
 
     /** Отмечает, какие ожидаемые слова нашлись в услышанном (по наибольшей общей подпоследовательности). */
@@ -567,19 +567,8 @@ object SpeechMatch {
     /** Распознаватель часто пишет числа цифрами: «a las 8» → «a las ocho». */
     private fun expandNumber(w: String): List<String> {
         if (!w.all { it.isDigit() }) return listOf(w)
-        val n = w.toIntOrNull() ?: return listOf(w)
-        if (n == 0 && w.length > 1) return emptyList() // «8:00» → «ocho»
-        if (n > 9999) return listOf(w)
-        return spanishNumber(n).split(' ')
-    }
-
-    private fun spanishNumber(n: Int): String = when {
-        n < 30 -> SMALL[n]
-        n < 100 -> TENS[n / 10] + if (n % 10 != 0) " y " + SMALL[n % 10] else ""
-        n == 100 -> "cien"
-        n < 1000 -> HUNDREDS[n / 100] + if (n % 100 != 0) " " + spanishNumber(n % 100) else ""
-        else -> (if (n / 1000 == 1) "mil" else spanishNumber(n / 1000) + " mil") +
-            if (n % 1000 != 0) " " + spanishNumber(n % 1000) else ""
+        if (w.length > 1 && w.all { it == '0' }) return emptyList() // «8:00» → «ocho»
+        return SpanishNumbers.forms(w)?.first()?.split(' ') ?: listOf(w)
     }
 
     private val SPANISH = Locale.forLanguageTag("es-ES")
@@ -587,17 +576,6 @@ object SpeechMatch {
     private val MARKS = Regex("\\p{Mn}+")
     private val NON_WORD = Regex("[^\\p{L}\\p{N}]+")
     private val UNO = setOf("un", "uno", "una")
-    private val SMALL = listOf(
-        "cero", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve",
-        "diez", "once", "doce", "trece", "catorce", "quince", "dieciseis", "diecisiete", "dieciocho", "diecinueve",
-        "veinte", "veintiuno", "veintidos", "veintitres", "veinticuatro", "veinticinco", "veintiseis",
-        "veintisiete", "veintiocho", "veintinueve",
-    )
-    private val TENS = listOf("", "", "", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa")
-    private val HUNDREDS = listOf(
-        "", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos",
-        "seiscientos", "setecientos", "ochocientos", "novecientos",
-    )
 }
 
 private sealed interface SpeakUi {

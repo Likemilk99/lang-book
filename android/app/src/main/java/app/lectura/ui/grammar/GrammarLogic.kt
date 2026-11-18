@@ -113,6 +113,22 @@ object GrammarLogic {
         else -> ex.answer
     }
 
+    private val PAREN_HINT = Regex("\\s*\\([^)]*\\)")
+
+    /**
+     * Что произнести, когда упражнение появилось: части предложения между пропусками
+     * (на месте пропуска будет пауза), без подсказок в скобках «(yo)». Пусто — нечего читать
+     * (в «собери предложение» озвучка выдала бы ответ).
+     */
+    fun promptSpeech(ex: GrammarExercise): List<String> {
+        val text = when (ex.type) {
+            "choice", "input", "transform" -> ex.sentence
+            else -> ""
+        }
+        if (text.isBlank()) return emptyList()
+        return gapParts(text.replace(PAREN_HINT, "")).map { it.replace(Regex("\\s+"), " ") }
+    }
+
     /** Варианты ответа: правильный обязательно среди них, без дублей. */
     fun choiceOptions(ex: GrammarExercise, rnd: Random = Random.Default): List<String> {
         val opts = ex.options.filter { it.isNotBlank() }.distinctBy { TextMatch.norm(it) }.toMutableList()
@@ -125,14 +141,15 @@ object GrammarLogic {
         return o == TextMatch.norm(ex.answer) || ex.accept.any { TextMatch.norm(it) == o }
     }
 
-    /** Сравнение без регистра и пунктуации; ошибка только в ударениях — [Verdict.ACCENT]. */
+    /**
+     * Сравнение без регистра и пунктуации, числа цифрами = словами («3» = «tres»);
+     * ошибка только в ударениях — [Verdict.ACCENT].
+     */
     fun check(typed: String, accepted: List<String>): Verdict {
         if (typed.isBlank()) return Verdict.WRONG
-        val n = TextMatch.norm(typed)
         val ok = accepted.filter { it.isNotBlank() }
-        if (ok.any { TextMatch.norm(it) == n }) return Verdict.RIGHT
-        val l = TextMatch.loose(typed)
-        if (ok.any { TextMatch.loose(it) == l }) return Verdict.ACCENT
+        if (ok.any { TextMatch.same(typed, it) }) return Verdict.RIGHT
+        if (ok.any { TextMatch.sameLoose(typed, it) }) return Verdict.ACCENT
         return Verdict.WRONG
     }
 

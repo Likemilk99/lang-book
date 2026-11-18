@@ -251,6 +251,9 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
             is Exercise.Flash -> if (ex.spanishFront) speakWord(ex.word)
             is Exercise.ListenChoice -> player.speakOnce(ex.word.word)
             is Exercise.DialogReply -> player.speakOnce(ex.reply.prompt)
+            // Предложение с пропуском: читаем его, на месте пропуска — пауза.
+            is Exercise.ClozeChoice -> if (autoWord || autoExample) speakCloze(ex.cloze)
+            is Exercise.ClozeInput -> if (autoWord || autoExample) speakCloze(ex.cloze)
             else -> Unit // испанский ответ появится только после ответа
         }
     }
@@ -277,6 +280,8 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
             is Exercise.ForWord -> speakWord(ex.word)
         }
     }
+
+    fun speakCloze(c: Cloze) = player.speakWithPauses(listOf(c.before, c.after))
 
     private fun speakWord(w: SavedWord) {
         player.speakSequence(
