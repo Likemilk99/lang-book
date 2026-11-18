@@ -57,7 +57,7 @@ LEVELS = ["A1", "A2", "B1", "B2"]
 
 # Параметры уровней: глав в книге, слов в главе, сколько целевых слов на главу.
 LEVEL_CFG = {
-    "A1": {"words": (200, 300), "per_ch": (14, 35), "min_books": 8, "max_books": 14, "avg_ch": 6},
+    "A1": {"words": (200, 300), "per_ch": (14, 35), "min_books": 10, "max_books": 14, "avg_ch": 6},
     "A2": {"words": (300, 450), "per_ch": (16, 45), "min_books": 10, "max_books": 16, "avg_ch": 7},
 }
 
@@ -137,6 +137,13 @@ SEEDS: dict[str, list[dict]] = {
                   "ask for directions (todo recto, a la derecha, cerca de), visit the cathedral area, a park, a "
                   "flamenco show, it is very hot, then a storm; they lose the train back and take a bus.",
              themes=["travel", "city", "nature", "time", "leisure", "numbers"]),
+        dict(key="historias-del-barrio", kind=ORIG, chapters=6,
+             source="Оригинальная история: короткие сценки из жизни одного мадридского района",
+             idea="Original modern collection: each chapter is a short independent scene in the same neighbourhood "
+                  "of Madrid (the bank and the cash machine, the post office, the clothes shop, the bakery, a "
+                  "neighbour who needs help, the bus stop). Recurring characters: the kiosk owner Paco and his "
+                  "neighbour Elena.",
+             themes=["services", "shopping", "city", "society", "media", "description"]),
         dict(key="musicos-de-bremen", kind=PD, chapters=5, year=1819, author="Hermanos Grimm",
              workId="musicos-de-bremen",
              source="По мотивам сказки братьев Гримм «Бременские музыканты» (1819)",
@@ -160,13 +167,6 @@ SEEDS: dict[str, list[dict]] = {
                   "a dog. School, homework, sports and hobbies, a birthday party, a Sunday excursion to the mountains, "
                   "plans for the summer holidays, small family conflicts solved with humour.",
              themes=["family", "leisure", "education", "home", "food", "nature", "time"]),
-        dict(key="historias-del-barrio", kind=ORIG, chapters=6,
-             source="Оригинальная история: короткие сценки из жизни одного мадридского района",
-             idea="Original modern collection: each chapter is a short independent scene in the same neighbourhood "
-                  "of Madrid (the bank and the cash machine, the post office, the clothes shop, the bakery, a "
-                  "neighbour who needs help, the bus stop). Recurring characters: the kiosk owner Paco and his "
-                  "neighbour Elena.",
-             themes=["services", "shopping", "city", "society", "media", "description"]),
         dict(key="pequenas-historias", kind=ORIG, chapters=6,
              source="Оригинальная история: маленькие истории о людях одного города",
              idea="Original modern collection of short independent stories (one per chapter) about different people "
@@ -495,6 +495,11 @@ Choosing words:
   scenes so that many pool words fit (that is the point of the library). Prefer the themes listed as a good
   fit for this book, but take any pool word that fits.
 - Each word in at most one chapter. Do not pick words that would make the story absurd.
+- NO ANACHRONISMS: if the book is set in the past (a classic work, a fable, a fairy tale, a historical
+  setting), NEVER pick words for things that do not exist in that world (modern technology, phones, TV,
+  radio, internet, cars, buses, planes, airports, high-speed trains, supermarkets, euros, banks' cash
+  machines, modern police, gas cookers…). Leave them in the pool for the modern stories. Never modernise a
+  classic — it is fine to pick fewer words than asked.
 - Each chapter also has assigned GRAMMAR POINTS: plan scenes where they occur naturally.
 {level_guide}"""
 
@@ -519,7 +524,9 @@ Rules:
 - Write numbers, prices, times and dates in words (veinte euros, a las ocho y media), never digits.
 - Length: {wmin}-{wmax} words.
 - Keep continuity with the book plan and the previous chapters (names, facts, tone).
-- For an adaptation of a classic work keep its plot, characters and spirit, retold simply.
+- For an adaptation of a classic work keep its plot, characters, setting and spirit, retold simply. Never
+  introduce anachronisms (phones, TV, cars, airports, supermarkets, euros, gas cookers… in a fairy tale or a
+  historical story): if a target word does not belong to that world, skip it.
 - Format: paragraphs as lists of sentences. Each line of dialogue is its own paragraph and starts with an
   em dash (—); keep a speech tag in the same sentence as the line ("—Hola —dice Ana.").
 - Give the chapter a short Spanish title and its Russian translation."""
@@ -769,6 +776,13 @@ class Library:
         lo, hi = self.cfg["per_ch"]
         per_ch = max(lo, min(hi, math.ceil(len(pool) * 0.9 / ch_left)))
         per_ch = max(1, min(per_ch, math.ceil(len(pool) / nch))) if pool else 0
+        # Пул почти исчерпан — добираем до нижней планки словами, которые встретились лишь раз
+        # (повторение важнее новых слов в последних книгах уровня).
+        review: list[str] = []
+        if per_ch < lo:
+            review = [x for x in self.T if x in snap["covered"] and snap["freq"][x] <= 1
+                      and self.vocab[x]["theme"] != "basic"]
+            per_ch = lo
         grammar = self.assign_grammar(book_no, nch, snap["g_conf"] + snap["g_exp"])
 
         good = set(seed.get("themes") or [])
@@ -788,12 +802,17 @@ class Library:
             f"GRAMMAR POINTS per chapter:\n{gtxt}\n\n"
             f"POOL of not yet covered {self.L} words ({len(pool)}), by theme:\n\n" + "\n\n".join(lines)
         )
+        if review:
+            prompt += (
+                "\n\nThe pool is almost exhausted. First use the pool words that fit; then complete each chapter "
+                "up to the target with REVIEW words (already met only once in the library, they need repetition):\n"
+                + ", ".join(f"{x} ({self.vocab[x]['ru']})" for x in review))
         system = PLAN_SYSTEM.format(level=self.L, nch=nch, per_ch=per_ch,
                                     level_guide="Level guide: " + pb.LEVEL_GUIDE[self.L])
         log(f"{entry['id']}: планирую ({nch} гл., ~{per_ch} слов/гл., пул {len(pool)})")
         res = pb.claude_json(prompt, system, PLAN_SCHEMA, self.args.model, "medium")
 
-        pool_set = set(pool)
+        pool_set = set(pool) | set(review)
         seen: set[str] = set()
         chapters = []
         for ci in range(nch):
