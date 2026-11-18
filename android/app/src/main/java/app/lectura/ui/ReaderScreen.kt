@@ -367,7 +367,13 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
                         onPhrases = { showPhrases = true },
                         onNavigate = { mode ->
                             app.player.pause()
-                            onNavigate(if (mode == "questions") "questions/$bookId/$chapterIdx" else "speak/$bookId/$chapterIdx/$mode")
+                            onNavigate(
+                                when {
+                                    mode == "questions" -> "questions/$bookId/$chapterIdx"
+                                    mode.startsWith("grammar/") -> mode
+                                    else -> "speak/$bookId/$chapterIdx/$mode"
+                                },
+                            )
                         },
                     )
                 }
@@ -433,6 +439,19 @@ private fun ChapterEnd(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text("Закрепить главу", style = MaterialTheme.typography.titleMedium)
+        if (chapter.grammar.isNotEmpty()) {
+            val titles by androidx.compose.runtime.produceState(emptyMap<String, String>(), chapter) {
+                value = chapter.grammar.associateWith { id ->
+                    LecturaApp.instance.curriculum.topic(id)?.title ?: id
+                }
+            }
+            Text("Грамматика в этой главе:", style = MaterialTheme.typography.labelLarge)
+            chapter.grammar.forEach { id ->
+                OutlinedButton(onClick = { onNavigate("grammar/$id") }, modifier = Modifier.fillMaxWidth()) {
+                    Text("📐 ${titles[id] ?: id}")
+                }
+            }
+        }
         if (chapter.phrases.isNotEmpty()) {
             OutlinedButton(onClick = onPhrases, modifier = Modifier.fillMaxWidth()) {
                 Text("💬 Полезные фразы (${chapter.phrases.size})")
