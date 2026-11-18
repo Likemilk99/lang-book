@@ -15,8 +15,23 @@ data class Book(
     val characters: List<Character> = emptyList(),
     /** Теги из фиксированного справочника (см. model/Tags.kt и pipeline TAGS). */
     val tags: List<String> = emptyList(),
+    /** "adapted" — пересказ под уровень; "original" — текст произведения без изменений. */
+    val kind: String = KIND_ADAPTED,
+    /** Общий id произведения: связывает версии (адаптация A1, B1, оригинал). */
+    val workId: String = "",
+    /** Год первой публикации оригинала (для справки и проверки общественного достояния). */
+    val year: Int = 0,
+    /** Например "Общественное достояние (автор умер в 1870)". */
+    val license: String = "",
     val chapters: List<Chapter>,
-)
+) {
+    val isOriginal: Boolean get() = kind == KIND_ORIGINAL
+
+    companion object {
+        const val KIND_ADAPTED = "adapted"
+        const val KIND_ORIGINAL = "original"
+    }
+}
 
 @Serializable
 data class Character(
@@ -38,6 +53,8 @@ data class Chapter(
     val replies: List<ReplyItem> = emptyList(),
     /** id грамматических тем учебной программы, которые отрабатываются в главе (model/Curriculum.kt). */
     val grammar: List<String> = emptyList(),
+    /** Словарик перед чтением: ключевые слова главы выше начального уровня (особенно для оригиналов). */
+    val glossary: List<GlossaryItem> = emptyList(),
 ) {
     /** Все предложения главы подряд — индекс в этом списке и есть «номер предложения». */
     val sentences: List<Sentence> by lazy { paragraphs.flatMap { it.sentences } }
@@ -66,6 +83,17 @@ data class Sentence(
         }
     }
 }
+
+@Serializable
+data class GlossaryItem(
+    /** Начальная форма */
+    val l: String,
+    val ru: String,
+    /** Пояснение по-русски (контекст, устаревшее значение и т.п.) */
+    val note: String = "",
+    /** Форма, в которой слово встречается в тексте */
+    val form: String = "",
+)
 
 @Serializable
 data class PhraseItem(
@@ -106,6 +134,8 @@ data class Token(
     val l: String? = null,
     val ru: String? = null,
     val g: String? = null,
+    /** "rare" — редкое/книжное, "old" — устаревшее; такие слова не предлагаем учить. */
+    val r: String? = null,
 ) {
     val isWord: Boolean get() = l != null || t.any { it.isLetter() }
     val key: String get() = t.lowercase()
