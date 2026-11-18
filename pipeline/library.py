@@ -761,6 +761,23 @@ class Library:
             out.append(sorted(pick, key=self.topic_idx.get))
         return out
 
+    def filter_anachronisms(self, seed: dict, pool: list[str]) -> list[str]:
+        """Для классики убирает из пула слова, которых нет в мире произведения (иначе план их берёт)."""
+        schema = {"type": "object", "properties": {"anachronistic": {"type": "array", "items": {"type": "string"}}},
+                  "required": ["anachronistic"], "additionalProperties": False}
+        system = ("You help adapt a classic work for language learners without modernising it. From the list, "
+                  "return every word or expression that would be an ANACHRONISM or clearly out of place in the "
+                  "world of the work (its time, place and genre): modern technology and media, modern transport and "
+                  "travel procedures, modern institutions, services, jobs, shops, sports and leisure, modern money, "
+                  "modern politics and social issues, etc. Copy them exactly as written. Keep timeless words.")
+        prompt = (f"Work: {seed['source']} ({seed.get('author', '')}, {seed.get('year', '')}).\n"
+                  f"Idea: {seed['idea']}\n\nWords:\n" + "\n".join(f"{w} ({self.vocab[w]['ru']})" for w in pool))
+        res = pb.claude_json(prompt, system, schema, self.args.model, "low")
+        bad = {low(re.sub(r"\s*\(.*\)$", "", w)) for w in res["anachronistic"]}
+        kept = [w for w in pool if w not in bad]
+        log(f"{seed['key']}: убрано анахронизмов из пула: {len(pool) - len(kept)} из {len(pool)}")
+        return kept
+
     def plan_book(self, entry: dict) -> dict:
         seed = self.seed(entry["seed"])
         book_no = next(i for i, b in enumerate(self.state["books"]) if b["id"] == entry["id"])
@@ -771,6 +788,8 @@ class Library:
         pool = [w for w in self.T if w not in taken]
         if snap["chapters_done"] < 6:
             pool = [w for w in pool if self.vocab[w]["theme"] != "basic"]
+        if seed["kind"] == PD and pool:
+            pool = self.filter_anachronisms(seed, pool)
         books_left = max(1, self.args.min_books - book_no)
         ch_left = books_left * self.cfg["avg_ch"]
         lo, hi = self.cfg["per_ch"]
@@ -1030,6 +1049,16 @@ class Library:
 
         eargs = argparse.Namespace(model=self.args.model, enrich_effort="medium", jobs=self.args.jobs)
         pb.enrich_book(book, w, eargs)
+        # Изредка модель возвращает пустые phrases/questions/replies — такую главу переобогащаем.
+        for _ in range(2):
+            empty = [ci for ci, c in enumerate(book["chapters"])
+                     if not (c.get("phrases") and c.get("questions") and c.get("replies"))]
+            if not empty:
+                break
+            log(f"{bid}: пустое обогащение в гл. {[ci + 1 for ci in empty]}, повторяю")
+            for ci in empty:
+                (w / f"enrich_{ci:03d}.json").unlink(missing_ok=True)
+            pb.enrich_book(book, w, eargs)
         tags_path = w / "tags.json"
         if tags_path.exists():
             book["tags"] = json.loads(tags_path.read_text(encoding="utf-8"))
