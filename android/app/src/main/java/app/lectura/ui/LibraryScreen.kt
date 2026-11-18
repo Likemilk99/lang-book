@@ -63,6 +63,11 @@ import app.lectura.LecturaApp
 import app.lectura.data.BookInfo
 import app.lectura.data.BookStat
 import app.lectura.data.BookStats
+import app.lectura.data.Difficulty
+import app.lectura.data.ProgressService
+import app.lectura.data.TextCoverage
+import app.lectura.data.vocabIndex
+import app.lectura.model.CURRICULUM_LEVELS
 import app.lectura.model.Tags
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -83,6 +88,7 @@ fun LibraryScreen(onOpen: (String) -> Unit, onBookStats: (String) -> Unit = {}, 
     var showTopics by remember { mutableStateOf(false) }
     var levels by rememberSaveable { mutableStateOf(setOf<String>()) }
     var tags by rememberSaveable { mutableStateOf(setOf<String>()) }
+    var kind by rememberSaveable { mutableStateOf("all") }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { scope.launch { app.books.refresh() } }
 
@@ -98,6 +104,18 @@ fun LibraryScreen(onOpen: (String) -> Unit, onBookStats: (String) -> Unit = {}, 
         }
     }
 
+    // Сколько слов каждой книги вы, скорее всего, знаете → метка сложности.
+    val coverage by produceState(emptyMap<String, Int>(), books, words) {
+        value = withContext(Dispatchers.Default) {
+            runCatching {
+                val covered = ProgressService.compute().coveredLevel
+                val below = if (covered == null) emptyList() else CURRICULUM_LEVELS.takeWhile { it != covered } + covered
+                val known = TextCoverage.knownLemmas(vocabIndex(words), app.curriculum.vocab(), below)
+                books.associate { it.id to TextCoverage.percent(app.books.load(it.id), known) }
+            }.getOrDefault(emptyMap())
+        }
+    }
+
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
             runCatching { app.books.import(uri) }
@@ -108,7 +126,8 @@ fun LibraryScreen(onOpen: (String) -> Unit, onBookStats: (String) -> Unit = {}, 
 
     // Фильтр: уровни — любой из выбранных; темы — внутри группы «или», между группами «и».
     val shown = books.filter { b ->
-        (levels.isEmpty() || b.level in levels) &&
+        (kind == "all" || (kind == "original") == b.isOriginal) &&
+            (levels.isEmpty() || b.level in levels) &&
             tags.groupBy { Tags.groupOf(it)?.title }.all { (_, group) -> group.any { it in b.tags } }
     }
     val presentLevels = Tags.levels.filter { l -> books.any { it.level == l } }
@@ -149,6 +168,30 @@ fun LibraryScreen(onOpen: (String) -> Unit, onBookStats: (String) -> Unit = {}, 
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item { StatsCard(onClick = onProgress) }
+            // Рекомендации: книги в «зоне роста» (90–97% знакомых слов), которые ещё не пройдены.
+            val recommended = books.filter { b ->
+                val c = coverage[b.id] ?: return@filter false
+                c in 90..97 && (stats[b.id]?.overallPct ?: 0) < 90
+            }.sortedByDescending { coverage[it.id] }.take(2)
+            if (recommended.isNotEmpty() && tags.isEmpty() && levels.isEmpty() && kind == "all") {
+                item { Text("Рекомендуем вам", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
+                items(recommended, key = { "rec-" + it.id }) { b ->
+                    BookCard(
+                        b, stats[b.id], progress.firstOrNull { it.bookId == b.id }?.chapter, coverage[b.id],
+                        versions = books.filter { it.workId.isNotBlank() && it.workId == b.workId && it.id != b.id },
+                        onOpen = { onOpen(b.id) }, onOpenOther = onOpen,
+                        onStats = { onBookStats(b.id) }, onLongClick = { toDelete = b },
+                    )
+                }
+                item { Text("Все книги", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
+            }
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 4.dp)) {
+                    items(listOf("all" to "Все", "adapted" to "Адаптации", "original" to "Оригиналы")) { (k, label) ->
+                        FilterChip(selected = kind == k, onClick = { kind = k }, label = { Text(label) })
+                    }
+                }
+            }
             item {
                 // Уровни + кнопка «Темы»
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -182,8 +225,10 @@ fun LibraryScreen(onOpen: (String) -> Unit, onBookStats: (String) -> Unit = {}, 
             }
             items(shown, key = { it.id }) { b ->
                 BookCard(
-                    b, stats[b.id], progress.firstOrNull { it.bookId == b.id }?.chapter,
+                    b, stats[b.id], progress.firstOrNull { it.bookId == b.id }?.chapter, coverage[b.id],
+                    versions = books.filter { it.workId.isNotBlank() && it.workId == b.workId && it.id != b.id },
                     onOpen = { onOpen(b.id) },
+                    onOpenOther = onOpen,
                     onStats = { onBookStats(b.id) },
                     onLongClick = { toDelete = b },
                 )
@@ -255,7 +300,10 @@ private fun BookCard(
     b: BookInfo,
     st: BookStat?,
     chapter: Int?,
+    coverage: Int?,
+    versions: List<BookInfo>,
     onOpen: () -> Unit,
+    onOpenOther: (String) -> Unit,
     onStats: () -> Unit,
     onLongClick: () -> Unit,
 ) {
@@ -264,8 +312,19 @@ private fun BookCard(
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text(b.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    val meta = listOf(b.author, b.level, "${b.chapters} гл.").filter { it.isNotBlank() }
+                    val meta = listOf(
+                        if (b.isOriginal) "Оригинал" else "Адаптация",
+                        b.author, b.level, "${b.chapters} гл.",
+                    ).filter { it.isNotBlank() }
                     Text(meta.joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
+                    if (coverage != null) {
+                        val d = Difficulty.of(coverage)
+                        Text(
+                            "${d.emoji} ${d.label} · знакомых слов ~$coverage%",
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
                 }
                 IconButton(onClick = onStats) { Icon(Icons.Filled.BarChart, "Статистика книги") }
             }
@@ -273,6 +332,22 @@ private fun BookCard(
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 4.dp, end = 12.dp)) {
                     b.tags.take(5).forEach { t ->
                         AssistChip(onClick = {}, label = { Text(Tags.label(t), style = MaterialTheme.typography.labelSmall) }, modifier = Modifier.height(28.dp))
+                    }
+                }
+            }
+            if (versions.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(top = 4.dp, end = 12.dp),
+                ) {
+                    Text("Другие версии:", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 6.dp))
+                    versions.sortedBy { if (it.isOriginal) "Z" else it.level }.forEach { v ->
+                        AssistChip(
+                            onClick = { onOpenOther(v.id) },
+                            label = { Text(if (v.isOriginal) "Оригинал" else v.level, style = MaterialTheme.typography.labelSmall) },
+                            modifier = Modifier.height(28.dp),
+                        )
                     }
                 }
             }

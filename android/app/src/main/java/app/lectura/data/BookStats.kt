@@ -118,7 +118,7 @@ object BookStats {
     private fun lemmasOf(ch: Chapter, names: Set<String>): Set<String> {
         val out = HashSet<String>()
         for (s in ch.sentences) for (t in s.tokens) {
-            if (!t.isWord) continue
+            if (!t.isWord || t.r != null) continue
             val lemma = (t.l ?: t.t).lowercase().trim()
             if (lemma.isBlank() || lemma in names) continue
             val proper = t.t.firstOrNull()?.isUpperCase() == true && t.l?.firstOrNull()?.isUpperCase() == true
@@ -126,5 +126,57 @@ object BookStats {
             out += lemma
         }
         return out
+    }
+}
+
+/** Метка сложности текста по доле знакомых слов (исследования чтения: 98% — свободно, 95% — с усилием). */
+enum class Difficulty(val label: String, val emoji: String) {
+    EASY("Легко", "🟢"),
+    ASSISTED("С подсказками", "🟡"),
+    HARD("Трудно", "🟠"),
+    TOO_EARLY("Рано", "🔴"),
+    ;
+
+    companion object {
+        fun of(coveragePct: Int): Difficulty = when {
+            coveragePct >= 95 -> EASY
+            coveragePct >= 90 -> ASSISTED
+            coveragePct >= 80 -> HARD
+            else -> TOO_EARLY
+        }
+    }
+}
+
+object TextCoverage {
+    /**
+     * Слова, которые пользователь скорее всего знает: его словарь (по форме и начальной форме),
+     * словари уже пройденных уровней учебной программы и служебные слова A1 (тема «basic»).
+     */
+    fun knownLemmas(
+        index: Map<String, WordStatus>,
+        curriculum: Map<String, app.lectura.model.VocabList>,
+        levelsBelow: List<String>,
+    ): Set<String> {
+        val out = HashSet<String>(index.keys)
+        levelsBelow.forEach { l -> curriculum[l]?.themes?.forEach { t -> t.words.forEach { out += it.l.lowercase() } } }
+        curriculum["A1"]?.themes?.filter { it.id.contains("basic") || it.id.contains("grammar") }
+            ?.forEach { t -> t.words.forEach { out += it.l.lowercase() } }
+        return out
+    }
+
+    /** Доля знакомых словоупотреблений в тексте, % (имена собственные и числа не считаем). */
+    fun percent(book: Book, known: Set<String>): Int {
+        val names = book.characters.map { it.name.lowercase() }.toSet()
+        var total = 0
+        var hit = 0
+        for (ch in book.chapters) for (s in ch.sentences) for (t in s.tokens) {
+            if (!t.isWord || t.t.any { it.isDigit() }) continue
+            val lemma = (t.l ?: t.t).lowercase()
+            if (lemma in names) continue
+            if (t.t.firstOrNull()?.isUpperCase() == true && t.l?.firstOrNull()?.isUpperCase() == true) continue
+            total++
+            if (lemma in known || t.key in known) hit++
+        }
+        return if (total == 0) 100 else hit * 100 / total
     }
 }

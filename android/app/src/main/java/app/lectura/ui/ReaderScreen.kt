@@ -93,6 +93,7 @@ import app.lectura.data.WordStatus
 import app.lectura.data.vocabIndex
 import app.lectura.model.Book
 import app.lectura.model.Chapter
+import app.lectura.model.GlossaryItem
 import app.lectura.model.PhraseItem
 import app.lectura.model.Sentence
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -124,6 +125,18 @@ class ReaderViewModel(private val app: LecturaApp, val bookId: String) : ViewMod
                 ),
             )
         }
+    }
+
+    /** Слово из словарика главы: «Учить» — как новое, «Знаю» — сразу средний уровень. */
+    fun saveGlossary(item: GlossaryItem, chapter: Chapter, known: Boolean) {
+        val form = item.form.ifBlank { item.l }
+        val src = chapter.sentences.firstOrNull { s -> s.tokens.any { it.t.equals(form, ignoreCase = true) } }
+        val now = System.currentTimeMillis()
+        val w = SavedWord(
+            key = form.lowercase(), word = form, lemma = item.l, ru = item.ru, grammar = item.note,
+            sentence = src?.text.orEmpty(), sentenceRu = src?.ru.orEmpty(), bookId = bookId, createdAt = now, due = now,
+        )
+        viewModelScope.launch { if (known) app.userData.markKnown(w) else app.userData.addWord(w) }
     }
 
     fun markChapterRead(chapter: Int) = viewModelScope.launch {
@@ -205,6 +218,7 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
     var chaptersMenu by remember { mutableStateOf(false) }
     var moreMenu by remember { mutableStateOf(false) }
     var showPhrases by remember { mutableStateOf(false) }
+    var showGlossary by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
 
     val b = book
@@ -317,6 +331,11 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        if (chapter.glossary.isNotEmpty()) {
+                            OutlinedButton(onClick = { showGlossary = true }, modifier = Modifier.padding(top = 8.dp)) {
+                                Text("📚 Словарик главы (${chapter.glossary.size}) — перед чтением")
+                            }
+                        }
                     }
                 }
                 itemsIndexed(paragraphs) { _, para ->
@@ -378,6 +397,15 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
                 onDismiss = { selection = null },
             )
         }
+    }
+
+    if (showGlossary && chapter != null) {
+        GlossarySheet(
+            chapter = chapter,
+            vocab = vocab,
+            onSave = { item, known -> vm.saveGlossary(item, chapter, known) },
+            onDismiss = { showGlossary = false },
+        )
     }
 
     if (showPhrases && chapter != null) {
@@ -617,6 +645,18 @@ private fun WordSheet(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            when (tk.r) {
+                "old" -> Text(
+                    "Устаревшее слово — понимать полезно, учить не обязательно.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+                "rare" -> Text(
+                    "Редкое/книжное слово — в живой речи встречается нечасто.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+            }
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onToggleSave) {
@@ -746,4 +786,62 @@ private fun PhraseSelector(sentence: Sentence, initial: Int, savedKeys: Set<Stri
         enabled = !already && range.count() >= 2 && ru.isNotBlank(),
         modifier = Modifier.fillMaxWidth(),
     ) { Text(if (already) "Фраза уже в словаре" else "Сохранить фразу") }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GlossarySheet(
+    chapter: Chapter,
+    vocab: Map<String, WordStatus>,
+    onSave: (GlossaryItem, Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val player = LecturaApp.instance.player
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        LazyColumn(
+            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                Text("Словарик главы", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Ключевые слова выше начального уровня. Просмотрите их до чтения — текст пойдёт легче.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            itemsIndexed(chapter.glossary) { _, g ->
+                val status = vocab[g.l.lowercase()] ?: vocab[g.form.lowercase()]
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f).clickable { player.speakOnce(g.form.ifBlank { g.l }) }) {
+                            Text(
+                                g.l + if (g.form.isNotBlank() && !g.form.equals(g.l, true)) "  (${g.form})" else "",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(g.ru, style = MaterialTheme.typography.bodyLarge)
+                            if (g.note.isNotBlank()) Text(
+                                g.note,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    if (status == null) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { onSave(g, false) }) { Text("Учить") }
+                            FilledTonalButton(onClick = { onSave(g, true) }) { Text("Знаю") }
+                        }
+                    } else {
+                        Text(
+                            if (status == WordStatus.KNOWN) "✓ Знаете" else "✓ В словаре",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

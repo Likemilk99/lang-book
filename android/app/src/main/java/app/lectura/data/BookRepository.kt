@@ -19,7 +19,11 @@ data class BookInfo(
     val chapters: Int,
     val file: File,
     val tags: List<String> = emptyList(),
-)
+    val kind: String = Book.KIND_ADAPTED,
+    val workId: String = "",
+) {
+    val isOriginal: Boolean get() = kind == Book.KIND_ORIGINAL
+}
 
 /**
  * Книги — это JSON-файлы в /sdcard/Android/data/app.lectura/files/books/.
@@ -39,7 +43,7 @@ class BookRepository(private val context: Context, private val prefs: Prefs) {
         _books.value = dir.listFiles { f -> f.extension == "json" }.orEmpty()
             .mapNotNull { f ->
                 runCatching { parse(f) }.getOrNull()?.let {
-                    BookInfo(it.id, it.title, it.author, it.level, it.chapters.size, f, it.tags)
+                    BookInfo(it.id, it.title, it.author, it.level, it.chapters.size, f, it.tags, it.kind, it.workId)
                 }
             }
             .sortedBy { it.title.lowercase() }
