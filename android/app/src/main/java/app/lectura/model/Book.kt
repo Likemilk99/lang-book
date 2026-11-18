@@ -144,14 +144,31 @@ data class Token(
 private val NO_SPACE_BEFORE = setOf(".", ",", ";", ":", "!", "?", ")", "»", "…", "”", "%", "...")
 private val NO_SPACE_AFTER = setOf("¿", "¡", "(", "«", "“", "—", "–")
 
-private fun computeSpaces(tokens: List<Token>): List<Boolean> {
+private val DASHES = setOf("—", "–")
+
+/**
+ * Испанские диалоги: «—Hola —dijo él—. Ven». Первое тире реплики и тире перед словами автора
+ * «открывают» (пробел перед, без пробела после), закрывающее тире пишется слитно с предыдущим словом.
+ */
+internal fun computeSpaces(tokens: List<Token>): List<Boolean> {
     val res = ArrayList<Boolean>(tokens.size)
     var noSpaceNext = true
     var quoteOpen = false
+    val startsWithDash = tokens.firstOrNull()?.t in DASHES
+    var dashNo = 0
     for (tk in tokens) {
         val t = tk.t
         var space = !noSpaceNext && t !in NO_SPACE_BEFORE
         noSpaceNext = t in NO_SPACE_AFTER
+        if (t in DASHES) {
+            dashNo++
+            val k = if (startsWithDash) dashNo - 1 else dashNo // номер тире внутри пар «реплика — слова автора»
+            val closing = k > 0 && k % 2 == 0
+            if (closing) {
+                space = false
+                noSpaceNext = false
+            }
+        }
         if (t == "\"") {
             if (quoteOpen) {
                 space = false
