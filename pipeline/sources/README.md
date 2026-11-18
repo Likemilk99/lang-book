@@ -53,7 +53,7 @@ $P --original --source pipeline/sources/clarin-adios-cordera.txt --title "¡Adi�
    --year 1892 --license "Общественное достояние: автор умер в 1901 г." --batch 10 \
    --source-note "Leopoldo Alas «Clarín», «¡Adiós, Cordera!» (1892), из сборника «El Señor y lo demás, son cuentos». Project Gutenberg #62361"
 $P --original --source pipeline/sources/coloma-raton-perez.txt --title "Ratón Pérez" \
-   --author "Luis Coloma" --level B1 --id coloma-raton-perez --work-id coloma-raton-perez \
+   --author "Luis Coloma" --level B2 --id coloma-raton-perez --work-id coloma-raton-perez \
    --year 1911 --license "Общественное достояние: автор умер в 1915 г." --batch 10 \
    --source-note "Luis Coloma, «Ratón Pérez», cuento infantil (написан ок. 1891–1894; издание 1911). Project Gutenberg #36558"
 # Лесенка версий «El monte de las ánimas»: A2 и B1 (адаптации) + оригинал выше

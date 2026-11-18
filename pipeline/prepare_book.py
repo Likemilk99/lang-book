@@ -811,13 +811,23 @@ def annotate(sentences: list[str], args) -> list[dict]:
         year_txt = str(args.year) if args.year else "the 19th or early 20th century"
         system += ANNOTATE_ORIGINAL_EXTRA.format(year_txt=year_txt, author=args.author or "unknown")
         schema = ANNOTATE_SCHEMA_ORIGINAL
-    res = claude_json(
-        f"Annotate these {len(sentences)} sentences:\n\n{numbered}",
-        system, schema, args.model, args.annotate_effort,
-    )
-    out = res["sentences"]
-    if len(out) != len(sentences):
-        raise RuntimeError(f"expected {len(sentences)} sentences, got {len(out)}")
+    out: list = []
+    for attempt in range(2):
+        res = claude_json(
+            f"Annotate these {len(sentences)} sentences:\n\n{numbered}",
+            system, schema, args.model, args.annotate_effort,
+        )
+        out = res["sentences"]
+        if len(out) == len(sentences):
+            break
+        print(f"   ! разметка: ждали {len(sentences)} предл., пришло {len(out)} (попытка {attempt + 1})",
+              file=sys.stderr)
+    else:
+        if len(sentences) == 1:
+            raise RuntimeError(f"expected 1 sentence, got {len(out)}")
+        # Модель сбивается на длинном блоке — делим пополам.
+        mid = len(sentences) // 2
+        return annotate(sentences[:mid], args) + annotate(sentences[mid:], args)
     for src, s in zip(sentences, out):
         s["src"] = src
     return out
@@ -1122,6 +1132,18 @@ def write_book(path: Path, book: dict) -> None:
     path.write_text(json.dumps(book, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
 
+def _deaccent(s: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", s.lower()) if not unicodedata.combining(c))
+
+
+def old_spelling_only(tk: dict) -> bool:
+    """Слово устарело только написанием (á, fué, oir, éstas): учить его можно, r не ставим."""
+    t, l = tk.get("t", ""), tk.get("l") or ""
+    if "орфограф" in (tk.get("g") or ""):
+        return True
+    return t.lower() != l.lower() and _deaccent(t) == _deaccent(l)
+
+
 def tokens_ok(src: str, tokens: list[dict]) -> bool:
     norm = lambda s: re.sub(r"\s+", "", s)
     return norm(src) == norm("".join(t["t"] for t in tokens))
@@ -1281,7 +1303,7 @@ def main() -> None:
             for pi, s in pairs:
                 tokens = s["tokens"]
                 for tk in tokens:
-                    if tk.get("r") not in ("rare", "old") or "l" not in tk:
+                    if tk.get("r") not in ("rare", "old") or "l" not in tk or old_spelling_only(tk):
                         tk.pop("r", None)
                 if not tokens_ok(s["src"], tokens):
                     bad += 1
