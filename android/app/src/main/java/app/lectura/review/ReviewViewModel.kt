@@ -198,6 +198,15 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
         }
         lastType = ex.type
         current = Task(nextId++, e, ex)
+        prefetchImages(e)
+    }
+
+    /** Картинки к текущему и следующим 5 словам — в фоне, чтобы карточка открывалась сразу с картинкой. */
+    private fun prefetchImages(current: Entry) {
+        val next = (listOf(current) + queue.take(PREFETCH)).filterIsInstance<Entry.Word>()
+            .map { it.word }.filterNot { it.isPhrase }
+            .map { it.lemma.ifBlank { it.word } to it.ru }
+        app.wordImages.prefetch(next)
     }
 
     /** Кнопка «Дальше»: сразу обрываем диктора и показываем следующее. */
@@ -313,6 +322,7 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
     }
 
     companion object {
+        private const val PREFETCH = 5
         const val MAX_DIALOGS = 3
         const val PRACTICE_SIZE = 15
         private const val REQUEUE_GAP = 3

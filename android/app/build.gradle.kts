@@ -22,6 +22,14 @@ val signingProps = Properties().apply {
 }
 fun signingValue(env: String, prop: String): String? = System.getenv(env) ?: signingProps.getProperty(prop)
 
+// Ключ Pixabay (картинки к карточкам): локально — android/local.properties (не коммитится),
+// в CI — секрет PIXABAY_API_KEY. Пустой ключ — приложение работает, просто без картинок.
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val pixabayKey: String = System.getenv("PIXABAY_API_KEY") ?: localProps.getProperty("PIXABAY_API_KEY", "")
+
 android {
     namespace = "app.lectura"
     compileSdk = 36
@@ -32,6 +40,7 @@ android {
         targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersion
+        buildConfigField("String", "PIXABAY_API_KEY", "\"$pixabayKey\"")
     }
 
     signingConfigs {
@@ -97,7 +106,12 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.extended)
+
+    implementation(libs.okhttp)
+    implementation(libs.coil.compose)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)
+    testImplementation(libs.mockwebserver)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

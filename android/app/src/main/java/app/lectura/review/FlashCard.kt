@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import app.lectura.LecturaApp
 import app.lectura.data.SavedWord
 import app.lectura.data.Srs
+import app.lectura.ui.WordImageView
 
 /** Карточка с переворотом и ручной оценкой (Снова / Трудно / Хорошо / Легко). */
 @Composable
@@ -58,6 +59,10 @@ fun ColumnScope.FlashCardView(vm: ReviewViewModel, ex: Exercise.Flash) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
+            // Картинка видна, когда смысл уже открыт (на испанской стороне до ответа она была бы подсказкой).
+            if (!card.isPhrase && showRussian) {
+                WordImageView(card.lemma.ifBlank { card.word }, card.ru, Modifier.fillMaxWidth().padding(bottom = 16.dp))
+            }
             if (esFront) SpanishSide(card) else RussianSide(card)
             if (revealed) {
                 HorizontalDivider(Modifier.padding(vertical = 20.dp))

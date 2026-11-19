@@ -67,6 +67,7 @@ jobs:
           LECTURA_KEYSTORE_PASSWORD: ${{ secrets.LECTURA_KEYSTORE_PASSWORD }}
           LECTURA_KEY_ALIAS: ${{ secrets.LECTURA_KEY_ALIAS }}
           LECTURA_KEY_PASSWORD: ${{ secrets.LECTURA_KEY_PASSWORD }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --console=plain

@@ -13,6 +13,9 @@ import app.lectura.data.CurriculumRepository
 import app.lectura.data.MIGRATIONS
 import app.lectura.data.Prefs
 import app.lectura.data.UserData
+import app.lectura.images.ImageDownloader
+import app.lectura.images.PixabayApi
+import app.lectura.images.WordImageRepository
 import app.lectura.playback.PlaybackService
 import app.lectura.playback.Player
 import kotlinx.coroutines.CoroutineScope
@@ -28,6 +31,7 @@ class LecturaApp : Application() {
     lateinit var userData: UserData
     lateinit var curriculum: CurriculumRepository
     lateinit var player: Player
+    lateinit var wordImages: WordImageRepository
 
     override fun onCreate() {
         super.onCreate()
@@ -45,6 +49,15 @@ class LecturaApp : Application() {
         books = BookRepository(this, prefs)
         bookAudio = BookAudio(this)
         player = Player(this)
+        val http = okhttp3.OkHttpClient.Builder()
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+        wordImages = WordImageRepository(
+            db.wordImages(),
+            PixabayApi(http, BuildConfig.PIXABAY_API_KEY),
+            ImageDownloader(http, java.io.File(filesDir, "word_images")),
+        )
         getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(CHANNEL_PLAYBACK, "Чтение вслух", NotificationManager.IMPORTANCE_LOW),
         )

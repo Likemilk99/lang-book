@@ -258,13 +258,14 @@ interface MetaDao {
  *  3. fallbackToDestructiveMigration НЕ использовать никогда.
  */
 @Database(
-    entities = [SavedWord::class, Progress::class, AppMeta::class, DailyStats::class, ChapterActivity::class, GrammarProgress::class],
-    version = 4,
+    entities = [SavedWord::class, Progress::class, AppMeta::class, DailyStats::class, ChapterActivity::class, GrammarProgress::class, WordImage::class],
+    version = 5,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
         AutoMigration(from = 3, to = 4),
+        AutoMigration(from = 4, to = 5),
     ],
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -274,6 +275,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun stats(): StatsDao
     abstract fun activity(): ActivityDao
     abstract fun grammar(): GrammarDao
+    abstract fun wordImages(): WordImageDao
 }
 
 /** Ручные миграции (для изменений, которые AutoMigration не умеет). */
