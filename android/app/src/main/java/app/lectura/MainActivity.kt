@@ -42,6 +42,7 @@ import androidx.navigation.compose.rememberNavController
 import app.lectura.ui.BookStatsScreen
 import app.lectura.ui.AboutTrainScreen
 import app.lectura.ui.HomeScreen
+import app.lectura.ui.LessonsScreen
 import app.lectura.ui.MyPhrasesScreen
 import app.lectura.ui.PhraseThemeScreen
 import app.lectura.ui.PhraseTrainScreen
@@ -135,6 +136,7 @@ private fun AppNav() {
                 HomeScreen(onRoute = { nav.openRoute(it) }, onProgress = { nav.navigate("progress") })
             }
             composable("talk") { TalkScreen(onRoute = { nav.openRoute(it) }) }
+            composable("lessons") { LessonsScreen(onBack = { nav.popBackStack() }) }
             composable("mine") { MyPhrasesScreen(onBack = { nav.popBackStack() }, onTrain = { nav.navigate("mine/train") }) }
             composable("mine/train") { AboutTrainScreen(onBack = { nav.popBackStack() }) }
             composable("scenario/{id}") { e ->

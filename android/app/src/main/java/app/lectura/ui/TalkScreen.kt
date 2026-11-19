@@ -101,6 +101,7 @@ fun TalkScreen(onRoute: (String) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item { MyPhrasesCard { onRoute("mine") } }
+            item { LessonsCard { onRoute("lessons") } }
             if (scenarios.isNotEmpty()) {
                 item {
                     Column(Modifier.padding(top = 8.dp)) {

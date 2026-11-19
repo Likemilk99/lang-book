@@ -20,6 +20,7 @@ import app.lectura.images.ImageDownloader
 import app.lectura.images.PixabayApi
 import app.lectura.images.WordImageRepository
 import app.lectura.playback.PlaybackService
+import app.lectura.playback.LessonPlayer
 import app.lectura.playback.Player
 import app.lectura.reminder.Reminder
 import kotlinx.coroutines.CoroutineScope
@@ -37,6 +38,7 @@ class LecturaApp : Application() {
     lateinit var phrasebook: PhrasebookRepository
     lateinit var scenarios: ScenarioRepository
     lateinit var personal: PersonalRepository
+    lateinit var lessons: LessonPlayer
     lateinit var player: Player
     lateinit var wordImages: WordImageRepository
 
@@ -63,6 +65,7 @@ class LecturaApp : Application() {
         books = BookRepository(this, prefs)
         bookAudio = BookAudio(this)
         player = Player(this)
+        lessons = LessonPlayer(this)
         val http = okhttp3.OkHttpClient.Builder()
             .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
             .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)

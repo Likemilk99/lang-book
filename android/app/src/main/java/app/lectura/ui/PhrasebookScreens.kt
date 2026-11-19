@@ -380,6 +380,7 @@ fun PhraseTrainer(title: String, phrases: List<Phrase>, onBack: () -> Unit, onFi
                     if (res.score >= (results[index]?.score ?: -1f)) results[index] = res
                 }
             }
+            androidx.compose.runtime.key(index) { VoiceCompare(p.es, app.phrasebook.clip(p.id)) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { showRu = !showRu }) { Text(if (showRu) "Скрыть перевод" else "Показать перевод") }
                 TextButton(onClick = { index++ }) { Text(if (r == null) "Пропустить ⏭" else "Дальше →") }
