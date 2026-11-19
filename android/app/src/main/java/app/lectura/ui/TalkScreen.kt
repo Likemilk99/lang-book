@@ -100,9 +100,10 @@ fun TalkScreen(onRoute: (String) -> Unit) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            item { MyPhrasesCard { onRoute("mine") } }
             if (scenarios.isNotEmpty()) {
                 item {
-                    Column {
+                    Column(Modifier.padding(top = 8.dp)) {
                         Text("Сценарии", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                         Text(
                             "Ситуация целиком: фразы → разговор → роль за обе стороны → неожиданный поворот → понять ответ → ответить своими словами.",

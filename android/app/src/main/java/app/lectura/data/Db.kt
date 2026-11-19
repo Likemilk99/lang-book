@@ -128,6 +128,32 @@ data class ScenarioProgress(
     val updatedAt: Long,
 )
 
+/**
+ * «Мои фразы»: ответ «Обо мне» или «как сказать…», написанный по-русски. Переводит pipeline/personal.py;
+ * status: pending — ждёт перевода, done — фразы пришли (personal.json) и добавлены в повторение.
+ */
+@Entity(tableName = "inbox")
+data class InboxItem(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** "about" | "phrase" */
+    val kind: String,
+    /** id вопроса «Обо мне» ("" — «Входящие»). */
+    val ref: String = "",
+    val ru: String,
+    val createdAt: Long,
+    val status: String = PENDING,
+    @ColumnInfo(defaultValue = "0") val doneAt: Long = 0,
+) {
+    val pending: Boolean get() = status == PENDING
+
+    companion object {
+        const val ABOUT = "about"
+        const val PHRASE = "phrase"
+        const val PENDING = "pending"
+        const val DONE = "done"
+    }
+}
+
 @Entity(tableName = "progress")
 data class Progress(
     @PrimaryKey val bookId: String,
@@ -271,6 +297,27 @@ interface ScenarioDao {
 }
 
 @Dao
+interface InboxDao {
+    @Query("SELECT * FROM inbox ORDER BY createdAt DESC")
+    fun all(): Flow<List<InboxItem>>
+
+    @Query("SELECT * FROM inbox")
+    suspend fun allOnce(): List<InboxItem>
+
+    @Insert
+    suspend fun insert(item: InboxItem): Long
+
+    @Update
+    suspend fun update(item: InboxItem)
+
+    @Query("DELETE FROM inbox WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Query("DELETE FROM inbox WHERE kind = :kind AND ref = :ref")
+    suspend fun deleteRef(kind: String, ref: String)
+}
+
+@Dao
 interface MetaDao {
     @Query("SELECT value FROM meta WHERE `key` = :key")
     suspend fun get(key: String): String?
@@ -291,8 +338,8 @@ interface MetaDao {
  *  3. fallbackToDestructiveMigration НЕ использовать никогда.
  */
 @Database(
-    entities = [SavedWord::class, Progress::class, AppMeta::class, DailyStats::class, ChapterActivity::class, GrammarProgress::class, WordImage::class, ScenarioProgress::class],
-    version = 7,
+    entities = [SavedWord::class, Progress::class, AppMeta::class, DailyStats::class, ChapterActivity::class, GrammarProgress::class, WordImage::class, ScenarioProgress::class, InboxItem::class],
+    version = 8,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
@@ -301,6 +348,7 @@ interface MetaDao {
         AutoMigration(from = 4, to = 5),
         AutoMigration(from = 5, to = 6),
         AutoMigration(from = 6, to = 7),
+        AutoMigration(from = 7, to = 8),
     ],
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -312,6 +360,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun grammar(): GrammarDao
     abstract fun wordImages(): WordImageDao
     abstract fun scenarios(): ScenarioDao
+    abstract fun inbox(): InboxDao
 }
 
 /** Ручные миграции (для изменений, которые AutoMigration не умеет). */

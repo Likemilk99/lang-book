@@ -34,7 +34,11 @@ class ClipPlayer(private val context: Context) {
         val mp = MediaPlayer()
         val ok = runCatching {
             mp.setAudioAttributes(attributes)
-            context.assets.openFd(asset).use { mp.setDataSource(it.fileDescriptor, it.startOffset, it.length) }
+            if (asset.startsWith("/")) {
+                mp.setDataSource(asset)
+            } else {
+                context.assets.openFd(asset).use { mp.setDataSource(it.fileDescriptor, it.startOffset, it.length) }
+            }
             mp.prepare()
         }.onFailure { Log.w("ClipPlayer", asset, it) }.isSuccess
         if (!ok) {

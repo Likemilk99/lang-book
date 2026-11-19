@@ -6,6 +6,7 @@
   python3 pipeline/audio.py --voices                               # (пере)создать недостающие голоса набора
   python3 pipeline/audio.py --phrasebook                           # озвучка разговорников (кладётся в APK)
   python3 pipeline/audio.py --scenarios                            # озвучка сценариев (+ их ключевых фраз)
+  python3 pipeline/audio.py --clips list.json --out DIR            # список [имя, текст, голос] (pipeline/personal.py)
 
 Как устроено:
 - Набор голосов `pipeline/voices/<id>.wav` (+ .txt — что в нём сказано) создан один раз Qwen VoiceDesign по описаниям
@@ -459,6 +460,8 @@ def main() -> None:
     ap.add_argument("--voices", action="store_true", help="создать недостающие голоса набора")
     ap.add_argument("--phrasebook", action="store_true", help="озвучить разговорники (assets/phrasebook)")
     ap.add_argument("--scenarios", action="store_true", help="озвучить сценарии и их ключевые фразы")
+    ap.add_argument("--clips", type=Path, help="JSON-список [имя, текст, голос] — озвучить в --out")
+    ap.add_argument("--out", type=Path, help="папка для --clips")
     ap.add_argument("--upload", action="store_true", help="выложить архивы в GitHub Release «audio»")
     ap.add_argument("--upload-only", action="store_true", help="только выложить уже готовые архивы")
     args = ap.parse_args()
@@ -473,10 +476,13 @@ def main() -> None:
     ensure_venv()
     if args.voices:
         make_voices()
-    if not books and not args.phrasebook and not args.scenarios:
+    if not books and not args.phrasebook and not args.scenarios and not args.clips:
         return
     make_voices()
     engine = Engine()
+    if args.clips:
+        voice_set(engine, [tuple(c) for c in json.loads(args.clips.read_text(encoding="utf-8"))], args.out,
+                  args.out.parent.name + "-" + args.out.name)
     if args.phrasebook or args.scenarios:
         voice_phrasebook(engine)
     if args.scenarios:

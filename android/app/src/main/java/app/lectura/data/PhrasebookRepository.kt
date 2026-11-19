@@ -63,11 +63,23 @@ class PhrasebookRepository(private val context: Context) {
         return themeOf[id]
     }
 
-    /** Файл озвучки фразы ([variant] — номер варианта шаблона, null — сама фраза), или null. */
+    /** «Мои фразы» (pipeline/personal.py): фразы и их озвучка в files/personal/ на телефоне. */
+    @Volatile private var extra: Map<String, Phrase> = emptyMap()
+    @Volatile private var extraClip: (String) -> String? = { null }
+
+    fun registerExtra(phrases: List<Phrase>, clip: (String) -> String?) {
+        extra = phrases.associateBy { it.id }
+        extraClip = clip
+    }
+
+    /**
+     * Файл озвучки фразы ([variant] — номер варианта шаблона, null — сама фраза), или null.
+     * Путь в assets или абсолютный путь к файлу («Мои фразы»).
+     */
     fun clip(phraseId: String, variant: Int? = null): String? {
         // Вариант 0 — это сама фраза (отдельного файла у него нет).
-        val name = if (variant == null || variant == 0) "$phraseId.m4a" else "${phraseId}_$variant.m4a"
-        return if (name in clips) "$AUDIO_DIR/$name" else null
+        val name = if (variant == null || variant == 0) phraseId else "${phraseId}_$variant"
+        return if ("$name.m4a" in clips) "$AUDIO_DIR/$name.m4a" else extraClip(name)
     }
 
     /** Озвучка испанского текста фразы: сама фраза или один из её вариантов; null — такого текста у фразы нет. */
@@ -79,7 +91,7 @@ class PhrasebookRepository(private val context: Context) {
     }
 
     /** То же по id фразы (SavedWord.ref). Работает после первой загрузки [all]. */
-    fun clipFor(ref: String, es: String): String? = byId[ref]?.let { clipFor(it, es) }
+    fun clipFor(ref: String, es: String): String? = (byId[ref] ?: extra[ref])?.let { clipFor(it, es) }
 
     companion object {
         const val DIR = "phrasebook"

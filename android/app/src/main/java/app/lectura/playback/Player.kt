@@ -234,7 +234,7 @@ class Player(private val app: LecturaApp) {
     }
 
     /**
-     * Фраза голосом диктора из файла в APK ([asset], например озвучка разговорника); если файла нет —
+     * Фраза голосом диктора из файла ([asset] — путь в APK или абсолютный путь на телефоне); если файла нет —
      * системным TTS. [slow] — медленнее (0.7 от обычной скорости). Прерывает текущую речь.
      */
     fun speakClip(asset: String?, fallback: String, slow: Boolean = false) {
@@ -248,7 +248,11 @@ class Player(private val app: LecturaApp) {
             val mp = MediaPlayer()
             media = mp
             mp.setAudioAttributes(mediaAttributes)
-            app.assets.openFd(asset).use { mp.setDataSource(it.fileDescriptor, it.startOffset, it.length) }
+            if (asset.startsWith("/")) {
+                mp.setDataSource(asset)
+            } else {
+                app.assets.openFd(asset).use { mp.setDataSource(it.fileDescriptor, it.startOffset, it.length) }
+            }
             mp.setOnCompletionListener { if (media === it) stopMedia() }
             mp.prepare()
             val rate = if (slow) 0.7f else _state.value.rate.coerceAtLeast(0.8f)

@@ -11,6 +11,7 @@ import app.lectura.data.BookAudio
 import app.lectura.data.BookRepository
 import app.lectura.data.CurriculumRepository
 import app.lectura.data.MIGRATIONS
+import app.lectura.data.PersonalRepository
 import app.lectura.data.PhrasebookRepository
 import app.lectura.data.ScenarioRepository
 import app.lectura.data.Prefs
@@ -35,6 +36,7 @@ class LecturaApp : Application() {
     lateinit var curriculum: CurriculumRepository
     lateinit var phrasebook: PhrasebookRepository
     lateinit var scenarios: ScenarioRepository
+    lateinit var personal: PersonalRepository
     lateinit var player: Player
     lateinit var wordImages: WordImageRepository
 
@@ -53,6 +55,8 @@ class LecturaApp : Application() {
         curriculum = CurriculumRepository(this)
         phrasebook = PhrasebookRepository(this)
         scenarios = ScenarioRepository(this)
+        personal = PersonalRepository(this, db, userData, phrasebook)
+        applicationScope.launch { runCatching { personal.sync() }.onFailure { Log.w("LecturaApp", "personal sync", it) } }
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { userData.onAppStart() }.onFailure { Log.e("LecturaApp", "data upgrade failed", it) }
         }

@@ -50,7 +50,7 @@ class UserData(private val context: Context, private val db: AppDatabase) {
      * Фразы из разговорника → в повторение. Если такая фраза уже сохранена (например, из книги),
      * к ней только привязывается разговорник (шаблон и озвучка). Возвращает число новых фраз.
      */
-    suspend fun addPhrases(phrases: List<Phrase>): Int = db.withTransaction {
+    suspend fun addPhrases(phrases: List<Phrase>, label: String = "разговорник"): Int = db.withTransaction {
         val now = System.currentTimeMillis()
         var added = 0
         phrases.forEachIndexed { i, p ->
@@ -62,7 +62,7 @@ class UserData(private val context: Context, private val db: AppDatabase) {
             }
             // createdAt по порядку — в повторение новые фразы приходят в порядке разговорника.
             val w = SavedWord(
-                key = key, word = p.es, lemma = p.es, ru = p.ru, grammar = "разговорник",
+                key = key, word = p.es, lemma = p.es, ru = p.ru, grammar = label,
                 sentence = p.es, sentenceRu = p.ru, bookId = PhrasebookRepository.BOOK_ID,
                 createdAt = now + i, due = now, kind = SavedWord.KIND_PHRASE, ref = p.id,
                 appVersion = AppVersion.code,
@@ -219,6 +219,35 @@ class UserData(private val context: Context, private val db: AppDatabase) {
     }
 
     /** Упражнение без привязки к слову (ответ в диалоге, вопрос по главе). */
+    /** «Обо мне»: новый ответ на вопрос [ref] заменяет прежний (и ждёт перевода на Mac). */
+    suspend fun setAbout(ref: String, ru: String) = db.withTransaction {
+        db.inbox().deleteRef(InboxItem.ABOUT, ref)
+        if (ru.isNotBlank()) {
+            db.inbox().insert(InboxItem(kind = InboxItem.ABOUT, ref = ref, ru = ru.trim(), createdAt = System.currentTimeMillis()))
+        }
+        stamp()
+    }
+
+    /** «Входящие»: «как сказать …» — ждёт перевода на Mac. */
+    suspend fun addInbox(ru: String) = db.withTransaction {
+        db.inbox().insert(InboxItem(kind = InboxItem.PHRASE, ru = ru.trim(), createdAt = System.currentTimeMillis()))
+        stamp()
+    }
+
+    suspend fun deleteInbox(id: Long) = db.withTransaction {
+        db.inbox().delete(id)
+        stamp()
+    }
+
+    /** Перевод пришёл: отметить записи готовыми. */
+    suspend fun markInboxDone(ids: Collection<Long>) = db.withTransaction {
+        val now = System.currentTimeMillis()
+        db.inbox().allOnce().filter { it.id in ids && it.pending }.forEach {
+            db.inbox().update(it.copy(status = InboxItem.DONE, doneAt = now))
+        }
+        stamp()
+    }
+
     /** Шаг сценария пройден с результатом [percent]; храним лучший. */
     suspend fun recordScenarioStep(scenarioId: String, step: String, percent: Int) = db.withTransaction {
         val cur = db.scenarios().get(scenarioId, step)
@@ -325,6 +354,7 @@ class UserData(private val context: Context, private val db: AppDatabase) {
             scenarios = db.scenarios().allOnce().map {
                 ScenarioDto(it.scenarioId, it.step, it.best, it.count, it.updatedAt)
             },
+            inbox = db.inbox().allOnce().map { InboxDto(it.kind, it.ref, it.ru, it.createdAt, it.status, it.doneAt) },
             stats = db.stats().allOnce().map {
                 StatsDto(
                     it.day, it.reviews, it.correct, it.sentencesRead, it.speaking, it.newWords,
@@ -393,6 +423,10 @@ class UserData(private val context: Context, private val db: AppDatabase) {
                     db.scenarios().put(ScenarioProgress(s.scenarioId, s.step, s.best, s.count, s.updatedAt))
                 }
             }
+            val have = db.inbox().allOnce().map { it.kind to it.ru }.toSet()
+            b.inbox.filter { (it.kind to it.ru) !in have }.forEach {
+                db.inbox().insert(InboxItem(kind = it.kind, ref = it.ref, ru = it.ru, createdAt = it.createdAt, status = InboxItem.PENDING))
+            }
             b.stats.forEach { st ->
                 if (db.stats().get(st.day) == null) {
                     db.stats().put(
@@ -437,6 +471,7 @@ data class Backup(
     val activity: List<ActivityDto> = emptyList(),
     val grammar: List<GrammarDto> = emptyList(),
     val scenarios: List<ScenarioDto> = emptyList(),
+    val inbox: List<InboxDto> = emptyList(),
 ) {
     companion object {
         const val FORMAT = 1
@@ -523,6 +558,16 @@ data class ScenarioDto(
     val best: Int = 0,
     val count: Int = 0,
     val updatedAt: Long = 0,
+)
+
+@Serializable
+data class InboxDto(
+    val kind: String,
+    val ref: String = "",
+    val ru: String,
+    val createdAt: Long = 0,
+    val status: String = InboxItem.PENDING,
+    val doneAt: Long = 0,
 )
 
 const val MAX_STAGE = 6
