@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import app.lectura.LecturaApp
+import app.lectura.playback.speakEs
 
 val Good = Color(0xFF2E7D32)
 val Bad = Color(0xFFC62828)
@@ -123,14 +124,13 @@ fun Hint(text: String) {
 
 /** Кнопки «Послушать» и «Медленно». */
 @Composable
-fun ListenButtons(text: String, modifier: Modifier = Modifier) {
-    val player = LecturaApp.instance.player
+fun ListenButtons(text: String, modifier: Modifier = Modifier, ref: String = "") {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = { player.speakOnce(text) }, modifier = Modifier.weight(1f)) {
+        OutlinedButton(onClick = { speakEs(text, ref) }, modifier = Modifier.weight(1f)) {
             Icon(Icons.AutoMirrored.Filled.VolumeUp, null)
             Text("  Ещё раз")
         }
-        OutlinedButton(onClick = { player.speakOnce(text, slow = true) }, modifier = Modifier.weight(1f)) {
+        OutlinedButton(onClick = { speakEs(text, ref, slow = true) }, modifier = Modifier.weight(1f)) {
             Icon(Icons.Filled.SlowMotionVideo, null)
             Text("  Медленно")
         }
@@ -140,7 +140,7 @@ fun ListenButtons(text: String, modifier: Modifier = Modifier) {
 /** Итог упражнения: верно / почти / неверно, правильный ответ и перевод. */
 @Composable
 fun FeedbackPanel(ex: Exercise, answer: Answer) {
-    val player = LecturaApp.instance.player
+    val ref = (ex as? Exercise.ForWord)?.word?.ref.orEmpty()
     val (title, color) = when (answer.outcome) {
         Outcome.CORRECT -> "Верно!" to Good
         Outcome.HARD -> "Засчитано" to Warn
@@ -157,7 +157,7 @@ fun FeedbackPanel(ex: Exercise, answer: Answer) {
             answer.note?.let { Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp)) }
             Spacer(Modifier.height(8.dp))
             Surface(
-                onClick = { player.speakOnce(ex.answerEs) },
+                onClick = { speakEs(ex.answerEs, ref) },
                 color = Color.Transparent,
                 shape = RoundedCornerShape(8.dp),
             ) {
@@ -178,7 +178,8 @@ fun FeedbackPanel(ex: Exercise, answer: Answer) {
             }
             if (ex.answerRu.isNotBlank()) Text(ex.answerRu, style = MaterialTheme.typography.bodyLarge)
             if (ex is Exercise.ForWord && ex !is Exercise.BuildSentence && ex.word.sentence.isNotBlank() &&
-                ex !is Exercise.ClozeChoice && ex !is Exercise.ClozeInput
+                ex !is Exercise.ClozeChoice && ex !is Exercise.ClozeInput && ex !is Exercise.PatternSay &&
+                ex.word.sentence != ex.word.word
             ) {
                 Text(
                     ex.word.sentence,

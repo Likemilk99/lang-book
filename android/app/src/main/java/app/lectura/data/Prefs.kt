@@ -57,6 +57,15 @@ class Prefs(context: Context) {
         get() = sp.getFloat("rate", 0.8f)
         set(v) = sp.edit().putFloat("rate", v).apply()
 
+    /** Вечернее напоминание, если за день не было занятий. */
+    var reminderEnabled: Boolean
+        get() = sp.getBoolean("reminderEnabled", true)
+        set(v) = sp.edit().putBoolean("reminderEnabled", v).apply()
+    /** Время напоминания: минут от полуночи (по умолчанию 20:00). */
+    var reminderMinutes: Int
+        get() = sp.getInt("reminderMinutes", 20 * 60)
+        set(v) = sp.edit().putInt("reminderMinutes", v.coerceIn(0, 24 * 60 - 1)).apply()
+
     fun bundledHash(name: String): String? = sp.getString("bundledHash:$name", null)
     fun setBundledHash(name: String, hash: String) = sp.edit().putString("bundledHash:$name", hash).apply()
 

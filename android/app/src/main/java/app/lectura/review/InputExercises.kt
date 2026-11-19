@@ -37,70 +37,16 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import app.lectura.LecturaApp
-import app.lectura.speech.MatchResult
-import app.lectura.speech.SpeakButton
 
 @Composable
 fun SayEsView(ex: Exercise.SayEs, answered: Boolean, onShowAnswer: () -> Unit, onAnswer: (Answer) -> Unit) {
-    var retried by remember { mutableStateOf(false) }
-    var failed by remember { mutableStateOf<MatchResult?>(null) }
     val w = ex.word
     Instruction(if (w.isPhrase) "Скажите эту фразу по-испански" else "Скажите по-испански")
     Text(w.ru, style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
     if (!w.isPhrase) Hint(w.grammar)
     Spacer(Modifier.height(24.dp))
     if (answered) return
-
-    val f = failed
-    if (f == null) {
-        SpeakButton(expected = w.word, modifier = Modifier.fillMaxWidth()) { r ->
-            if (r.passed) {
-                onAnswer(if (retried) Answer(Outcome.HARD, "Со второй попытки") else Answer(Outcome.CORRECT))
-            } else {
-                failed = r
-                onShowAnswer()
-            }
-        }
-        DontKnow { onAnswer(Answer(Outcome.WRONG)) }
-    } else {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = Warn.copy(alpha = 0.12f),
-            border = BorderStroke(1.dp, Warn),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(Modifier.padding(16.dp)) {
-                Text(
-                    if (f.heard.isBlank()) "Ничего не распознано" else "Распознано: «${f.heard}»",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Text("Правильно:", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
-                Text(w.word, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-                ListenButtons(w.word, Modifier.padding(top = 8.dp))
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = {
-                    LecturaApp.instance.player.stopSpeech()
-                    retried = true
-                    failed = null
-                },
-                modifier = Modifier.weight(1f).height(52.dp),
-            ) { Text("Ещё раз") }
-            Button(
-                onClick = {
-                    onAnswer(
-                        if (retried) Answer(Outcome.HARD, "Засчитано по вашей оценке") else Answer(Outcome.CORRECT, "Засчитано по вашей оценке"),
-                    )
-                },
-                modifier = Modifier.weight(1f).height(52.dp),
-            ) { Text("Я сказал правильно") }
-        }
-        DontKnow { onAnswer(Answer(Outcome.WRONG)) }
-    }
+    SpeakCheck(w.word, w.ref, onShowAnswer, onAnswer)
 }
 
 @Composable

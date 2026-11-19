@@ -5,14 +5,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 
-// Вкладка «Грамматика». Реализация разнесена по файлам пакета:
+// Раздел «Грамматика» (вход с главной). Реализация разнесена по файлам пакета:
 //  GrammarListScreen.kt — список тем, GrammarTopicContent.kt — страница темы,
 //  GrammarPracticeContent.kt + GrammarPracticeVm.kt — сессия, GrammarLogic.kt — подбор и проверка.
 
-/** Список тем: выбор уровня A1–B2, темы со статусом освоения. */
+/** Список тем: выбор уровня A1–B2, темы со статусом освоения. Открывается с главной. */
 @Composable
-fun GrammarScreen(onTopic: (String) -> Unit) {
-    GrammarListContent(onTopic)
+fun GrammarScreen(onTopic: (String) -> Unit, onBack: () -> Unit) {
+    GrammarListContent(onTopic, onBack)
 }
 
 /**

@@ -47,6 +47,8 @@ private fun ColumnScope.AutoCheckedView(vm: ReviewViewModel, ex: Exercise) {
     Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) {
         when (ex) {
             is Exercise.SayEs -> SayEsView(ex, answered, onShowAnswer = { vm.onAnswerShown(ex) }, onAnswer = vm::submit)
+            is Exercise.ListenRepeat -> ListenRepeatView(ex, answered, onShowAnswer = { vm.onAnswerShown(ex) }, onAnswer = vm::submit)
+            is Exercise.PatternSay -> PatternSayView(ex, answered, onShowAnswer = { vm.onAnswerShown(ex) }, onAnswer = vm::submit)
             is Exercise.ClozeChoice -> ClozeChoiceView(ex, answered, vm::submit)
             is Exercise.ClozeInput -> ClozeInputView(ex, answered, vm::submit)
             is Exercise.ListenChoice -> ListenChoiceView(ex, answered, vm::submit)
@@ -101,10 +103,10 @@ fun SetupPanel(vm: ReviewViewModel) {
             if (vm.mode == ReviewMode.MIXED) {
                 Text(
                     buildString {
-                        append("Упражнения усложняются по мере того, как вы запоминаете слово: ")
-                        append("на слух и выбор → вписать слово и собрать фразу → сказать вслух.")
+                        append("Говорите с первого раза: сначала повторяете за диктором и узнаёте на слух, ")
+                        append("потом вспоминаете сами — сказать вслух, по шаблону, вписать, собрать фразу.")
                         if (vm.dialogsAvailable > 0) append(" Плюс до ${ReviewViewModel.MAX_DIALOGS} ответов в диалоге.")
-                        if (!vm.speechAvailable) append(" Распознавание речи недоступно — «скажите вслух» пропускается.")
+                        if (!vm.speechAvailable) append(" Распознавание речи недоступно — упражнения с речью пропускаются.")
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

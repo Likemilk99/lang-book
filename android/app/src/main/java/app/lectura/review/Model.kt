@@ -33,6 +33,8 @@ enum class ExerciseType(val label: String) {
     LISTEN_CHOICE("На слух"),
     BUILD_SENTENCE("Собрать фразу"),
     DIALOG_REPLY("Ответ в диалоге"),
+    LISTEN_REPEAT("Послушать и повторить"),
+    PATTERN_SAY("Сказать по шаблону"),
 }
 
 /** Результат автоматически проверяемого упражнения. */
@@ -74,6 +76,28 @@ sealed interface Exercise {
     data class SayEs(override val word: SavedWord) : ForWord {
         override val type get() = ExerciseType.SAY_ES
         override val answerEs get() = word.word
+    }
+
+    /** Послушать диктора и повторить вслух (испанский виден) — первое знакомство с произношением. */
+    data class ListenRepeat(override val word: SavedWord) : ForWord {
+        override val type get() = ExerciseType.LISTEN_REPEAT
+        override val answerEs get() = word.word
+    }
+
+    /**
+     * Шаблон фразы из разговорника с другой подстановкой: «Quería ___.» + «Я бы хотел бутылку воды.» →
+     * сказать «Quería una botella de agua.». [variant] — номер варианта (для озвучки).
+     */
+    data class PatternSay(
+        override val word: SavedWord,
+        val pattern: String,
+        val variant: Int,
+        val variantEs: String,
+        val variantRu: String,
+    ) : ForWord {
+        override val type get() = ExerciseType.PATTERN_SAY
+        override val answerEs get() = variantEs
+        override val answerRu get() = variantRu
     }
 
     data class ClozeChoice(override val word: SavedWord, val cloze: Cloze, val options: List<String>) : ForWord {

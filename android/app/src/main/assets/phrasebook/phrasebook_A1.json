@@ -1,0 +1,2268 @@
+{
+ "level": "A1",
+ "title": "Повседневные ситуации",
+ "intro": "Кафе, магазин, врач, жильё, документы, звонки — фразы для реальных дел.",
+ "themes": [
+  {
+   "id": "a1-smalltalk",
+   "emoji": "🗨️",
+   "title": "Знакомство и разговор",
+   "phrases": [
+    {
+     "id": "a1-smalltalk-01",
+     "es": "¿Cómo te llamas?",
+     "ru": "Как тебя зовут?",
+     "note": "С ровесниками на «ты». Незнакомому взрослому или сотруднику: «¿Cómo se llama?»"
+    },
+    {
+     "id": "a1-smalltalk-02",
+     "es": "Mucho gusto.",
+     "ru": "Очень приятно.",
+     "note": "Не зависит от рода, подходит и для «ты», и для «вы». В ответ часто слышно «Igualmente»."
+    },
+    {
+     "id": "a1-smalltalk-03",
+     "es": "¿A qué te dedicas?",
+     "ru": "Чем ты занимаешься?",
+     "note": "Самый естественный вопрос о работе. «¿En qué trabajas?» тоже нормально. С незнакомым на «вы»: «¿A qué se dedica?»"
+    },
+    {
+     "id": "a1-smalltalk-04",
+     "es": "¿Cuánto tiempo llevas en España?",
+     "ru": "Сколько ты уже в Испании?",
+     "note": "Тебя об этом спросят очень часто. Ответ: «Llevo dos meses»."
+    },
+    {
+     "id": "a1-smalltalk-05",
+     "es": "¿Te gusta vivir aquí?",
+     "ru": "Тебе нравится здесь жить?",
+     "note": "Если речь о множественном числе, будет «gustan»: «¿Te gustan las tapas?»",
+     "pattern": "¿Te gusta ___?",
+     "slots": [
+      {
+       "fill": "vivir aquí",
+       "es": "¿Te gusta vivir aquí?",
+       "ru": "Тебе нравится здесь жить?"
+      },
+      {
+       "fill": "Madrid",
+       "es": "¿Te gusta Madrid?",
+       "ru": "Тебе нравится Мадрид?"
+      },
+      {
+       "fill": "la comida española",
+       "es": "¿Te gusta la comida española?",
+       "ru": "Тебе нравится испанская кухня?"
+      },
+      {
+       "fill": "tu trabajo",
+       "es": "¿Te gusta tu trabajo?",
+       "ru": "Тебе нравится твоя работа?"
+      }
+     ]
+    },
+    {
+     "id": "a1-smalltalk-06",
+     "es": "Me encanta vivir aquí.",
+     "ru": "Мне очень нравится здесь жить.",
+     "note": "«Me encanta» звучит сильнее и теплее, чем «me gusta». Испанцам будет приятно это услышать."
+    },
+    {
+     "id": "a1-smalltalk-07",
+     "es": "¿Vives por aquí?",
+     "ru": "Ты живёшь где-то здесь?",
+     "note": "Удобно, чтобы завязать разговор с соседом или на районе."
+    },
+    {
+     "id": "a1-smalltalk-08",
+     "es": "¿Tienes hermanos?",
+     "ru": "У тебя есть братья или сёстры?",
+     "note": "«Hermanos» означает и братьев, и сестёр вместе. Так же «hijos» — это дети вообще.",
+     "pattern": "¿Tienes ___?",
+     "slots": [
+      {
+       "fill": "hermanos",
+       "es": "¿Tienes hermanos?",
+       "ru": "У тебя есть братья или сёстры?"
+      },
+      {
+       "fill": "hijos",
+       "es": "¿Tienes hijos?",
+       "ru": "У тебя есть дети?"
+      },
+      {
+       "fill": "pareja",
+       "es": "¿Tienes pareja?",
+       "ru": "У тебя есть вторая половинка?"
+      },
+      {
+       "fill": "mascota",
+       "es": "¿Tienes mascota?",
+       "ru": "У тебя есть домашнее животное?"
+      }
+     ]
+    },
+    {
+     "id": "a1-smalltalk-09",
+     "es": "Tengo dos hijos, un niño y una niña.",
+     "ru": "У меня двое детей: сын и дочка.",
+     "note": "О детях говорят «niño/niña», даже о подростках. Слова «hijo/hija» тоже подходят."
+    },
+    {
+     "id": "a1-smalltalk-10",
+     "es": "¿Qué te gusta hacer en tu tiempo libre?",
+     "ru": "Чем любишь заниматься в свободное время?",
+     "note": "Хороший вопрос, чтобы поддержать разговор о хобби."
+    },
+    {
+     "id": "a1-smalltalk-11",
+     "es": "Me gusta mucho leer.",
+     "ru": "Я очень люблю читать.",
+     "note": "После «me gusta» глагол стоит в инфинитиве, без «yo».",
+     "pattern": "Me gusta mucho ___.",
+     "slots": [
+      {
+       "fill": "leer",
+       "es": "Me gusta mucho leer.",
+       "ru": "Я очень люблю читать."
+      },
+      {
+       "fill": "viajar",
+       "es": "Me gusta mucho viajar.",
+       "ru": "Я очень люблю путешествовать."
+      },
+      {
+       "fill": "cocinar",
+       "es": "Me gusta mucho cocinar.",
+       "ru": "Я очень люблю готовить."
+      },
+      {
+       "fill": "salir a correr",
+       "es": "Me gusta mucho salir a correr.",
+       "ru": "Я очень люблю бегать."
+      }
+     ]
+    },
+    {
+     "id": "a1-smalltalk-12",
+     "es": "¿Qué haces este finde?",
+     "ru": "Что делаешь на этих выходных?",
+     "note": "«Finde» — разговорное сокращение от «fin de semana», так говорят все."
+    },
+    {
+     "id": "a1-smalltalk-13",
+     "es": "Este finde voy a la playa.",
+     "ru": "На этих выходных еду на пляж.",
+     "note": "Перед «el» предлог «a» сливается в «al»: «voy al cine».",
+     "pattern": "Este finde voy a ___.",
+     "slots": [
+      {
+       "fill": "la playa",
+       "es": "Este finde voy a la playa.",
+       "ru": "На этих выходных еду на пляж."
+      },
+      {
+       "fill": "la sierra",
+       "es": "Este finde voy a la sierra.",
+       "ru": "На этих выходных еду в горы."
+      },
+      {
+       "fill": "Toledo",
+       "es": "Este finde voy a Toledo.",
+       "ru": "На этих выходных еду в Толедо."
+      },
+      {
+       "fill": "casa de unos amigos",
+       "es": "Este finde voy a casa de unos amigos.",
+       "ru": "На этих выходных иду в гости к друзьям."
+      }
+     ]
+    },
+    {
+     "id": "a1-smalltalk-14",
+     "es": "¿Te apetece tomar algo?",
+     "ru": "Хочешь чего-нибудь выпить?",
+     "note": "Обычное приглашение посидеть в баре: не обязательно на алкоголь. Ответ: «¡Vale, venga!»",
+     "pattern": "¿Te apetece ___?",
+     "slots": [
+      {
+       "fill": "tomar algo",
+       "es": "¿Te apetece tomar algo?",
+       "ru": "Хочешь чего-нибудь выпить?"
+      },
+      {
+       "fill": "un café",
+       "es": "¿Te apetece un café?",
+       "ru": "Хочешь кофе?"
+      },
+      {
+       "fill": "dar una vuelta",
+       "es": "¿Te apetece dar una vuelta?",
+       "ru": "Хочешь прогуляться?"
+      },
+      {
+       "fill": "ir al cine",
+       "es": "¿Te apetece ir al cine?",
+       "ru": "Хочешь сходить в кино?"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "a1-restaurant",
+   "emoji": "🍽️",
+   "title": "Ресторан",
+   "phrases": [
+    {
+     "id": "a1-restaurant-01",
+     "es": "Quería reservar una mesa para esta noche.",
+     "ru": "Я хотел бы забронировать столик на сегодня вечером.",
+     "note": "Подходит и для звонка, и для визита в ресторан. Скорее всего, спросят: «¿Para cuántas personas?» и «¿A qué hora?». Ужинают в Испании поздно, обычно с 21:00.",
+     "pattern": "Quería reservar una mesa para ___.",
+     "slots": [
+      {
+       "fill": "esta noche",
+       "es": "Quería reservar una mesa para esta noche.",
+       "ru": "Я хотел бы забронировать столик на сегодня вечером."
+      },
+      {
+       "fill": "mañana a las nueve",
+       "es": "Quería reservar una mesa para mañana a las nueve.",
+       "ru": "Я хотел бы забронировать столик на завтра на девять."
+      },
+      {
+       "fill": "el sábado",
+       "es": "Quería reservar una mesa para el sábado.",
+       "ru": "Я хотел бы забронировать столик на субботу."
+      },
+      {
+       "fill": "cuatro personas",
+       "es": "Quería reservar una mesa para cuatro personas.",
+       "ru": "Я хотел бы забронировать столик на четверых."
+      }
+     ]
+    },
+    {
+     "id": "a1-restaurant-02",
+     "es": "Soy vegetariano.",
+     "ru": "Я вегетарианец.",
+     "note": "Женщина: Soy vegetariana. Иногда бывает полезно уточнить: «No como carne ni pescado», потому что хамон в Испании не всегда считают мясом."
+    },
+    {
+     "id": "a1-restaurant-03",
+     "es": "¿Tiene algún plato vegetariano?",
+     "ru": "У вас есть вегетарианские блюда?",
+     "note": "Обращение к официанту на «вы» (usted).",
+     "pattern": "¿Tiene algún plato ___?",
+     "slots": [
+      {
+       "fill": "vegetariano",
+       "es": "¿Tiene algún plato vegetariano?",
+       "ru": "У вас есть вегетарианские блюда?"
+      },
+      {
+       "fill": "vegano",
+       "es": "¿Tiene algún plato vegano?",
+       "ru": "У вас есть веганские блюда?"
+      },
+      {
+       "fill": "sin gluten",
+       "es": "¿Tiene algún plato sin gluten?",
+       "ru": "У вас есть блюда без глютена?"
+      },
+      {
+       "fill": "sin lactosa",
+       "es": "¿Tiene algún plato sin lactosa?",
+       "ru": "У вас есть блюда без лактозы?"
+      }
+     ]
+    },
+    {
+     "id": "a1-restaurant-04",
+     "es": "¿Qué lleva este plato?",
+     "ru": "Что входит в это блюдо?",
+     "note": "Глагол llevar здесь означает «содержать». Просто покажите пальцем на строчку в меню."
+    },
+    {
+     "id": "a1-restaurant-05",
+     "es": "¿Esto lleva gluten?",
+     "ru": "Здесь есть глютен?",
+     "note": "По закону в ресторанах должна быть информация об аллергенах. Можно попросить: «¿Tiene la carta de alérgenos?»"
+    },
+    {
+     "id": "a1-restaurant-06",
+     "es": "De primero, la ensalada mixta.",
+     "ru": "На первое — салат.",
+     "note": "Так заказывают menú del día: primero, segundo и postre. Официант спросит: «¿Y de segundo?»",
+     "pattern": "De primero, ___.",
+     "slots": [
+      {
+       "fill": "la ensalada mixta",
+       "es": "De primero, la ensalada mixta.",
+       "ru": "На первое — салат."
+      },
+      {
+       "fill": "el gazpacho",
+       "es": "De primero, el gazpacho.",
+       "ru": "На первое — гаспачо."
+      },
+      {
+       "fill": "las lentejas",
+       "es": "De primero, las lentejas.",
+       "ru": "На первое — чечевицу."
+      },
+      {
+       "fill": "la sopa",
+       "es": "De primero, la sopa.",
+       "ru": "На первое — суп."
+      }
+     ]
+    },
+    {
+     "id": "a1-restaurant-07",
+     "es": "Sin cebolla, por favor.",
+     "ru": "Без лука, пожалуйста.",
+     "note": "Добавляется сразу после названия блюда при заказе.",
+     "pattern": "Sin ___, por favor.",
+     "slots": [
+      {
+       "fill": "cebolla",
+       "es": "Sin cebolla, por favor.",
+       "ru": "Без лука, пожалуйста."
+      },
+      {
+       "fill": "picante",
+       "es": "Sin picante, por favor.",
+       "ru": "Не острое, пожалуйста."
+      },
+      {
+       "fill": "hielo",
+       "es": "Sin hielo, por favor.",
+       "ru": "Без льда, пожалуйста."
+      },
+      {
+       "fill": "sal",
+       "es": "Sin sal, por favor.",
+       "ru": "Без соли, пожалуйста."
+      }
+     ]
+    },
+    {
+     "id": "a1-restaurant-08",
+     "es": "¿Qué incluye el menú?",
+     "ru": "Что входит в комплексный обед?",
+     "note": "Обычно в меню входят первое, второе, хлеб, напиток и десерт или кофе. Иногда кофе считают отдельно."
+    },
+    {
+     "id": "a1-restaurant-09",
+     "es": "Perdone, esto no es lo que he pedido.",
+     "ru": "Извините, я заказывал не это.",
+     "note": "Говорите спокойно и вежливо. Обычно извинятся и принесут нужное блюдо. Можно добавить, что вы заказывали: «Yo he pedido el pollo»."
+    },
+    {
+     "id": "a1-restaurant-10",
+     "es": "¿Nos trae más pan, por favor?",
+     "ru": "Принесите нам ещё хлеба, пожалуйста.",
+     "note": "Хлеб иногда считают отдельно, даже если вы его не заказывали. Посмотрите на «pan» в счёте.",
+     "pattern": "¿Nos trae más ___, por favor?",
+     "slots": [
+      {
+       "fill": "pan",
+       "es": "¿Nos trae más pan, por favor?",
+       "ru": "Принесите нам ещё хлеба, пожалуйста."
+      },
+      {
+       "fill": "agua",
+       "es": "¿Nos trae más agua, por favor?",
+       "ru": "Принесите нам ещё воды, пожалуйста."
+      },
+      {
+       "fill": "servilletas",
+       "es": "¿Nos trae más servilletas, por favor?",
+       "ru": "Принесите нам ещё салфеток, пожалуйста."
+      },
+      {
+       "fill": "hielo",
+       "es": "¿Nos trae más hielo, por favor?",
+       "ru": "Принесите нам ещё льда, пожалуйста."
+      }
+     ]
+    },
+    {
+     "id": "a1-restaurant-11",
+     "es": "¿Qué hay de postre?",
+     "ru": "Что есть на десерт?",
+     "note": "Официант часто перечисляет десерты устно, без меню. Если не расслышали, попросите повторить."
+    },
+    {
+     "id": "a1-restaurant-12",
+     "es": "¿Cuál es la especialidad de la casa?",
+     "ru": "Какое у вас фирменное блюдо?",
+     "note": "Хороший способ попробовать что-то местное. В ответ обычно советуют одно-два блюда."
+    },
+    {
+     "id": "a1-restaurant-13",
+     "es": "Estaba todo buenísimo.",
+     "ru": "Всё было очень вкусно.",
+     "note": "Можно ответить на вопрос официанта «¿Qué tal todo?» или сказать при уходе."
+    },
+    {
+     "id": "a1-restaurant-14",
+     "es": "Quédese con el cambio.",
+     "ru": "Сдачи не надо.",
+     "note": "Чаевые в Испании не обязательны. Обычно оставляют мелочь или округляют счёт, в хорошем ресторане — примерно 5–10%."
+    }
+   ]
+  },
+  {
+   "id": "a1-shopping",
+   "emoji": "🛍️",
+   "title": "Покупки и возврат",
+   "phrases": [
+    {
+     "id": "a1-shopping-01",
+     "es": "Quería devolver esto.",
+     "ru": "Я хотел бы это вернуть.",
+     "note": "В ответ почти всегда спросят: «¿Tiene el ticket?» — держите чек наготове.",
+     "pattern": "Quería devolver ___.",
+     "slots": [
+      {
+       "fill": "esto",
+       "es": "Quería devolver esto.",
+       "ru": "Я хотел бы это вернуть."
+      },
+      {
+       "fill": "estos zapatos",
+       "es": "Quería devolver estos zapatos.",
+       "ru": "Я хотел бы вернуть эти туфли."
+      },
+      {
+       "fill": "esta camiseta",
+       "es": "Quería devolver esta camiseta.",
+       "ru": "Я хотел бы вернуть эту футболку."
+      },
+      {
+       "fill": "este abrigo",
+       "es": "Quería devolver este abrigo.",
+       "ru": "Я хотел бы вернуть это пальто."
+      }
+     ]
+    },
+    {
+     "id": "a1-shopping-02",
+     "es": "¿Puedo cambiarlo por otra talla?",
+     "ru": "Можно поменять на другой размер?",
+     "note": "Если вещь женского рода (camiseta, falda): «¿Puedo cambiarla…?»",
+     "pattern": "¿Puedo cambiarlo por ___?",
+     "slots": [
+      {
+       "fill": "otra talla",
+       "es": "¿Puedo cambiarlo por otra talla?",
+       "ru": "Можно поменять на другой размер?"
+      },
+      {
+       "fill": "otro color",
+       "es": "¿Puedo cambiarlo por otro color?",
+       "ru": "Можно поменять на другой цвет?"
+      },
+      {
+       "fill": "uno más grande",
+       "es": "¿Puedo cambiarlo por uno más grande?",
+       "ru": "Можно поменять на побольше?"
+      },
+      {
+       "fill": "otro modelo",
+       "es": "¿Puedo cambiarlo por otro modelo?",
+       "ru": "Можно поменять на другую модель?"
+      }
+     ]
+    },
+    {
+     "id": "a1-shopping-03",
+     "es": "Esto está roto.",
+     "ru": "Это сломано.",
+     "note": "О вещи женского рода — «rota»: «La cremallera está rota» (сломалась молния)."
+    },
+    {
+     "id": "a1-shopping-04",
+     "es": "Me queda pequeño.",
+     "ru": "Мне маловато.",
+     "note": "Прилагательное согласуется с вещью: «La falda me queda pequeña».",
+     "pattern": "Me queda ___.",
+     "slots": [
+      {
+       "fill": "pequeño",
+       "es": "Me queda pequeño.",
+       "ru": "Мне маловато."
+      },
+      {
+       "fill": "grande",
+       "es": "Me queda grande.",
+       "ru": "Мне великовато."
+      },
+      {
+       "fill": "largo",
+       "es": "Me queda largo.",
+       "ru": "Мне длинновато."
+      },
+      {
+       "fill": "estrecho",
+       "es": "Me queda estrecho.",
+       "ru": "Мне узковато."
+      }
+     ]
+    },
+    {
+     "id": "a1-shopping-05",
+     "es": "¿Lo tiene en la talla M?",
+     "ru": "У вас есть это в размере M?",
+     "note": "Для обуви чаще говорят «número»: «¿Lo tiene en un 42?» Размеры обуви в Испании европейские.",
+     "pattern": "¿Lo tiene en la talla ___?",
+     "slots": [
+      {
+       "fill": "M",
+       "es": "¿Lo tiene en la talla M?",
+       "ru": "У вас есть это в размере M?"
+      },
+      {
+       "fill": "L",
+       "es": "¿Lo tiene en la talla L?",
+       "ru": "У вас есть это в размере L?"
+      },
+      {
+       "fill": "38",
+       "es": "¿Lo tiene en la talla 38?",
+       "ru": "У вас есть это в 38-м размере?"
+      },
+      {
+       "fill": "42",
+       "es": "¿Lo tiene en la talla 42?",
+       "ru": "У вас есть это в 42-м размере?"
+      }
+     ]
+    },
+    {
+     "id": "a1-shopping-06",
+     "es": "¿Me devuelven el dinero?",
+     "ru": "Вы вернёте деньги?",
+     "note": "Могут предложить не деньги, а «un vale» — подарочный купон на сумму покупки."
+    },
+    {
+     "id": "a1-shopping-07",
+     "es": "Lo compré ayer.",
+     "ru": "Я купил это вчера.",
+     "note": "Обычно срок возврата — 30 дней с чеком, но в каждом магазине свои правила.",
+     "pattern": "Lo compré ___.",
+     "slots": [
+      {
+       "fill": "ayer",
+       "es": "Lo compré ayer.",
+       "ru": "Я купил это вчера."
+      },
+      {
+       "fill": "el sábado",
+       "es": "Lo compré el sábado.",
+       "ru": "Я купил это в субботу."
+      },
+      {
+       "fill": "la semana pasada",
+       "es": "Lo compré la semana pasada.",
+       "ru": "Я купил это на прошлой неделе."
+      },
+      {
+       "fill": "hace tres días",
+       "es": "Lo compré hace tres días.",
+       "ru": "Я купил это три дня назад."
+      }
+     ]
+    },
+    {
+     "id": "a1-shopping-08",
+     "es": "¿Me puede hacer una factura?",
+     "ru": "Можете выписать счёт-фактуру?",
+     "note": "Factura — официальный документ с вашим NIE/NIF (нужен для работы и гарантии), это не обычный ticket. Вас спросят: «¿A nombre de quién?»"
+    },
+    {
+     "id": "a1-shopping-09",
+     "es": "¿Hay algún descuento?",
+     "ru": "Есть какая-нибудь скидка?",
+     "note": "В сезон распродаж (rebajas: январь и июль) можно спросить: «¿Esto está rebajado?»"
+    },
+    {
+     "id": "a1-shopping-10",
+     "es": "¿Dónde están los probadores?",
+     "ru": "Где примерочные?",
+     "note": "На входе в примерочную часто спрашивают: «¿Cuántas prendas?» — сколько вещей вы несёте."
+    },
+    {
+     "id": "a1-shopping-11",
+     "es": "¿Me lo pueden pedir?",
+     "ru": "Можете заказать это для меня?",
+     "note": "Если вашего размера нет в наличии. Скорее всего, ответят: «Sí, tarda unos días»."
+    },
+    {
+     "id": "a1-shopping-12",
+     "es": "¿Cuándo llega el pedido?",
+     "ru": "Когда придёт заказ?",
+     "note": "Могут ответить «en tres o cuatro días laborables» — то есть в рабочие дни, выходные не считаются."
+    },
+    {
+     "id": "a1-shopping-13",
+     "es": "¿Me lo pueden enviar a casa?",
+     "ru": "Можете доставить мне домой?",
+     "note": "Уместно для мебели и техники. Уточните цену: «¿Cuánto cuesta el envío?»"
+    },
+    {
+     "id": "a1-shopping-14",
+     "es": "¿Me lo envuelve para regalo?",
+     "ru": "Упакуете как подарок?",
+     "note": "В Испании подарочную упаковку обычно делают бесплатно — спрашивать нормально."
+    }
+   ]
+  },
+  {
+   "id": "a1-transport",
+   "emoji": "🚆",
+   "title": "Транспорт и поездки",
+   "phrases": [
+    {
+     "id": "a1-transport-01",
+     "es": "¿Cuánto se tarda en llegar al aeropuerto?",
+     "ru": "Сколько ехать до аэропорта?",
+     "note": "Обычно ответят: «Unos veinte minutos» (минут двадцать). Помните: a + el = al.",
+     "pattern": "¿Cuánto se tarda en llegar ___?",
+     "slots": [
+      {
+       "fill": "al aeropuerto",
+       "es": "¿Cuánto se tarda en llegar al aeropuerto?",
+       "ru": "Сколько ехать до аэропорта?"
+      },
+      {
+       "fill": "a Atocha",
+       "es": "¿Cuánto se tarda en llegar a Atocha?",
+       "ru": "Сколько ехать до Аточи?"
+      },
+      {
+       "fill": "al centro",
+       "es": "¿Cuánto se tarda en llegar al centro?",
+       "ru": "Сколько ехать до центра?"
+      },
+      {
+       "fill": "a la playa",
+       "es": "¿Cuánto se tarda en llegar a la playa?",
+       "ru": "Сколько ехать до пляжа?"
+      }
+     ]
+    },
+    {
+     "id": "a1-transport-02",
+     "es": "¿Qué línea cojo para Sol?",
+     "ru": "На какую линию сесть, чтобы доехать до Соль?",
+     "note": "В Испании «coger» — обычное слово «сесть на транспорт». Ответ: «La uno» или «La línea dos».",
+     "pattern": "¿Qué línea cojo para ___?",
+     "slots": [
+      {
+       "fill": "Sol",
+       "es": "¿Qué línea cojo para Sol?",
+       "ru": "На какую линию сесть, чтобы доехать до Соль?"
+      },
+      {
+       "fill": "el aeropuerto",
+       "es": "¿Qué línea cojo para el aeropuerto?",
+       "ru": "На какой линии доехать до аэропорта?"
+      },
+      {
+       "fill": "Sants",
+       "es": "¿Qué línea cojo para Sants?",
+       "ru": "На какую линию сесть до Сантс?"
+      },
+      {
+       "fill": "la playa",
+       "es": "¿Qué línea cojo para la playa?",
+       "ru": "На какой линии доехать до пляжа?"
+      }
+     ]
+    },
+    {
+     "id": "a1-transport-03",
+     "es": "¿Este tren para en Toledo?",
+     "ru": "Этот поезд останавливается в Толедо?",
+     "note": "Полезно для Cercanías и регионалок: не все поезда останавливаются на каждой станции.",
+     "pattern": "¿Este tren para en ___?",
+     "slots": [
+      {
+       "fill": "Toledo",
+       "es": "¿Este tren para en Toledo?",
+       "ru": "Этот поезд останавливается в Толедо?"
+      },
+      {
+       "fill": "Chamartín",
+       "es": "¿Este tren para en Chamartín?",
+       "ru": "Этот поезд останавливается на Чамартин?"
+      },
+      {
+       "fill": "Segovia",
+       "es": "¿Este tren para en Segovia?",
+       "ru": "Этот поезд останавливается в Сеговии?"
+      },
+      {
+       "fill": "el aeropuerto",
+       "es": "¿Este tren para en el aeropuerto?",
+       "ru": "Этот поезд останавливается в аэропорту?"
+      }
+     ]
+    },
+    {
+     "id": "a1-transport-04",
+     "es": "Me he pasado de parada.",
+     "ru": "Я проехал свою остановку.",
+     "note": "Женщина говорит так же. Дальше спросите: «¿Cómo vuelvo?» (Как мне вернуться?)"
+    },
+    {
+     "id": "a1-transport-05",
+     "es": "¿El tren va con retraso?",
+     "ru": "Поезд опаздывает?",
+     "note": "На табло увидите «retrasado» (задерживается) или «cancelado» (отменён). У Renfe за большие задержки можно вернуть часть денег."
+    },
+    {
+     "id": "a1-transport-06",
+     "es": "Quería pedir un taxi para ahora.",
+     "ru": "Я хотел бы вызвать такси прямо сейчас.",
+     "note": "Говорите по телефону или на ресепшене. Спросят адрес: «¿A qué dirección?» Женщина: так же.",
+     "pattern": "Quería pedir un taxi para ___.",
+     "slots": [
+      {
+       "fill": "ahora",
+       "es": "Quería pedir un taxi para ahora.",
+       "ru": "Я хотел бы вызвать такси прямо сейчас."
+      },
+      {
+       "fill": "las siete",
+       "es": "Quería pedir un taxi para las siete.",
+       "ru": "Я хотел бы заказать такси на семь часов."
+      },
+      {
+       "fill": "mañana a las seis",
+       "es": "Quería pedir un taxi para mañana a las seis.",
+       "ru": "Я хотел бы заказать такси на завтра на шесть."
+      },
+      {
+       "fill": "el aeropuerto",
+       "es": "Quería pedir un taxi para el aeropuerto.",
+       "ru": "Я хотел бы заказать такси в аэропорт."
+      }
+     ]
+    },
+    {
+     "id": "a1-transport-07",
+     "es": "Quería sacar el abono mensual.",
+     "ru": "Я хотел бы оформить месячный проездной.",
+     "note": "В Мадриде сначала оформляют «tarjeta transporte público», потом её пополняют. Возьмите паспорт или NIE."
+    },
+    {
+     "id": "a1-transport-08",
+     "es": "¿Hay que hacer transbordo?",
+     "ru": "Нужно делать пересадку?",
+     "note": "Ответ может быть таким: «Sí, en Sol» (Да, на Соль). Transbordo — пересадка в метро и на поездах."
+    },
+    {
+     "id": "a1-transport-09",
+     "es": "¿Cada cuánto pasa el metro?",
+     "ru": "Как часто ходит метро?",
+     "note": "Ответ: «Cada cinco minutos» (раз в пять минут). Подходит и для автобуса: «¿Cada cuánto pasa el autobús?»"
+    },
+    {
+     "id": "a1-transport-10",
+     "es": "He perdido el tren. ¿Puedo coger el siguiente?",
+     "ru": "Я опоздал на поезд. Можно сесть на следующий?",
+     "note": "Спрашивайте в кассе Renfe. Всё зависит от тарифа: на дешёвых билетах часто придётся доплатить."
+    },
+    {
+     "id": "a1-transport-11",
+     "es": "¿Dónde puedo recargar la tarjeta de transporte?",
+     "ru": "Где можно пополнить транспортную карту?",
+     "note": "Обычно её пополняют в автоматах на станциях метро и в табачных киосках («estanco»)."
+    },
+    {
+     "id": "a1-transport-12",
+     "es": "Quería cambiar la vuelta al domingo.",
+     "ru": "Я хотел бы перенести обратный билет на воскресенье.",
+     "note": "«La vuelta» — обратный рейс, «la ida» — рейс туда. Могут попросить доплатить: «Hay que pagar la diferencia»."
+    }
+   ]
+  },
+  {
+   "id": "a1-home",
+   "emoji": "🏠",
+   "title": "Жильё и аренда",
+   "phrases": [
+    {
+     "id": "a1-home-01",
+     "es": "¿Puedo ver el piso mañana?",
+     "ru": "Можно посмотреть квартиру завтра?",
+     "note": "С хозяином или агентством говорите на usted. Часто отвечают: «¿Le viene bien a las…?» — «Вам удобно в…?»",
+     "pattern": "¿Puedo ver el piso ___?",
+     "slots": [
+      {
+       "fill": "mañana",
+       "es": "¿Puedo ver el piso mañana?",
+       "ru": "Можно посмотреть квартиру завтра?"
+      },
+      {
+       "fill": "esta tarde",
+       "es": "¿Puedo ver el piso esta tarde?",
+       "ru": "Можно посмотреть квартиру сегодня днём?"
+      },
+      {
+       "fill": "el sábado",
+       "es": "¿Puedo ver el piso el sábado?",
+       "ru": "Можно посмотреть квартиру в субботу?"
+      },
+      {
+       "fill": "hoy",
+       "es": "¿Puedo ver el piso hoy?",
+       "ru": "Можно посмотреть квартиру сегодня?"
+      }
+     ]
+    },
+    {
+     "id": "a1-home-02",
+     "es": "¿Cuánto es el alquiler al mes?",
+     "ru": "Сколько стоит аренда в месяц?",
+     "note": "Alquiler — это и аренда, и арендная плата."
+    },
+    {
+     "id": "a1-home-03",
+     "es": "¿El alquiler incluye los gastos?",
+     "ru": "Коммунальные платежи входят в аренду?",
+     "note": "Gastos — это коммуналка: вода, свет, газ. Отдельно бывают «gastos de comunidad» — плата за обслуживание дома.",
+     "pattern": "¿El alquiler incluye ___?",
+     "slots": [
+      {
+       "fill": "los gastos",
+       "es": "¿El alquiler incluye los gastos?",
+       "ru": "Коммунальные платежи входят в аренду?"
+      },
+      {
+       "fill": "el agua",
+       "es": "¿El alquiler incluye el agua?",
+       "ru": "Вода входит в аренду?"
+      },
+      {
+       "fill": "la luz",
+       "es": "¿El alquiler incluye la luz?",
+       "ru": "Электричество входит в аренду?"
+      },
+      {
+       "fill": "internet",
+       "es": "¿El alquiler incluye internet?",
+       "ru": "Интернет входит в аренду?"
+      }
+     ]
+    },
+    {
+     "id": "a1-home-04",
+     "es": "¿Cuánto es la fianza?",
+     "ru": "Какой залог?",
+     "note": "Обычно залог — один или два месяца аренды: «Un mes de fianza». Иногда просят ещё «garantía adicional» — дополнительную гарантию."
+    },
+    {
+     "id": "a1-home-05",
+     "es": "No hay agua caliente.",
+     "ru": "Нет горячей воды.",
+     "note": "Частая причина — котёл (la caldera). Могут спросить: «¿Ha mirado la caldera?» — «Вы проверили котёл?»"
+    },
+    {
+     "id": "a1-home-06",
+     "es": "La lavadora no funciona.",
+     "ru": "Стиральная машина не работает.",
+     "note": "Можно и «… está roto/rota», но «no funciona» проще: не нужно согласовывать род.",
+     "pattern": "___ no funciona.",
+     "slots": [
+      {
+       "fill": "La lavadora",
+       "es": "La lavadora no funciona.",
+       "ru": "Стиральная машина не работает."
+      },
+      {
+       "fill": "La calefacción",
+       "es": "La calefacción no funciona.",
+       "ru": "Отопление не работает."
+      },
+      {
+       "fill": "El aire acondicionado",
+       "es": "El aire acondicionado no funciona.",
+       "ru": "Кондиционер не работает."
+      },
+      {
+       "fill": "La nevera",
+       "es": "La nevera no funciona.",
+       "ru": "Холодильник не работает."
+      }
+     ]
+    },
+    {
+     "id": "a1-home-07",
+     "es": "¿Puede mandar a alguien a arreglarlo?",
+     "ru": "Можете прислать кого-нибудь починить?",
+     "note": "Обращаетесь на usted к хозяину или агентству. Если поломка — «la» (lavadora), говорят «arreglarla»."
+    },
+    {
+     "id": "a1-home-08",
+     "es": "Los vecinos hacen mucho ruido.",
+     "ru": "Соседи очень шумят.",
+     "note": "Можно добавить «por la noche» — по ночам. Жалобы на соседей обычно идут к «el presidente de la comunidad»."
+    },
+    {
+     "id": "a1-home-09",
+     "es": "¿Está amueblado?",
+     "ru": "Квартира с мебелью?",
+     "note": "В объявлениях пишут «amueblado» (с мебелью) или «sin amueblar» (без мебели)."
+    },
+    {
+     "id": "a1-home-10",
+     "es": "Busco un piso de dos habitaciones.",
+     "ru": "Я ищу квартиру с двумя спальнями.",
+     "note": "В Испании «habitaciones» — это спальни, гостиная (salón) не считается.",
+     "pattern": "Busco un piso ___.",
+     "slots": [
+      {
+       "fill": "de dos habitaciones",
+       "es": "Busco un piso de dos habitaciones.",
+       "ru": "Я ищу квартиру с двумя спальнями."
+      },
+      {
+       "fill": "cerca del metro",
+       "es": "Busco un piso cerca del metro.",
+       "ru": "Я ищу квартиру рядом с метро."
+      },
+      {
+       "fill": "en el centro",
+       "es": "Busco un piso en el centro.",
+       "ru": "Я ищу квартиру в центре."
+      },
+      {
+       "fill": "con terraza",
+       "es": "Busco un piso con terraza.",
+       "ru": "Я ищу квартиру с террасой."
+      }
+     ]
+    },
+    {
+     "id": "a1-home-11",
+     "es": "Hay una fuga de agua.",
+     "ru": "У нас течёт вода.",
+     "note": "Если протекает с потолка, скажите «Hay una gotera». Срочно — добавьте «Es urgente»."
+    },
+    {
+     "id": "a1-home-12",
+     "es": "¿Cuándo puedo entrar a vivir?",
+     "ru": "Когда можно заселиться?",
+     "note": "Ответ будет вроде «A partir del día uno» — «С первого числа»."
+    },
+    {
+     "id": "a1-home-13",
+     "es": "¿Quién paga el arreglo?",
+     "ru": "Кто платит за ремонт?",
+     "note": "Обычно крупные поломки чинит хозяин, мелкие — жилец. Лучше уточнить до ремонта."
+    },
+    {
+     "id": "a1-home-14",
+     "es": "¿Cuándo me devuelve la fianza?",
+     "ru": "Когда вы вернёте мне залог?",
+     "note": "Спрашивайте при выезде. Хозяин может удержать часть за повреждения, поэтому при заселении сфотографируйте квартиру."
+    }
+   ]
+  },
+  {
+   "id": "a1-doctor",
+   "emoji": "🩺",
+   "title": "Врач и аптека",
+   "phrases": [
+    {
+     "id": "a1-doctor-01",
+     "es": "Me duele la garganta desde ayer.",
+     "ru": "У меня со вчерашнего дня болит горло.",
+     "note": "Глагол согласуется с тем, что болит: несколько частей тела — «Me duelen los oídos».",
+     "pattern": "Me duele ___ desde ayer.",
+     "slots": [
+      {
+       "fill": "la garganta",
+       "es": "Me duele la garganta desde ayer.",
+       "ru": "У меня со вчерашнего дня болит горло."
+      },
+      {
+       "fill": "el estómago",
+       "es": "Me duele el estómago desde ayer.",
+       "ru": "У меня со вчерашнего дня болит живот."
+      },
+      {
+       "fill": "la espalda",
+       "es": "Me duele la espalda desde ayer.",
+       "ru": "У меня со вчерашнего дня болит спина."
+      },
+      {
+       "fill": "el oído",
+       "es": "Me duele el oído desde ayer.",
+       "ru": "У меня со вчерашнего дня болит ухо."
+      }
+     ]
+    },
+    {
+     "id": "a1-doctor-02",
+     "es": "Tengo tos desde hace una semana.",
+     "ru": "Я кашляю уже неделю.",
+     "note": "«desde hace» + срок = «уже столько-то». Врач обычно спрашивает: «¿Desde cuándo?»",
+     "pattern": "Tengo tos desde hace ___.",
+     "slots": [
+      {
+       "fill": "una semana",
+       "es": "Tengo tos desde hace una semana.",
+       "ru": "Я кашляю уже неделю."
+      },
+      {
+       "fill": "tres días",
+       "es": "Tengo tos desde hace tres días.",
+       "ru": "Я кашляю уже три дня."
+      },
+      {
+       "fill": "dos semanas",
+       "es": "Tengo tos desde hace dos semanas.",
+       "ru": "Я кашляю уже две недели."
+      },
+      {
+       "fill": "un mes",
+       "es": "Tengo tos desde hace un mes.",
+       "ru": "Я кашляю уже месяц."
+      }
+     ]
+    },
+    {
+     "id": "a1-doctor-03",
+     "es": "¿Hay cita para hoy?",
+     "ru": "Можно записаться на сегодня?",
+     "note": "В ответ часто слышат: «Para hoy no, la primera es el jueves» — ближайшая запись в четверг.",
+     "pattern": "¿Hay cita para ___?",
+     "slots": [
+      {
+       "fill": "hoy",
+       "es": "¿Hay cita para hoy?",
+       "ru": "Можно записаться на сегодня?"
+      },
+      {
+       "fill": "mañana",
+       "es": "¿Hay cita para mañana?",
+       "ru": "Можно записаться на завтра?"
+      },
+      {
+       "fill": "esta semana",
+       "es": "¿Hay cita para esta semana?",
+       "ru": "Есть свободная запись на этой неделе?"
+      },
+      {
+       "fill": "el lunes",
+       "es": "¿Hay cita para el lunes?",
+       "ru": "Можно записаться на понедельник?"
+      }
+     ]
+    },
+    {
+     "id": "a1-doctor-04",
+     "es": "Aquí tiene mi tarjeta sanitaria.",
+     "ru": "Вот моя медицинская карта (полис).",
+     "note": "В регистратуре первым делом спросят: «¿Me da la tarjeta sanitaria?» Без неё — паспорт или NIE."
+    },
+    {
+     "id": "a1-doctor-05",
+     "es": "Tengo cita a las diez.",
+     "ru": "Я записан на десять.",
+     "note": "Говорите в регистратуре по приходе. Вероятно спросят: «¿A nombre de quién?» — на чьё имя."
+    },
+    {
+     "id": "a1-doctor-06",
+     "es": "¿Cuántas veces al día lo tomo?",
+     "ru": "Сколько раз в день это принимать?",
+     "note": "Типичный ответ: «Tres veces al día» или «Cada ocho horas»."
+    },
+    {
+     "id": "a1-doctor-07",
+     "es": "¿Antes o después de comer?",
+     "ru": "До еды или после?",
+     "note": "Могут ответить «en ayunas» — натощак, или «con las comidas» — во время еды."
+    },
+    {
+     "id": "a1-doctor-08",
+     "es": "¿Me puede recetar algo?",
+     "ru": "Вы можете мне что-нибудь выписать?",
+     "note": "Обращение к врачу на usted. Рецепт часто электронный — в аптеке просто дают tarjeta sanitaria."
+    },
+    {
+     "id": "a1-doctor-09",
+     "es": "Tengo diarrea.",
+     "ru": "У меня диарея.",
+     "note": "Не путайте: «Tengo náuseas» — тошнит, «Estoy resfriado» — простудился (женщина: resfriada).",
+     "pattern": "Tengo ___.",
+     "slots": [
+      {
+       "fill": "diarrea",
+       "es": "Tengo diarrea.",
+       "ru": "У меня диарея."
+      },
+      {
+       "fill": "náuseas",
+       "es": "Tengo náuseas.",
+       "ru": "Меня тошнит."
+      },
+      {
+       "fill": "alergia",
+       "es": "Tengo alergia.",
+       "ru": "У меня аллергия."
+      },
+      {
+       "fill": "la tensión alta",
+       "es": "Tengo la tensión alta.",
+       "ru": "У меня высокое давление."
+      }
+     ]
+    },
+    {
+     "id": "a1-doctor-10",
+     "es": "¿Puedo tomar ibuprofeno?",
+     "ru": "Мне можно ибупрофен?",
+     "note": "В Испании ибупрофен и парацетамол продаются только в аптеке, не в супермаркете.",
+     "pattern": "¿Puedo tomar ___?",
+     "slots": [
+      {
+       "fill": "ibuprofeno",
+       "es": "¿Puedo tomar ibuprofeno?",
+       "ru": "Мне можно ибупрофен?"
+      },
+      {
+       "fill": "paracetamol",
+       "es": "¿Puedo tomar paracetamol?",
+       "ru": "Мне можно парацетамол?"
+      },
+      {
+       "fill": "alcohol",
+       "es": "¿Puedo tomar alcohol?",
+       "ru": "Мне можно пить алкоголь?"
+      }
+     ]
+    },
+    {
+     "id": "a1-doctor-11",
+     "es": "¿Es grave?",
+     "ru": "Это серьёзно?",
+     "note": "Успокаивающий ответ: «No, no es nada» — ничего страшного."
+    },
+    {
+     "id": "a1-doctor-12",
+     "es": "Me he torcido el tobillo.",
+     "ru": "Я подвернул ногу.",
+     "note": "Женщина говорит так же. Похожее: «Me he cortado» — я порезался."
+    },
+    {
+     "id": "a1-doctor-13",
+     "es": "Necesito un justificante para el trabajo.",
+     "ru": "Мне нужна справка для работы.",
+     "note": "Justificante подтверждает визит к врачу. Больничный — «la baja»."
+    },
+    {
+     "id": "a1-doctor-14",
+     "es": "¿Dónde hay una farmacia de guardia?",
+     "ru": "Где здесь дежурная аптека?",
+     "note": "Ночью и в выходные работают только аптеки «de guardia»; их список висит на двери любой аптеки."
+    }
+   ]
+  },
+  {
+   "id": "a1-papers",
+   "emoji": "📄",
+   "title": "Документы и банк",
+   "phrases": [
+    {
+     "id": "a1-papers-01",
+     "es": "Quería pedir cita previa para el NIE.",
+     "ru": "Я хотел бы записаться на приём по поводу NIE.",
+     "note": "Без cita previa в госучреждение почти никуда не пустят. Обычно запись онлайн, но фраза пригодится по телефону и на месте. Ответ может быть: «Eso se pide por internet» (это делается через интернет).",
+     "pattern": "Quería pedir cita previa para ___.",
+     "slots": [
+      {
+       "fill": "el NIE",
+       "es": "Quería pedir cita previa para el NIE.",
+       "ru": "Я хотел бы записаться на приём по поводу NIE."
+      },
+      {
+       "fill": "empadronarme",
+       "es": "Quería pedir cita previa para empadronarme.",
+       "ru": "Я хотел бы записаться, чтобы оформить прописку."
+      },
+      {
+       "fill": "la toma de huellas",
+       "es": "Quería pedir cita previa para la toma de huellas.",
+       "ru": "Я хотел бы записаться на сдачу отпечатков пальцев."
+      },
+      {
+       "fill": "la tarjeta de residencia",
+       "es": "Quería pedir cita previa para la tarjeta de residencia.",
+       "ru": "Я хотел бы записаться на оформление карты резидента."
+      }
+     ]
+    },
+    {
+     "id": "a1-papers-02",
+     "es": "¿Qué documentos necesito?",
+     "ru": "Какие документы мне нужны?",
+     "note": "Попросите список на бумаге: «¿Me lo puede dar por escrito?». Часто называют «el modelo» — номер бланка, например, EX-15."
+    },
+    {
+     "id": "a1-papers-03",
+     "es": "¿Tengo que traer el original?",
+     "ru": "Мне нужно принести оригинал?",
+     "note": "В Испании почти всегда просят и оригинал, и копию. Берите с собой оба.",
+     "pattern": "¿Tengo que traer ___?",
+     "slots": [
+      {
+       "fill": "el original",
+       "es": "¿Tengo que traer el original?",
+       "ru": "Мне нужно принести оригинал?"
+      },
+      {
+       "fill": "una fotocopia",
+       "es": "¿Tengo que traer una fotocopia?",
+       "ru": "Мне нужно принести ксерокопию?"
+      },
+      {
+       "fill": "una foto de carné",
+       "es": "¿Tengo que traer una foto de carné?",
+       "ru": "Мне нужно принести фото на документы?"
+      },
+      {
+       "fill": "el contrato de alquiler",
+       "es": "¿Tengo que traer el contrato de alquiler?",
+       "ru": "Мне нужно принести договор аренды?"
+      }
+     ]
+    },
+    {
+     "id": "a1-papers-04",
+     "es": "Aquí tiene mi pasaporte.",
+     "ru": "Вот мой паспорт.",
+     "note": "Вежливая форма на «вы», если отдаёте документ сотруднику.",
+     "pattern": "Aquí tiene mi ___.",
+     "slots": [
+      {
+       "fill": "pasaporte",
+       "es": "Aquí tiene mi pasaporte.",
+       "ru": "Вот мой паспорт."
+      },
+      {
+       "fill": "NIE",
+       "es": "Aquí tiene mi NIE.",
+       "ru": "Вот мой NIE."
+      },
+      {
+       "fill": "contrato de alquiler",
+       "es": "Aquí tiene mi contrato de alquiler.",
+       "ru": "Вот мой договор аренды."
+      },
+      {
+       "fill": "certificado de empadronamiento",
+       "es": "Aquí tiene mi certificado de empadronamiento.",
+       "ru": "Вот моя справка о прописке."
+      }
+     ]
+    },
+    {
+     "id": "a1-papers-05",
+     "es": "¿Dónde tengo que firmar?",
+     "ru": "Где мне расписаться?",
+     "note": "Скорее всего, вам ответят: «Aquí, abajo» (здесь, внизу) или «Firme aquí, por favor»."
+    },
+    {
+     "id": "a1-papers-06",
+     "es": "¿Me puede dar una copia, por favor?",
+     "ru": "Можно мне копию?",
+     "note": "Всегда берите копию или справку о подаче документов («el resguardo»): она подтверждает, что вы их подали.",
+     "pattern": "¿Me puede dar ___, por favor?",
+     "slots": [
+      {
+       "fill": "una copia",
+       "es": "¿Me puede dar una copia, por favor?",
+       "ru": "Можно мне копию?"
+      },
+      {
+       "fill": "el resguardo",
+       "es": "¿Me puede dar el resguardo, por favor?",
+       "ru": "Можно мне справку о подаче документов?"
+      },
+      {
+       "fill": "un justificante",
+       "es": "¿Me puede dar un justificante, por favor?",
+       "ru": "Можно мне справку-подтверждение?"
+      },
+      {
+       "fill": "el formulario",
+       "es": "¿Me puede dar el formulario, por favor?",
+       "ru": "Можно мне бланк?"
+      }
+     ]
+    },
+    {
+     "id": "a1-papers-07",
+     "es": "Quería abrir una cuenta.",
+     "ru": "Я хотел бы открыть счёт.",
+     "note": "«Quería» здесь — вежливая просьба, а не прошедшее время. Так в Испании начинают разговор в банке или в любом учреждении.",
+     "pattern": "Quería ___.",
+     "slots": [
+      {
+       "fill": "abrir una cuenta",
+       "es": "Quería abrir una cuenta.",
+       "ru": "Я хотел бы открыть счёт."
+      },
+      {
+       "fill": "hacer una transferencia",
+       "es": "Quería hacer una transferencia.",
+       "ru": "Я хотел бы сделать перевод."
+      },
+      {
+       "fill": "cambiar el PIN",
+       "es": "Quería cambiar el PIN.",
+       "ru": "Я хотел бы сменить PIN-код."
+      },
+      {
+       "fill": "cancelar la tarjeta",
+       "es": "Quería cancelar la tarjeta.",
+       "ru": "Я хотел бы заблокировать карту."
+      }
+     ]
+    },
+    {
+     "id": "a1-papers-08",
+     "es": "Tengo la tarjeta bloqueada.",
+     "ru": "У меня заблокирована карта.",
+     "note": "Вас, скорее всего, спросят: «¿Ha puesto mal el PIN?» (вы неправильно ввели PIN?)."
+    },
+    {
+     "id": "a1-papers-09",
+     "es": "¿Me puede ayudar a rellenar el formulario?",
+     "ru": "Помогите мне, пожалуйста, заполнить бланк.",
+     "note": "«Rellenar» — это «заполнять». Бланк чаще всего называют «el formulario» или «el impreso»."
+    },
+    {
+     "id": "a1-papers-10",
+     "es": "¿Dónde puedo empadronarme?",
+     "ru": "Где можно оформить прописку?",
+     "note": "Прописка (empadronamiento) оформляется в ayuntamiento (мэрия) или в районной мэрии. Нужны договор аренды и паспорт."
+    },
+    {
+     "id": "a1-papers-11",
+     "es": "¿La cuenta tiene comisiones?",
+     "ru": "За счёт берут комиссию?",
+     "note": "Обязательно уточните, иначе с вас могут ежемесячно списывать деньги. Хороший ответ: «Sin comisiones»."
+    },
+    {
+     "id": "a1-papers-12",
+     "es": "¿Hay que pagar alguna tasa?",
+     "ru": "Нужно платить госпошлину?",
+     "note": "Госпошлину («la tasa») для NIE или TIE обычно платят заранее в банке по бланку 790."
+    },
+    {
+     "id": "a1-papers-13",
+     "es": "El cajero se ha quedado con mi tarjeta.",
+     "ru": "Банкомат проглотил мою карту.",
+     "note": "«Cajero» — это банкомат. Скажите это прямо в отделении банка или позвоните по номеру, указанному на банкомате."
+    },
+    {
+     "id": "a1-papers-14",
+     "es": "Todavía no tengo NIE.",
+     "ru": "У меня пока нет NIE.",
+     "note": "NIE просят почти везде: в банке, при аренде, на работе. Спросите, можно ли обойтись паспортом: «¿Vale con el pasaporte?»"
+    }
+   ]
+  },
+  {
+   "id": "a1-phone",
+   "emoji": "📞",
+   "title": "Телефон",
+   "phrases": [
+    {
+     "id": "a1-phone-01",
+     "es": "¿Diga?",
+     "ru": "Алло?",
+     "note": "Так отвечают на звонок. Ещё говорят «¿Sí?» и «¿Dígame?»; если звонит друг — «¿Sí?» или «Dime»."
+    },
+    {
+     "id": "a1-phone-02",
+     "es": "Hola, llamo por el anuncio del piso.",
+     "ru": "Здравствуйте, я звоню по объявлению о квартире.",
+     "note": "Сразу говорите, по какому вы поводу: так вас быстрее соединят с нужным человеком.",
+     "pattern": "Hola, llamo por ___.",
+     "slots": [
+      {
+       "fill": "el anuncio del piso",
+       "es": "Hola, llamo por el anuncio del piso.",
+       "ru": "Здравствуйте, я звоню по объявлению о квартире."
+      },
+      {
+       "fill": "la cita de mañana",
+       "es": "Hola, llamo por la cita de mañana.",
+       "ru": "Здравствуйте, я звоню насчёт завтрашней записи."
+      },
+      {
+       "fill": "una factura",
+       "es": "Hola, llamo por una factura.",
+       "ru": "Здравствуйте, я звоню насчёт счёта."
+      },
+      {
+       "fill": "mi pedido",
+       "es": "Hola, llamo por mi pedido.",
+       "ru": "Здравствуйте, я звоню насчёт своего заказа."
+      }
+     ]
+    },
+    {
+     "id": "a1-phone-03",
+     "es": "¿Podría hablar con el señor García?",
+     "ru": "Можно поговорить с сеньором Гарсией?",
+     "note": "Вежливая форма на «usted». Скорее всего, услышите в ответ «Un momento, ahora le paso» — «Минутку, сейчас соединю».",
+     "pattern": "¿Podría hablar con ___?",
+     "slots": [
+      {
+       "fill": "el señor García",
+       "es": "¿Podría hablar con el señor García?",
+       "ru": "Можно поговорить с сеньором Гарсией?"
+      },
+      {
+       "fill": "la doctora López",
+       "es": "¿Podría hablar con la doctora López?",
+       "ru": "Можно поговорить с доктором Лопес?"
+      },
+      {
+       "fill": "el encargado",
+       "es": "¿Podría hablar con el encargado?",
+       "ru": "Можно поговорить с менеджером?"
+      },
+      {
+       "fill": "alguien de recepción",
+       "es": "¿Podría hablar con alguien de recepción?",
+       "ru": "Можно поговорить с кем-нибудь из ресепшена?"
+      }
+     ]
+    },
+    {
+     "id": "a1-phone-04",
+     "es": "Perdone, no le oigo bien.",
+     "ru": "Извините, вас плохо слышно.",
+     "note": "С другом: «No te oigo bien». Если связь прерывается, скажите «Se corta»."
+    },
+    {
+     "id": "a1-phone-05",
+     "es": "¿Me lo puede deletrear?",
+     "ru": "Можете продиктовать по буквам?",
+     "note": "Испанцы часто называют буквы через слова: «B de Barcelona», «M de Madrid». Можно и самому так диктовать."
+    },
+    {
+     "id": "a1-phone-06",
+     "es": "Mi número es el 612 345 678.",
+     "ru": "Мой номер: 612 345 678.",
+     "note": "Не забудьте «el» перед числом. Диктуйте по одной цифре («seis, uno, dos…») — так вас точно поймут.",
+     "pattern": "Mi ___ es el 612 345 678.",
+     "slots": [
+      {
+       "fill": "número",
+       "es": "Mi número es el 612 345 678.",
+       "ru": "Мой номер: 612 345 678."
+      },
+      {
+       "fill": "móvil",
+       "es": "Mi móvil es el 612 345 678.",
+       "ru": "Мой мобильный: 612 345 678."
+      },
+      {
+       "fill": "número de cliente",
+       "es": "Mi número de cliente es el 612 345 678.",
+       "ru": "Мой номер клиента: 612 345 678."
+      },
+      {
+       "fill": "número de pedido",
+       "es": "Mi número de pedido es el 612 345 678.",
+       "ru": "Номер моего заказа: 612 345 678."
+      }
+     ]
+    },
+    {
+     "id": "a1-phone-07",
+     "es": "¿Le puede decir que me llame, por favor?",
+     "ru": "Передайте ему, пожалуйста, чтобы он мне перезвонил.",
+     "note": "Подходит и про мужчину, и про женщину. Если просите друга: «¿Le dices que me llame?»"
+    },
+    {
+     "id": "a1-phone-08",
+     "es": "¿De parte de quién?",
+     "ru": "Кто его спрашивает?",
+     "note": "Это спросит секретарь, прежде чем соединить. Ответ: «De parte de Iván»."
+    },
+    {
+     "id": "a1-phone-09",
+     "es": "Perdone, me he equivocado de número.",
+     "ru": "Извините, я ошибся номером.",
+     "note": "Если ошиблись номером, когда звонили вам, услышите «Se ha equivocado» — «Вы ошиблись»."
+    },
+    {
+     "id": "a1-phone-10",
+     "es": "Ahora no puedo hablar.",
+     "ru": "Сейчас не могу говорить.",
+     "note": "Обычно сразу добавляют, когда перезвоните: «Te llamo luego»."
+    },
+    {
+     "id": "a1-phone-11",
+     "es": "Te llamo luego.",
+     "ru": "Перезвоню позже.",
+     "note": "Это на «tú», для друзей. С незнакомыми: «Le llamo luego». Осторожно: «Ahora te llamo» в Испании значит «сейчас перезвоню», а не «звоню прямо сейчас».",
+     "pattern": "Te llamo ___.",
+     "slots": [
+      {
+       "fill": "luego",
+       "es": "Te llamo luego.",
+       "ru": "Перезвоню позже."
+      },
+      {
+       "fill": "mañana",
+       "es": "Te llamo mañana.",
+       "ru": "Позвоню завтра."
+      },
+      {
+       "fill": "en diez minutos",
+       "es": "Te llamo en diez minutos.",
+       "ru": "Перезвоню через десять минут."
+      },
+      {
+       "fill": "esta tarde",
+       "es": "Te llamo esta tarde.",
+       "ru": "Позвоню сегодня днём."
+      }
+     ]
+    },
+    {
+     "id": "a1-phone-12",
+     "es": "¿Puedo dejarle un mensaje?",
+     "ru": "Можно оставить ему сообщение?",
+     "note": "Секретарь может и сам спросить: «¿Quiere dejar algún recado?» — «Хотите что-нибудь передать?»"
+    }
+   ]
+  },
+  {
+   "id": "a1-plans",
+   "emoji": "📅",
+   "title": "Встречи и планы",
+   "phrases": [
+    {
+     "id": "a1-plans-01",
+     "es": "¿Te viene bien el viernes?",
+     "ru": "Тебе удобно в пятницу?",
+     "note": "Обычно отвечают: «Sí, me viene bien» или «Uf, ese día no puedo». С «usted»: ¿Le viene bien…?",
+     "pattern": "¿Te viene bien ___?",
+     "slots": [
+      {
+       "fill": "el viernes",
+       "es": "¿Te viene bien el viernes?",
+       "ru": "Тебе удобно в пятницу?"
+      },
+      {
+       "fill": "a las siete",
+       "es": "¿Te viene bien a las siete?",
+       "ru": "Тебе удобно в семь?"
+      },
+      {
+       "fill": "mañana por la tarde",
+       "es": "¿Te viene bien mañana por la tarde?",
+       "ru": "Тебе удобно завтра после обеда?"
+      },
+      {
+       "fill": "este finde",
+       "es": "¿Te viene bien este finde?",
+       "ru": "Тебе удобно в эти выходные?"
+      }
+     ]
+    },
+    {
+     "id": "a1-plans-02",
+     "es": "¿Cuándo quedamos?",
+     "ru": "Когда встретимся?",
+     "note": "«Quedar» — ключевой глагол для встреч с друзьями. Не путай с «quedarse» (оставаться)."
+    },
+    {
+     "id": "a1-plans-03",
+     "es": "¿Dónde quedamos?",
+     "ru": "Где встретимся?",
+     "note": "Часто отвечают «¿En la puerta de…?» — испанцы любят встречаться у входа в метро или бар."
+    },
+    {
+     "id": "a1-plans-04",
+     "es": "Ese día no puedo.",
+     "ru": "В этот день я не могу.",
+     "note": "Смягчи и сразу предложи другой вариант: «Ese día no puedo, ¿y el lunes?»"
+    },
+    {
+     "id": "a1-plans-05",
+     "es": "¿Y si quedamos el domingo?",
+     "ru": "А может, встретимся в воскресенье?",
+     "note": "Мягкий способ предложить альтернативу — звучит не как отказ, а как идея.",
+     "pattern": "¿Y si quedamos ___?",
+     "slots": [
+      {
+       "fill": "el domingo",
+       "es": "¿Y si quedamos el domingo?",
+       "ru": "А может, встретимся в воскресенье?"
+      },
+      {
+       "fill": "más tarde",
+       "es": "¿Y si quedamos más tarde?",
+       "ru": "А может, встретимся попозже?"
+      },
+      {
+       "fill": "a las nueve",
+       "es": "¿Y si quedamos a las nueve?",
+       "ru": "А может, встретимся в девять?"
+      },
+      {
+       "fill": "en el centro",
+       "es": "¿Y si quedamos en el centro?",
+       "ru": "А может, встретимся в центре?"
+      }
+     ]
+    },
+    {
+     "id": "a1-plans-06",
+     "es": "Quedamos en la puerta del metro.",
+     "ru": "Встречаемся у входа в метро.",
+     "note": "«En la puerta de…» = у входа. Время добавляй в конце: «…a las ocho».",
+     "pattern": "Quedamos en ___.",
+     "slots": [
+      {
+       "fill": "la puerta del metro",
+       "es": "Quedamos en la puerta del metro.",
+       "ru": "Встречаемся у входа в метро."
+      },
+      {
+       "fill": "la Puerta del Sol",
+       "es": "Quedamos en la Puerta del Sol.",
+       "ru": "Встречаемся на Пуэрта-дель-Соль."
+      },
+      {
+       "fill": "el bar de siempre",
+       "es": "Quedamos en el bar de siempre.",
+       "ru": "Встречаемся в нашем обычном баре."
+      },
+      {
+       "fill": "mi casa",
+       "es": "Quedamos en mi casa.",
+       "ru": "Встречаемся у меня дома."
+      }
+     ]
+    },
+    {
+     "id": "a1-plans-07",
+     "es": "Vale, me viene bien.",
+     "ru": "Хорошо, мне подходит.",
+     "note": "Стандартный ответ на «¿Te viene bien…?». Ещё говорят «Me viene genial»."
+    },
+    {
+     "id": "a1-plans-08",
+     "es": "Voy a llegar un poco tarde, lo siento.",
+     "ru": "Я немного опоздаю, извини.",
+     "note": "В Испании 10–15 минут опоздания с друзьями — норма, но предупредить вежливо. Ответ: «Tranqui, no pasa nada»."
+    },
+    {
+     "id": "a1-plans-09",
+     "es": "Lo siento, al final no puedo ir.",
+     "ru": "Извини, в итоге я не смогу прийти.",
+     "note": "«Al final» = в итоге, планы поменялись. Можно добавить причину: «…es que tengo mucho trabajo»."
+    },
+    {
+     "id": "a1-plans-10",
+     "es": "¿Lo dejamos para otro día?",
+     "ru": "Давай перенесём на другой день?",
+     "note": "Вежливый способ отменить встречу, не отказываясь от неё совсем."
+    },
+    {
+     "id": "a1-plans-11",
+     "es": "Ya estoy aquí, ¿dónde estás?",
+     "ru": "Я уже на месте, ты где?",
+     "note": "Типичное сообщение в WhatsApp. Ответ может быть: «¡Ya voy!» — «Уже иду!» (часто это значит «ещё не вышел»)."
+    },
+    {
+     "id": "a1-plans-12",
+     "es": "¡Nos vemos mañana!",
+     "ru": "Увидимся завтра!",
+     "note": "Так прощаются, когда встреча уже договорена. Подходит и для «tú», и для «usted».",
+     "pattern": "¡Nos vemos ___!",
+     "slots": [
+      {
+       "fill": "mañana",
+       "es": "¡Nos vemos mañana!",
+       "ru": "Увидимся завтра!"
+      },
+      {
+       "fill": "el sábado",
+       "es": "¡Nos vemos el sábado!",
+       "ru": "Увидимся в субботу!"
+      },
+      {
+       "fill": "allí",
+       "es": "¡Nos vemos allí!",
+       "ru": "Увидимся там!"
+      },
+      {
+       "fill": "a las ocho",
+       "es": "¡Nos vemos a las ocho!",
+       "ru": "Увидимся в восемь!"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "a1-complaints",
+   "emoji": "😤",
+   "title": "Жалобы и проблемы",
+   "phrases": [
+    {
+     "id": "a1-complaints-01",
+     "es": "Perdone, pero esto no está bien.",
+     "ru": "Извините, но так не годится.",
+     "note": "Вежливо, но твёрдо. Подходит для неправильного счёта, заказа или услуги. Сразу объясните, что не так."
+    },
+    {
+     "id": "a1-complaints-02",
+     "es": "Llevo una hora esperando.",
+     "ru": "Я жду уже час.",
+     "note": "Llevo + время + -ando/-iendo — самый естественный способ сказать «уже столько-то времени».",
+     "pattern": "Llevo ___ esperando.",
+     "slots": [
+      {
+       "fill": "una hora",
+       "es": "Llevo una hora esperando.",
+       "ru": "Я жду уже час."
+      },
+      {
+       "fill": "media hora",
+       "es": "Llevo media hora esperando.",
+       "ru": "Я жду уже полчаса."
+      },
+      {
+       "fill": "veinte minutos",
+       "es": "Llevo veinte minutos esperando.",
+       "ru": "Я жду уже двадцать минут."
+      },
+      {
+       "fill": "dos horas",
+       "es": "Llevo dos horas esperando.",
+       "ru": "Я жду уже два часа."
+      }
+     ]
+    },
+    {
+     "id": "a1-complaints-03",
+     "es": "Quería hablar con el encargado, por favor.",
+     "ru": "Я хотел бы поговорить с менеджером.",
+     "note": "В Испании старшего в магазине или кафе называют encargado. Quería звучит вежливо, а не грубо.",
+     "pattern": "Quería hablar con ___, por favor.",
+     "slots": [
+      {
+       "fill": "el encargado",
+       "es": "Quería hablar con el encargado, por favor.",
+       "ru": "Я хотел бы поговорить с менеджером."
+      },
+      {
+       "fill": "el responsable",
+       "es": "Quería hablar con el responsable, por favor.",
+       "ru": "Я хотел бы поговорить с ответственным."
+      },
+      {
+       "fill": "el director",
+       "es": "Quería hablar con el director, por favor.",
+       "ru": "Я хотел бы поговорить с директором."
+      },
+      {
+       "fill": "alguien de atención al cliente",
+       "es": "Quería hablar con alguien de atención al cliente, por favor.",
+       "ru": "Я хотел бы поговорить со службой поддержки."
+      }
+     ]
+    },
+    {
+     "id": "a1-complaints-04",
+     "es": "¿Me lo puede solucionar, por favor?",
+     "ru": "Вы можете это решить?",
+     "note": "Форма на usted — для персонала. Часто отвечают: «Ahora mismo lo miro» («Сейчас посмотрю»)."
+    },
+    {
+     "id": "a1-complaints-05",
+     "es": "Es la segunda vez que pasa.",
+     "ru": "Это уже второй раз.",
+     "note": "Хорошо добавляет твёрдости жалобе, особенно если речь о ремонте или доставке.",
+     "pattern": "Es la ___ vez que pasa.",
+     "slots": [
+      {
+       "fill": "segunda",
+       "es": "Es la segunda vez que pasa.",
+       "ru": "Это уже второй раз."
+      },
+      {
+       "fill": "tercera",
+       "es": "Es la tercera vez que pasa.",
+       "ru": "Это уже третий раз."
+      },
+      {
+       "fill": "cuarta",
+       "es": "Es la cuarta vez que pasa.",
+       "ru": "Это уже четвёртый раз."
+      }
+     ]
+    },
+    {
+     "id": "a1-complaints-06",
+     "es": "¿Me da la hoja de reclamaciones?",
+     "ru": "Дайте, пожалуйста, книгу жалоб.",
+     "note": "В Испании такой бланк обязан быть в любом заведении. Часто одна эта просьба быстро решает проблему."
+    },
+    {
+     "id": "a1-complaints-07",
+     "es": "Me han cobrado de más.",
+     "ru": "С меня взяли лишнее.",
+     "note": "Покажите чек (ticket) и ткните в ошибку. Чаще всего ответят: «Perdone, ahora lo arreglo»."
+    },
+    {
+     "id": "a1-complaints-08",
+     "es": "Me han robado la cartera.",
+     "ru": "У меня украли кошелёк.",
+     "note": "Me han robado = «у меня украли». Для заявления нужно идти в comisaría.",
+     "pattern": "Me han robado ___.",
+     "slots": [
+      {
+       "fill": "la cartera",
+       "es": "Me han robado la cartera.",
+       "ru": "У меня украли кошелёк."
+      },
+      {
+       "fill": "el bolso",
+       "es": "Me han robado el bolso.",
+       "ru": "У меня украли сумку."
+      },
+      {
+       "fill": "la mochila",
+       "es": "Me han robado la mochila.",
+       "ru": "У меня украли рюкзак."
+      },
+      {
+       "fill": "el portátil",
+       "es": "Me han robado el portátil.",
+       "ru": "У меня украли ноутбук."
+      }
+     ]
+    },
+    {
+     "id": "a1-complaints-09",
+     "es": "He perdido las llaves.",
+     "ru": "Я потерял ключи.",
+     "note": "Женщина говорит так же. Если вещь потеряли в транспорте, спросите про objetos perdidos (бюро находок).",
+     "pattern": "He perdido ___.",
+     "slots": [
+      {
+       "fill": "las llaves",
+       "es": "He perdido las llaves.",
+       "ru": "Я потерял ключи."
+      },
+      {
+       "fill": "la tarjeta del banco",
+       "es": "He perdido la tarjeta del banco.",
+       "ru": "Я потерял банковскую карту."
+      },
+      {
+       "fill": "el billete",
+       "es": "He perdido el billete.",
+       "ru": "Я потерял билет."
+      },
+      {
+       "fill": "la cartera",
+       "es": "He perdido la cartera.",
+       "ru": "Я потерял кошелёк."
+      }
+     ]
+    },
+    {
+     "id": "a1-complaints-10",
+     "es": "Esto no puede ser.",
+     "ru": "Так не бывает! / Это недопустимо.",
+     "note": "Очень испанская фраза, выражает возмущение. Говорите спокойным тоном, иначе прозвучит резко."
+    },
+    {
+     "id": "a1-complaints-11",
+     "es": "Me han perdido la maleta.",
+     "ru": "Авиакомпания потеряла мой чемодан.",
+     "note": "В аэропорту идите к стойке «Equipajes» или «Atención al pasajero». Попросите номер заявления (número de referencia)."
+    },
+    {
+     "id": "a1-complaints-12",
+     "es": "La habitación está sucia.",
+     "ru": "В номере грязно.",
+     "note": "Говорите на ресепшене. Можно добавить: «¿Pueden limpiarla, por favor?»"
+    },
+    {
+     "id": "a1-complaints-13",
+     "es": "Ya lo he explicado dos veces.",
+     "ru": "Я уже два раза это объяснял.",
+     "note": "Женщина говорит так же. Пригодится, когда вас перекидывают от одного сотрудника к другому."
+    },
+    {
+     "id": "a1-complaints-14",
+     "es": "¿Y ahora qué hago?",
+     "ru": "И что мне теперь делать?",
+     "note": "Естественный вопрос, если проблему не решили на месте. Так вы заставляете сотрудника предложить решение."
+    }
+   ]
+  },
+  {
+   "id": "a1-opinion",
+   "emoji": "🤔",
+   "title": "Мнение и чувства",
+   "phrases": [
+    {
+     "id": "a1-opinion-01",
+     "es": "¿Qué te parece?",
+     "ru": "Как тебе? / Что скажешь?",
+     "note": "Самый частый способ спросить мнение. С незнакомыми и персоналом: ¿Qué le parece?"
+    },
+    {
+     "id": "a1-opinion-02",
+     "es": "Creo que es buena idea.",
+     "ru": "Думаю, это хорошая идея.",
+     "note": "После creo que идёт обычное утверждение в настоящем времени.",
+     "pattern": "Creo que ___.",
+     "slots": [
+      {
+       "fill": "es buena idea",
+       "es": "Creo que es buena idea.",
+       "ru": "Думаю, это хорошая идея."
+      },
+      {
+       "fill": "está cerrado",
+       "es": "Creo que está cerrado.",
+       "ru": "По-моему, там закрыто."
+      },
+      {
+       "fill": "es demasiado caro",
+       "es": "Creo que es demasiado caro.",
+       "ru": "По-моему, это слишком дорого."
+      },
+      {
+       "fill": "va a llover",
+       "es": "Creo que va a llover.",
+       "ru": "Кажется, будет дождь."
+      }
+     ]
+    },
+    {
+     "id": "a1-opinion-03",
+     "es": "Me parece bien.",
+     "ru": "Меня устраивает. / Хорошо.",
+     "note": "Универсальное согласие на предложение или план. Подходит и для «ты», и для «вы»."
+    },
+    {
+     "id": "a1-opinion-04",
+     "es": "Estoy cansado.",
+     "ru": "Я устал.",
+     "note": "Женщина: cansada, contenta, preocupada, nerviosa. Для состояний всегда estar, а не ser.",
+     "pattern": "Estoy ___.",
+     "slots": [
+      {
+       "fill": "cansado",
+       "es": "Estoy cansado.",
+       "ru": "Я устал."
+      },
+      {
+       "fill": "muy contento",
+       "es": "Estoy muy contento.",
+       "ru": "Я очень доволен."
+      },
+      {
+       "fill": "un poco preocupado",
+       "es": "Estoy un poco preocupado.",
+       "ru": "Я немного волнуюсь."
+      },
+      {
+       "fill": "nervioso",
+       "es": "Estoy nervioso.",
+       "ru": "Я нервничаю."
+      }
+     ]
+    },
+    {
+     "id": "a1-opinion-05",
+     "es": "¿Tú qué opinas?",
+     "ru": "А ты что думаешь?",
+     "note": "Порядок «¿Tú qué…?» звучит очень естественно. Вежливо: ¿Usted qué opina?"
+    },
+    {
+     "id": "a1-opinion-06",
+     "es": "Prefiero quedarme en casa.",
+     "ru": "Я лучше останусь дома.",
+     "note": "Мягкий способ отказаться от варианта: «Prefiero…» звучит вежливее, чем «No quiero».",
+     "pattern": "Prefiero ___.",
+     "slots": [
+      {
+       "fill": "quedarme en casa",
+       "es": "Prefiero quedarme en casa.",
+       "ru": "Я лучше останусь дома."
+      },
+      {
+       "fill": "ir mañana",
+       "es": "Prefiero ir mañana.",
+       "ru": "Я бы лучше пошёл завтра."
+      },
+      {
+       "fill": "el té",
+       "es": "Prefiero el té.",
+       "ru": "Я больше люблю чай."
+      },
+      {
+       "fill": "ir andando",
+       "es": "Prefiero ir andando.",
+       "ru": "Я лучше пешком."
+      }
+     ]
+    },
+    {
+     "id": "a1-opinion-07",
+     "es": "No estoy seguro.",
+     "ru": "Я не уверен.",
+     "note": "Женщина: No estoy segura."
+    },
+    {
+     "id": "a1-opinion-08",
+     "es": "Tienes razón.",
+     "ru": "Ты прав.",
+     "note": "С «вы»: Tiene razón. Не говорите «Estás razón» — тут именно tener."
+    },
+    {
+     "id": "a1-opinion-09",
+     "es": "No me gusta nada el calor.",
+     "ru": "Терпеть не могу жару.",
+     "note": "Если речь о нескольких вещах, нужно gustan: No me gustan nada las motos.",
+     "pattern": "No me gusta nada ___.",
+     "slots": [
+      {
+       "fill": "el calor",
+       "es": "No me gusta nada el calor.",
+       "ru": "Терпеть не могу жару."
+      },
+      {
+       "fill": "el fútbol",
+       "es": "No me gusta nada el fútbol.",
+       "ru": "Футбол мне совсем не нравится."
+      },
+      {
+       "fill": "madrugar",
+       "es": "No me gusta nada madrugar.",
+       "ru": "Терпеть не могу рано вставать."
+      },
+      {
+       "fill": "esta música",
+       "es": "No me gusta nada esta música.",
+       "ru": "Мне совсем не нравится эта музыка."
+      }
+     ]
+    },
+    {
+     "id": "a1-opinion-10",
+     "es": "Pues yo no lo veo así.",
+     "ru": "А я так не считаю.",
+     "note": "Вежливое несогласие; pues смягчает. Можно добавить: «…, la verdad»."
+    },
+    {
+     "id": "a1-opinion-11",
+     "es": "¡Me alegro mucho!",
+     "ru": "Я очень рад!",
+     "note": "Ответ на хорошую новость собеседника. Часто говорят: «¡Me alegro por ti!» — «Рад за тебя!»"
+    },
+    {
+     "id": "a1-opinion-12",
+     "es": "Me hace mucha ilusión.",
+     "ru": "Я очень этого жду! / Мне так приятно!",
+     "note": "Очень испанское выражение радостного ожидания: о поездке, подарке, приглашении."
+    }
+   ]
+  },
+  {
+   "id": "a1-work",
+   "emoji": "💼",
+   "title": "Работа и учёба",
+   "phrases": [
+    {
+     "id": "a1-work-01",
+     "es": "Estoy buscando trabajo.",
+     "ru": "Я ищу работу.",
+     "pattern": "Estoy buscando ___.",
+     "slots": [
+      {
+       "fill": "trabajo",
+       "es": "Estoy buscando trabajo.",
+       "ru": "Я ищу работу."
+      },
+      {
+       "fill": "un trabajo a media jornada",
+       "es": "Estoy buscando un trabajo a media jornada.",
+       "ru": "Я ищу работу на полставки."
+      },
+      {
+       "fill": "prácticas",
+       "es": "Estoy buscando prácticas.",
+       "ru": "Я ищу стажировку."
+      },
+      {
+       "fill": "un curso de español",
+       "es": "Estoy buscando un curso de español.",
+       "ru": "Я ищу курсы испанского."
+      }
+     ]
+    },
+    {
+     "id": "a1-work-02",
+     "es": "¿Puedo dejarle mi currículum?",
+     "ru": "Можно оставить вам резюме?",
+     "note": "В Испании резюме часто приносят лично — в бары, магазины. Говорят «el currículum» или просто «el CV» (се-у́бе)."
+    },
+    {
+     "id": "a1-work-03",
+     "es": "Tengo una entrevista de trabajo.",
+     "ru": "У меня собеседование."
+    },
+    {
+     "id": "a1-work-04",
+     "es": "No entiendo esta tarea.",
+     "ru": "Я не понимаю это задание.",
+     "pattern": "No entiendo ___.",
+     "slots": [
+      {
+       "fill": "esta tarea",
+       "es": "No entiendo esta tarea.",
+       "ru": "Я не понимаю это задание."
+      },
+      {
+       "fill": "este ejercicio",
+       "es": "No entiendo este ejercicio.",
+       "ru": "Я не понимаю это упражнение."
+      },
+      {
+       "fill": "este correo",
+       "es": "No entiendo este correo.",
+       "ru": "Я не понимаю это письмо."
+      },
+      {
+       "fill": "qué tengo que hacer",
+       "es": "No entiendo qué tengo que hacer.",
+       "ru": "Не понимаю, что мне нужно сделать."
+      }
+     ]
+    },
+    {
+     "id": "a1-work-05",
+     "es": "¿Me lo puede explicar otra vez?",
+     "ru": "Можете объяснить ещё раз?",
+     "note": "С начальником или преподавателем — usted; с коллегой на «ты»: «¿Me lo explicas otra vez?»"
+    },
+    {
+     "id": "a1-work-06",
+     "es": "Trabajo desde casa.",
+     "ru": "Я работаю из дома.",
+     "note": "Так же часто говорят «Teletrabajo» — «Я на удалёнке»."
+    },
+    {
+     "id": "a1-work-07",
+     "es": "Trabajo de nueve a seis.",
+     "ru": "Я работаю с девяти до шести.",
+     "note": "Летом во многих офисах «jornada intensiva» — работают с 8 до 15 без обеда."
+    },
+    {
+     "id": "a1-work-08",
+     "es": "¿Puedo salir antes hoy?",
+     "ru": "Можно мне сегодня уйти пораньше?",
+     "note": "Добавьте причину: «…, tengo médico» — «…, мне к врачу».",
+     "pattern": "¿Puedo salir antes ___?",
+     "slots": [
+      {
+       "fill": "hoy",
+       "es": "¿Puedo salir antes hoy?",
+       "ru": "Можно мне сегодня уйти пораньше?"
+      },
+      {
+       "fill": "mañana",
+       "es": "¿Puedo salir antes mañana?",
+       "ru": "Можно мне завтра уйти пораньше?"
+      },
+      {
+       "fill": "el viernes",
+       "es": "¿Puedo salir antes el viernes?",
+       "ru": "Можно мне в пятницу уйти пораньше?"
+      },
+      {
+       "fill": "esta tarde",
+       "es": "¿Puedo salir antes esta tarde?",
+       "ru": "Можно мне сегодня после обеда уйти пораньше?"
+      }
+     ]
+    },
+    {
+     "id": "a1-work-09",
+     "es": "Mañana tengo el día libre.",
+     "ru": "Завтра у меня выходной.",
+     "note": "Отгул за переработку — «un día de asuntos propios» или просто «un día libre».",
+     "pattern": "___ tengo el día libre.",
+     "slots": [
+      {
+       "fill": "Mañana",
+       "es": "Mañana tengo el día libre.",
+       "ru": "Завтра у меня выходной."
+      },
+      {
+       "fill": "Hoy",
+       "es": "Hoy tengo el día libre.",
+       "ru": "Сегодня у меня выходной."
+      },
+      {
+       "fill": "El lunes",
+       "es": "El lunes tengo el día libre.",
+       "ru": "В понедельник у меня выходной."
+      },
+      {
+       "fill": "El viernes",
+       "es": "El viernes tengo el día libre.",
+       "ru": "В пятницу у меня выходной."
+      }
+     ]
+    },
+    {
+     "id": "a1-work-10",
+     "es": "Hoy no puedo ir, estoy malo.",
+     "ru": "Сегодня не смогу прийти, я заболел.",
+     "note": "Женщина: «estoy mala». «Estar malo» в Испании = болеть. Скорее всего попросят «el justificante» — справку."
+    },
+    {
+     "id": "a1-work-11",
+     "es": "¿Para cuándo lo necesita?",
+     "ru": "К какому сроку это нужно?",
+     "note": "Коллеге на «ты»: «¿Para cuándo lo necesitas?» Частый ответ: «Para ya» — «Срочно»."
+    },
+    {
+     "id": "a1-work-12",
+     "es": "Ya he terminado.",
+     "ru": "Я уже закончил.",
+     "note": "Не зависит от рода: женщина говорит так же. Можно добавить «¿Qué hago ahora?» — «Что дальше?»"
+    }
+   ]
+  }
+ ]
+}

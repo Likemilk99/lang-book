@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.FilterList
@@ -75,7 +76,7 @@ import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
-fun LibraryScreen(onOpen: (String) -> Unit, onBookStats: (String) -> Unit = {}, onProgress: () -> Unit = {}) {
+fun LibraryScreen(onOpen: (String) -> Unit, onBack: () -> Unit, onBookStats: (String) -> Unit = {}) {
     val app = LecturaApp.instance
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -137,7 +138,8 @@ fun LibraryScreen(onOpen: (String) -> Unit, onBookStats: (String) -> Unit = {}, 
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text("Книги") },
+                title = { Text("Библиотека") },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад") } },
                 actions = {
                     IconButton(onClick = { showData = true }) { Icon(Icons.Filled.Storage, "Данные и резервная копия") }
                 },
@@ -167,7 +169,6 @@ fun LibraryScreen(onOpen: (String) -> Unit, onBookStats: (String) -> Unit = {}, 
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item { StatsCard(onClick = onProgress) }
             // Рекомендации: книги в «зоне роста» (90–97% знакомых слов), которые ещё не пройдены.
             val recommended = books.filter { b ->
                 val c = coverage[b.id] ?: return@filter false

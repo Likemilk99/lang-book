@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.lectura.LecturaApp
 import app.lectura.data.DailyStats
+import app.lectura.data.isActive
 import app.lectura.data.today
 import java.time.LocalDate
 
@@ -58,11 +59,9 @@ fun StatsCard(modifier: Modifier = Modifier, onClick: () -> Unit = {}) {
     }
 }
 
-private fun DailyStats.active() = reviews > 0 || sentencesRead > 0 || newWords > 0 || speaking > 0
-
 /** Дней подряд с активностью; сегодняшний день ещё может быть пустым — серия от этого не рвётся. */
 fun streak(stats: List<DailyStats>): Int {
-    val active = stats.filter { it.active() }.map { it.day }.toSet()
+    val active = stats.filter { it.isActive() }.map { it.day }.toSet()
     var day = LocalDate.now()
     if (day.toString() !in active) day = day.minusDays(1)
     var n = 0

@@ -11,6 +11,7 @@ import app.lectura.data.BookAudio
 import app.lectura.data.BookRepository
 import app.lectura.data.CurriculumRepository
 import app.lectura.data.MIGRATIONS
+import app.lectura.data.PhrasebookRepository
 import app.lectura.data.Prefs
 import app.lectura.data.UserData
 import app.lectura.images.ImageDownloader
@@ -18,6 +19,7 @@ import app.lectura.images.PixabayApi
 import app.lectura.images.WordImageRepository
 import app.lectura.playback.PlaybackService
 import app.lectura.playback.Player
+import app.lectura.reminder.Reminder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,6 +32,7 @@ class LecturaApp : Application() {
     lateinit var bookAudio: BookAudio
     lateinit var userData: UserData
     lateinit var curriculum: CurriculumRepository
+    lateinit var phrasebook: PhrasebookRepository
     lateinit var player: Player
     lateinit var wordImages: WordImageRepository
 
@@ -43,6 +46,7 @@ class LecturaApp : Application() {
             .build()
         userData = UserData(this, db)
         curriculum = CurriculumRepository(this)
+        phrasebook = PhrasebookRepository(this)
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { userData.onAppStart() }.onFailure { Log.e("LecturaApp", "data upgrade failed", it) }
         }
@@ -61,6 +65,8 @@ class LecturaApp : Application() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(CHANNEL_PLAYBACK, "Чтение вслух", NotificationManager.IMPORTANCE_LOW),
         )
+        Reminder.createChannel(this)
+        runCatching { Reminder.schedule(this) }.onFailure { Log.w("LecturaApp", "cannot schedule reminder", it) }
     }
 
     fun startPlaybackService() {

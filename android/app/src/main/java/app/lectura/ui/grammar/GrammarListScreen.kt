@@ -20,6 +20,10 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -41,7 +45,7 @@ import app.lectura.model.GrammarLevel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun GrammarListContent(onTopic: (String) -> Unit) {
+internal fun GrammarListContent(onTopic: (String) -> Unit, onBack: () -> Unit) {
     val app = LecturaApp.instance
     val levels by produceState<Map<String, GrammarLevel>?>(null) {
         value = runCatching { app.curriculum.grammar() }.getOrDefault(emptyMap())
@@ -52,7 +56,12 @@ internal fun GrammarListContent(onTopic: (String) -> Unit) {
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { TopAppBar(title = { Text("Грамматика") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Грамматика") },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад") } },
+            )
+        },
     ) { pad ->
         val lv = levels
         val pl = progressList

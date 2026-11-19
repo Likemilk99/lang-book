@@ -233,6 +233,36 @@ class Player(private val app: LecturaApp) {
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "once")
     }
 
+    /**
+     * Фраза голосом диктора из файла в APK ([asset], например озвучка разговорника); если файла нет —
+     * системным TTS. [slow] — медленнее (0.7 от обычной скорости). Прерывает текущую речь.
+     */
+    fun speakClip(asset: String?, fallback: String, slow: Boolean = false) {
+        if (asset == null) {
+            speakOnce(fallback, slow)
+            return
+        }
+        if (_state.value.playing) pause()
+        stopSpeaking()
+        val ok = runCatching {
+            val mp = MediaPlayer()
+            media = mp
+            mp.setAudioAttributes(mediaAttributes)
+            app.assets.openFd(asset).use { mp.setDataSource(it.fileDescriptor, it.startOffset, it.length) }
+            mp.setOnCompletionListener { if (media === it) stopMedia() }
+            mp.prepare()
+            val rate = if (slow) 0.7f else _state.value.rate.coerceAtLeast(0.8f)
+            mp.playbackParams = PlaybackParams().setSpeed(rate).setPitch(1f)
+            if (!mp.isPlaying) mp.start()
+            true
+        }.getOrElse {
+            Log.w("Player", "clip $asset", it)
+            stopMedia()
+            false
+        }
+        if (!ok) speakOnce(fallback, slow)
+    }
+
     /** Произнести по очереди несколько фраз (например, слово и пример). Прерывает текущую речь. */
     fun speakSequence(texts: List<String>) {
         val items = texts.filter { it.isNotBlank() }

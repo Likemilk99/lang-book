@@ -4,7 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.room.withTransaction
-import app.lectura.BuildConfig
+import app.lectura.BuildConfig import app.lectura.model.Phrase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -44,6 +44,34 @@ class UserData(private val context: Context, private val db: AppDatabase) {
         val id = db.words().insert(word.copy(appVersion = AppVersion.code))
         if (id > 0) bumpStats { it.copy(newWords = it.newWords + 1) }
         stamp()
+    }
+
+    /**
+     * Фразы из разговорника → в повторение. Если такая фраза уже сохранена (например, из книги),
+     * к ней только привязывается разговорник (шаблон и озвучка). Возвращает число новых фраз.
+     */
+    suspend fun addPhrases(phrases: List<Phrase>): Int = db.withTransaction {
+        val now = System.currentTimeMillis()
+        var added = 0
+        phrases.forEachIndexed { i, p ->
+            val key = p.es.lowercase().trim()
+            val existing = db.words().byKey(key)
+            if (existing != null) {
+                if (existing.ref.isBlank()) db.words().update(existing.copy(ref = p.id, appVersion = AppVersion.code))
+                return@forEachIndexed
+            }
+            // createdAt по порядку — в повторение новые фразы приходят в порядке разговорника.
+            val w = SavedWord(
+                key = key, word = p.es, lemma = p.es, ru = p.ru, grammar = "разговорник",
+                sentence = p.es, sentenceRu = p.ru, bookId = PhrasebookRepository.BOOK_ID,
+                createdAt = now + i, due = now, kind = SavedWord.KIND_PHRASE, ref = p.id,
+                appVersion = AppVersion.code,
+            )
+            if (db.words().insert(w) > 0) added++
+        }
+        if (added > 0) bumpStats { it.copy(newWords = it.newWords + added) }
+        stamp()
+        added
     }
 
     suspend fun updateWord(word: SavedWord) = db.withTransaction {
@@ -270,7 +298,7 @@ class UserData(private val context: Context, private val db: AppDatabase) {
                 WordDto(
                     it.key, it.word, it.lemma, it.ru, it.grammar, it.sentence, it.sentenceRu, it.bookId,
                     it.createdAt, it.due, it.intervalDays, it.ease, it.reps, it.lapses, it.appVersion,
-                    it.kind, it.stage, it.lastReviewed, it.practiceCount,
+                    it.kind, it.stage, it.lastReviewed, it.practiceCount, it.ref,
                 )
             },
             grammar = db.grammar().allOnce().map {
@@ -321,6 +349,7 @@ class UserData(private val context: Context, private val db: AppDatabase) {
                             createdAt = w.createdAt, due = w.due, intervalDays = w.intervalDays, ease = w.ease,
                             reps = w.reps, lapses = w.lapses, appVersion = w.appVersion,
                             kind = w.kind, stage = w.stage, lastReviewed = w.lastReviewed, practiceCount = w.practiceCount,
+                            ref = w.ref,
                         ),
                     )
                     words++
@@ -422,6 +451,7 @@ data class WordDto(
     val stage: Int = 0,
     val lastReviewed: Long = 0,
     val practiceCount: Int = 0,
+    val ref: String = "",
 )
 
 @Serializable

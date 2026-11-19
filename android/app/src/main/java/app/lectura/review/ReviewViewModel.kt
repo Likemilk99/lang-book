@@ -13,6 +13,7 @@ import app.lectura.data.Memory
 import app.lectura.data.SavedWord
 import app.lectura.data.Srs
 import app.lectura.model.ReplyItem
+import app.lectura.playback.speakEs
 import app.lectura.speech.SpeechInput
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -129,7 +130,9 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
                 }
             }
         }
-        Pool(items, tokens.values.toList(), replies)
+        val phrases = runCatching { app.phrasebook.all() }.getOrDefault(emptyList())
+            .flatMap { b -> b.themes.flatMap { it.phrases } }.associateBy { it.id }
+        Pool(items, tokens.values.toList(), replies, phrases)
     }
 
     /** Подход: не больше [SessionBatch.SIZE] слов и фраз. */
@@ -274,7 +277,8 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
     fun onAppear(task: Task) {
         when (val ex = task.exercise) {
             is Exercise.Flash -> if (ex.spanishFront) speakWord(ex.word)
-            is Exercise.ListenChoice -> player.speakOnce(ex.word.word)
+            is Exercise.ListenChoice -> speakEs(ex.word.word, ex.word.ref)
+            is Exercise.ListenRepeat -> speakEs(ex.word.word, ex.word.ref)
             is Exercise.DialogReply -> player.speakOnce(ex.reply.prompt)
             // Предложение с пропуском: читаем его, на месте пропуска — пауза.
             is Exercise.ClozeChoice -> if (autoWord || autoExample) speakCloze(ex.cloze)
@@ -291,7 +295,7 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
     /** В «Сказать вслух» после неудачной попытки показали правильный ответ. */
     fun onAnswerShown(ex: Exercise.ForWord) {
         answerSpokenFor = current?.id
-        if (autoWord) player.speakOnce(ex.answerEs)
+        if (autoWord) speakEs(ex.answerEs, ex.word.ref)
     }
 
     /** Задание, для которого ответ уже был показан (и озвучен) до окончательной оценки. */
@@ -302,6 +306,7 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
         when (ex) {
             is Exercise.BuildSentence -> if (autoWord || autoExample) player.speakOnce(ex.word.sentence)
             is Exercise.DialogReply -> if (autoWord) player.speakOnce(ex.answerEs)
+            is Exercise.PatternSay -> if (autoWord) speakEs(ex.variantEs, ex.word.ref)
             is Exercise.ForWord -> speakWord(ex.word)
         }
     }
@@ -309,6 +314,11 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
     fun speakCloze(c: Cloze) = player.speakWithPauses(listOf(c.before, c.after))
 
     private fun speakWord(w: SavedWord) {
+        // Фраза разговорника — голосом диктора (пример у неё совпадает с самой фразой).
+        if (w.ref.isNotBlank() && app.phrasebook.clipFor(w.ref, w.word) != null) {
+            if (autoWord) speakEs(w.word, w.ref)
+            return
+        }
         player.speakSequence(
             listOfNotNull(
                 w.word.takeIf { autoWord },

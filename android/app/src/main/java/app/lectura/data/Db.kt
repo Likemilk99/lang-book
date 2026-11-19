@@ -45,6 +45,8 @@ data class SavedWord(
     @ColumnInfo(defaultValue = "0") val lastReviewed: Long = 0,
     /** Сколько раз слово отрабатывали в дополнительной практике. */
     @ColumnInfo(defaultValue = "0") val practiceCount: Int = 0,
+    /** Фраза из разговорника: её id ("a0-control-03") — по нему шаблон, варианты и озвучка. "" — не из разговорника. */
+    @ColumnInfo(defaultValue = "") val ref: String = "",
 ) {
     val isPhrase: Boolean get() = kind == KIND_PHRASE
 
@@ -143,6 +145,9 @@ interface WordDao {
     @Query("SELECT * FROM words")
     suspend fun allOnce(): List<SavedWord>
 
+    @Query("SELECT ref FROM words WHERE ref != ''")
+    fun refs(): Flow<List<String>>
+
     @Query("SELECT * FROM words WHERE `key` = :key")
     suspend fun byKey(key: String): SavedWord?
 
@@ -154,6 +159,9 @@ interface WordDao {
 
     @Query("SELECT COUNT(*) FROM words WHERE due <= :now")
     fun dueCount(now: Long): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM words WHERE due <= :now")
+    suspend fun dueCountNow(now: Long): Int
 
     @Query("SELECT MIN(due) FROM words WHERE due > :now")
     suspend fun nextDue(now: Long): Long?
@@ -259,13 +267,14 @@ interface MetaDao {
  */
 @Database(
     entities = [SavedWord::class, Progress::class, AppMeta::class, DailyStats::class, ChapterActivity::class, GrammarProgress::class, WordImage::class],
-    version = 5,
+    version = 6,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
         AutoMigration(from = 3, to = 4),
         AutoMigration(from = 4, to = 5),
+        AutoMigration(from = 5, to = 6),
     ],
 )
 abstract class AppDatabase : RoomDatabase() {
