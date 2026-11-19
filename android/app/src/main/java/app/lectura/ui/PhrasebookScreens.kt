@@ -68,7 +68,7 @@ import kotlinx.coroutines.launch
 
 /** id фраз разговорника, которые уже в повторении. */
 @Composable
-private fun savedRefs(): Set<String> {
+internal fun savedRefs(): Set<String> {
     val refs by LecturaApp.instance.db.words().refs().collectAsState(initial = emptyList())
     return remember(refs) { refs.toSet() }
 }
@@ -165,7 +165,7 @@ fun PhrasebookScreen(level: String, onBack: () -> Unit, onTheme: (String) -> Uni
 }
 
 @Composable
-private fun Loading(modifier: Modifier) {
+internal fun Loading(modifier: Modifier) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
 }
 
@@ -218,7 +218,7 @@ fun PhraseThemeScreen(level: String, themeId: String, onBack: () -> Unit, onTrai
 }
 
 @Composable
-private fun PhraseCard(p: Phrase, inReview: Boolean, onAdd: () -> Unit) {
+internal fun PhraseCard(p: Phrase, inReview: Boolean, onAdd: () -> Unit) {
     var showVariants by remember { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp)) {
@@ -263,23 +263,38 @@ private fun PhraseCard(p: Phrase, inReview: Boolean, onAdd: () -> Unit) {
     }
 }
 
+/** Тренировка темы разговорника «послушай и повтори». */
+@Composable
+fun PhraseTrainScreen(level: String, themeId: String, onBack: () -> Unit) {
+    val book = rememberPhrasebook(level)
+    val theme: PhraseTheme? = book?.themes?.firstOrNull { it.id == themeId }
+    if (theme == null) {
+        Loading(Modifier)
+        return
+    }
+    PhraseTrainer(theme.title, theme.phrases, onBack)
+}
+
 /**
- * Тренировка темы «послушай и повтори»: диктор произносит фразу, вы повторяете, распознавание проверяет.
- * Удачная попытка — следующая фраза сама. В конце — «Учить все».
+ * «Послушай и повтори» по списку фраз: диктор произносит фразу, вы повторяете, распознавание проверяет.
+ * Удачная попытка — следующая фраза сама. В конце — «Учить все» и [onFinished] (% фраз, сказанных верно).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PhraseTrainScreen(level: String, themeId: String, onBack: () -> Unit) {
+fun PhraseTrainer(title: String, phrases: List<Phrase>, onBack: () -> Unit, onFinished: (Int) -> Unit = {}) {
     val app = LecturaApp.instance
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    val book = rememberPhrasebook(level)
-    val theme: PhraseTheme? = book?.themes?.firstOrNull { it.id == themeId }
     var index by remember { mutableIntStateOf(0) }
     val results = remember { mutableStateMapOf<Int, MatchResult>() }
     var showRu by remember { mutableStateOf(true) }
     val saved = savedRefs()
     DisposableEffect(Unit) { onDispose { app.player.stopSpeech() } }
+    LaunchedEffect(index >= phrases.size) {
+        if (index >= phrases.size && phrases.isNotEmpty()) {
+            onFinished(results.values.count { it.passed } * 100 / phrases.size)
+        }
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -287,29 +302,25 @@ fun PhraseTrainScreen(level: String, themeId: String, onBack: () -> Unit) {
             TopAppBar(
                 title = {
                     Column {
-                        Text(theme?.title ?: "")
-                        theme?.let {
-                            Text(
-                                "Послушайте и повторите · ${minOf(index + 1, it.phrases.size)} из ${it.phrases.size}",
-                                style = MaterialTheme.typography.labelMedium,
-                            )
-                        }
+                        Text(title)
+                        Text(
+                            "Послушайте и повторите · ${minOf(index + 1, phrases.size)} из ${phrases.size}",
+                            style = MaterialTheme.typography.labelMedium,
+                        )
                     }
                 },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад") } },
             )
         },
     ) { pad ->
-        val t = theme ?: return@Scaffold Loading(Modifier.padding(pad))
-        val phrases = t.phrases
         Column(
             Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            LinearProgressIndicator(progress = { index.toFloat() / phrases.size }, modifier = Modifier.fillMaxWidth())
+            LinearProgressIndicator(progress = { index.toFloat() / phrases.size.coerceAtLeast(1) }, modifier = Modifier.fillMaxWidth())
             if (index >= phrases.size) {
                 val passed = results.values.count { it.passed }
-                Text("Тема пройдена! 🎉", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                Text("Готово! 🎉", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
                 Text("Получилось сразу: $passed из ${phrases.size}")
                 val missing = phrases.filter { it.id !in saved }
                 if (missing.isNotEmpty()) {

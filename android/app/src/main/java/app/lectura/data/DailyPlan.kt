@@ -25,6 +25,9 @@ data class CurrentBook(
     val speakHasDialogue: Boolean,
 )
 
+/** Сценарий для разговорной практики сегодня и его следующий шаг. */
+data class ScenarioNext(val id: String, val title: String, val step: ScenarioStep)
+
 /** Следующая грамматическая тема: пора повторить ([review]) или новая. */
 data class GrammarNext(val id: String, val title: String, val level: String, val review: Boolean)
 
@@ -35,6 +38,7 @@ data class PlanInput(
     val book: CurrentBook?,
     val grammar: GrammarNext?,
     val grammarDoneToday: Boolean,
+    val scenario: ScenarioNext? = null,
 )
 
 enum class StepKind { REVIEW, LISTEN, SPEAK, GRAMMAR }
@@ -80,23 +84,33 @@ object DailyPlan {
                 done = t.sentencesRead >= LISTEN_GOAL,
                 route = book?.let { "reader/${it.id}" } ?: "library",
             ),
-            PlanStep(
-                kind = StepKind.SPEAK,
-                title = when {
-                    book == null -> "Говорить"
-                    book.speakHasDialogue -> "Говорить: ролевая игра"
-                    else -> "Говорить: повтор за диктором"
-                },
-                detail = book?.let { "Гл. ${it.speakChapter + 1} · ${it.speakChapterTitle}" }
-                    ?: "Разговорник: послушайте и повторите фразы",
-                progress = t.speaking,
-                goal = SPEAK_GOAL,
-                done = t.speaking >= SPEAK_GOAL,
-                route = book?.let { "speak/${it.id}/${it.speakChapter}/${if (it.speakHasDialogue) "role" else "shadow"}" }
-                    ?: "phrasebook/A0",
-            ),
+            speakStep(t.speaking, input.scenario, book),
             grammarStep(input.grammar, input.grammarDoneToday),
         )
+    }
+
+    /** Говорение: следующий шаг сценария, иначе ролевая игра по книге, иначе разговорник. */
+    private fun speakStep(speaking: Int, sc: ScenarioNext?, book: CurrentBook?): PlanStep {
+        val (title, detail, route) = when {
+            sc != null -> Triple("Говорить: «${sc.title}»", "Шаг: ${sc.step.title}", "scenario/${sc.id}/${sc.step.key}")
+            book != null -> Triple(
+                if (book.speakHasDialogue) "Говорить: ролевая игра" else "Говорить: повтор за диктором",
+                "Гл. ${book.speakChapter + 1} · ${book.speakChapterTitle}",
+                "speak/${book.id}/${book.speakChapter}/${if (book.speakHasDialogue) "role" else "shadow"}",
+            )
+            else -> Triple("Говорить", "Разговорник: послушайте и повторите фразы", "phrasebook/A0")
+        }
+        return PlanStep(StepKind.SPEAK, title, detail, speaking, SPEAK_GOAL, speaking >= SPEAK_GOAL, route)
+    }
+
+    /** Сценарий дня: первый по порядку, который ещё не «могу» (начатые и новые идут в порядке файла). */
+    fun nextScenario(scenarios: List<app.lectura.model.Scenario>, progress: List<ScenarioProgress>): ScenarioNext? {
+        for (s in scenarios) {
+            val st = ScenarioState.of(s, progress)
+            val step = st.next ?: continue
+            return ScenarioNext(s.id, s.title, step)
+        }
+        return null
     }
 
     private fun reviewStep(reviews: Int, due: Int): PlanStep {
@@ -154,6 +168,7 @@ object DailyPlan {
                 book = currentBook(app),
                 grammar = runCatching { nextGrammar(app.curriculum.grammar(), grammarProgress, now) }.getOrNull(),
                 grammarDoneToday = grammarProgress.values.any { it.lastPracticed >= startOfDay },
+                scenario = runCatching { nextScenario(app.scenarios.all(), db.scenarios().allOnce()) }.getOrNull(),
             )
         }
 

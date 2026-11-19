@@ -5,6 +5,7 @@
   python3 pipeline/audio.py --all --upload                         # + выложить архивы в GitHub Release «audio»
   python3 pipeline/audio.py --voices                               # (пере)создать недостающие голоса набора
   python3 pipeline/audio.py --phrasebook                           # озвучка разговорников (кладётся в APK)
+  python3 pipeline/audio.py --scenarios                            # озвучка сценариев (+ их ключевых фраз)
 
 Как устроено:
 - Набор голосов `pipeline/voices/<id>.wav` (+ .txt — что в нём сказано) создан один раз Qwen VoiceDesign по описаниям
@@ -42,6 +43,7 @@ VOICE_DIR = HERE / "voices"
 WORK = ROOT / "books" / ".work" / "audio"
 ASSET_BOOKS = ROOT / "android" / "app" / "src" / "main" / "assets" / "books"
 ASSET_PHRASEBOOK = ROOT / "android" / "app" / "src" / "main" / "assets" / "phrasebook"
+ASSET_SCENARIOS = ROOT / "android" / "app" / "src" / "main" / "assets" / "scenarios"
 RELEASE_TAG = "audio"
 REPO = "Likemilk99/lang-book"
 URL_BASE = f"https://github.com/{REPO}/releases/download/{RELEASE_TAG}/"
@@ -341,33 +343,66 @@ def voice_book(path: Path, engine: Engine) -> Path:
     return zpath
 
 
-def voice_phrasebook(engine: Engine, voice: str = "narr") -> None:
-    """Разговорники: <id>.m4a — фраза, <id>_<k>.m4a — k-й вариант шаблона (k ≥ 1; вариант 0 — сама фраза).
-    Файлы встраиваются в APK (assets/phrasebook/audio), скачивать ничего не нужно."""
+def phrase_items(phrases: list[dict], voice: str = "narr") -> list[tuple[str, str, str]]:
+    """Фраза → <id> и её варианты шаблона → <id>_<k> (k ≥ 1; вариант 0 — сама фраза)."""
+    items = []
+    for p in phrases:
+        items.append((p["id"], p["es"], voice))
+        for k, slot in enumerate(p.get("slots", [])):
+            if k > 0 and slot["es"] != p["es"]:
+                items.append((f"{p['id']}_{k}", slot["es"], voice))
+    return items
+
+
+def voice_phrasebook(engine: Engine) -> None:
+    """Разговорники и ключевые фразы сценариев: assets/phrasebook/audio/<id>.m4a (+ варианты шаблонов).
+    Файлы встраиваются в APK, скачивать ничего не нужно."""
+    phrases = []
+    for f in sorted(ASSET_PHRASEBOOK.glob("phrasebook_*.json")):
+        for t in json.loads(f.read_text(encoding="utf-8"))["themes"]:
+            phrases += t["phrases"]
+    sc = ASSET_SCENARIOS / "scenarios.json"
+    if sc.exists():
+        seen = {p["id"] for p in phrases}
+        for s in json.loads(sc.read_text(encoding="utf-8"))["scenarios"]:
+            phrases += [p for p in s["phrases"] if p["id"] not in seen and not seen.add(p["id"])]
+    voice_set(engine, phrase_items(phrases), ASSET_PHRASEBOOK / "audio", "phrasebook")
+
+
+def voice_scenarios(engine: Engine) -> None:
+    """Сценарии: реплики <id>_<диалог>_<n>, «понять» <id>_u<n>, вопросы <id>_q<n>, образец ответа <id>_q<n>a.
+    Ученик — m1, собеседник — по полу роли (f2 / m2)."""
+    items = []
+    for s in json.loads((ASSET_SCENARIOS / "scenarios.json").read_text(encoding="utf-8"))["scenarios"]:
+        sid, them = s["id"], ("f2" if s["them"].get("gender") == "f" else "m2")
+        for d in s["dialogs"]:
+            for i, l in enumerate(d["lines"]):
+                items.append((f"{sid}_{d['id']}_{i}", l["es"], "m1" if l["who"] == "me" else them))
+        for i, u in enumerate(s.get("understand", [])):
+            items.append((f"{sid}_u{i}", u["es"], them))
+        for i, q in enumerate(s.get("prompts", [])):
+            items.append((f"{sid}_q{i}", q["es"], them))
+            items.append((f"{sid}_q{i}a", q["accepted"][0], "m1"))
+    voice_set(engine, items, ASSET_SCENARIOS / "audio", "scenarios")
+
+
+def voice_set(engine: Engine, items: list[tuple[str, str, str]], out: Path, work_name: str) -> None:
+    """Озвучивает (имя, текст, голос) в out/<имя>.m4a; лишние файлы удаляет, готовые не трогает."""
     import numpy as np
 
-    out = ASSET_PHRASEBOOK / "audio"
     out.mkdir(parents=True, exist_ok=True)
-    work = WORK / "phrasebook"
+    work = WORK / work_name
     work.mkdir(parents=True, exist_ok=True)
     state_path = work / "state.json"
     state = json.loads(state_path.read_text()) if state_path.exists() else {}
-    items: list[tuple[str, str]] = []
-    for f in sorted(ASSET_PHRASEBOOK.glob("phrasebook_*.json")):
-        for t in json.loads(f.read_text(encoding="utf-8"))["themes"]:
-            for p in t["phrases"]:
-                items.append((p["id"], p["es"]))
-                for k, slot in enumerate(p.get("slots", [])):
-                    if k > 0 and slot["es"] != p["es"]:
-                        items.append((f"{p['id']}_{k}", slot["es"]))
-    wanted = {name for name, _ in items}
+    wanted = {name for name, _, _ in items}
     for old in out.glob("*.m4a"):
         if old.stem not in wanted:
             old.unlink()
             state.pop(old.stem, None)
     problems = []
     t0 = time.time()
-    for i, (name, text) in enumerate(items, 1):
+    for i, (name, text, voice) in enumerate(items, 1):
         key = hashlib.sha1(json.dumps([CLONE_MODEL, voice, text], ensure_ascii=False).encode()).hexdigest()[:12]
         dst = out / f"{name}.m4a"
         if state.get(name) == key and dst.exists():
@@ -382,7 +417,7 @@ def voice_phrasebook(engine: Engine, voice: str = "narr") -> None:
         print(f"   [{i}/{len(items)}] {name} {(time.time() - t0) / 60:5.1f} мин  {'⚠️ ' if err else ''}{text}", flush=True)
     (work / "problems.json").write_text(json.dumps(problems, ensure_ascii=False, indent=1))
     size = sum(f.stat().st_size for f in out.glob("*.m4a"))
-    print(f"✅ Разговорники: {len(items)} файлов, {size / 1e6:.1f} МБ, сомнительных {len(problems)} "
+    print(f"✅ {work_name}: {len(items)} файлов, {size / 1e6:.1f} МБ, сомнительных {len(problems)} "
           f"(см. {work / 'problems.json'})")
 
 
@@ -423,6 +458,7 @@ def main() -> None:
     ap.add_argument("--all", action="store_true", help="все встроенные книги (assets/books)")
     ap.add_argument("--voices", action="store_true", help="создать недостающие голоса набора")
     ap.add_argument("--phrasebook", action="store_true", help="озвучить разговорники (assets/phrasebook)")
+    ap.add_argument("--scenarios", action="store_true", help="озвучить сценарии и их ключевые фразы")
     ap.add_argument("--upload", action="store_true", help="выложить архивы в GitHub Release «audio»")
     ap.add_argument("--upload-only", action="store_true", help="только выложить уже готовые архивы")
     args = ap.parse_args()
@@ -437,12 +473,14 @@ def main() -> None:
     ensure_venv()
     if args.voices:
         make_voices()
-    if not books and not args.phrasebook:
+    if not books and not args.phrasebook and not args.scenarios:
         return
     make_voices()
     engine = Engine()
-    if args.phrasebook:
+    if args.phrasebook or args.scenarios:
         voice_phrasebook(engine)
+    if args.scenarios:
+        voice_scenarios(engine)
     for p in books:
         z = voice_book(p, engine)
         if args.upload:

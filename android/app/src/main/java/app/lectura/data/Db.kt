@@ -118,6 +118,16 @@ data class GrammarProgress(
     }
 }
 
+/** Сценарий: лучший результат по каждому шагу (step — ключ [app.lectura.data.ScenarioStep]), %. */
+@Entity(tableName = "scenario_progress", primaryKeys = ["scenarioId", "step"])
+data class ScenarioProgress(
+    val scenarioId: String,
+    val step: String,
+    val best: Int,
+    val count: Int,
+    val updatedAt: Long,
+)
+
 @Entity(tableName = "progress")
 data class Progress(
     @PrimaryKey val bookId: String,
@@ -246,6 +256,21 @@ interface StatsDao {
 }
 
 @Dao
+interface ScenarioDao {
+    @Query("SELECT * FROM scenario_progress")
+    fun all(): Flow<List<ScenarioProgress>>
+
+    @Query("SELECT * FROM scenario_progress")
+    suspend fun allOnce(): List<ScenarioProgress>
+
+    @Query("SELECT * FROM scenario_progress WHERE scenarioId = :id AND step = :step")
+    suspend fun get(id: String, step: String): ScenarioProgress?
+
+    @Upsert
+    suspend fun put(p: ScenarioProgress)
+}
+
+@Dao
 interface MetaDao {
     @Query("SELECT value FROM meta WHERE `key` = :key")
     suspend fun get(key: String): String?
@@ -266,8 +291,8 @@ interface MetaDao {
  *  3. fallbackToDestructiveMigration НЕ использовать никогда.
  */
 @Database(
-    entities = [SavedWord::class, Progress::class, AppMeta::class, DailyStats::class, ChapterActivity::class, GrammarProgress::class, WordImage::class],
-    version = 6,
+    entities = [SavedWord::class, Progress::class, AppMeta::class, DailyStats::class, ChapterActivity::class, GrammarProgress::class, WordImage::class, ScenarioProgress::class],
+    version = 7,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
@@ -275,6 +300,7 @@ interface MetaDao {
         AutoMigration(from = 3, to = 4),
         AutoMigration(from = 4, to = 5),
         AutoMigration(from = 5, to = 6),
+        AutoMigration(from = 6, to = 7),
     ],
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -285,6 +311,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun activity(): ActivityDao
     abstract fun grammar(): GrammarDao
     abstract fun wordImages(): WordImageDao
+    abstract fun scenarios(): ScenarioDao
 }
 
 /** Ручные миграции (для изменений, которые AutoMigration не умеет). */

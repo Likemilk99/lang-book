@@ -437,6 +437,25 @@ data class MatchResult(
 }
 
 object SpeechMatch {
+    /**
+     * Свободный ответ: лучшее совпадение с любым из допустимых вариантов. Имена собственные внутри
+     * предложения («Me llamo Iván», «Voy a Toledo») необязательны — ответ со своим именем тоже верный.
+     */
+    fun best(accepted: List<String>, heardAlternatives: List<String>): MatchResult =
+        accepted.map { compare(withoutNames(it), heardAlternatives) }.maxBy { it.score }
+
+    /** Убирает слова с заглавной буквы, кроме первого слова предложения. */
+    fun withoutNames(s: String): String {
+        var sentenceStart = true
+        val kept = s.split(' ').filter { it.isNotBlank() }.filter { w ->
+            val core = w.trimStart('¿', '¡', '«', '"', '(')
+            val isName = !sentenceStart && core.firstOrNull()?.isUpperCase() == true
+            sentenceStart = w.last() in ".?!…" || (core.isEmpty() && w.isNotEmpty())
+            !isName
+        }
+        return kept.joinToString(" ").ifBlank { s }
+    }
+
     /** Сравнение без учёта регистра, ударений и пунктуации; берётся лучший из вариантов. */
     fun compare(expected: String, heardAlternatives: List<String>): MatchResult {
         val chunks = displayChunks(expected)
@@ -591,7 +610,12 @@ private sealed interface SpeakUi {
  * Сам запрашивает RECORD_AUDIO. onResult вызывается после окончательного распознавания.
  */
 @Composable
-fun SpeakButton(expected: String, modifier: Modifier = Modifier, onResult: (MatchResult) -> Unit) {
+fun SpeakButton(
+    expected: String,
+    modifier: Modifier = Modifier,
+    accepted: List<String> = emptyList(),
+    onResult: (MatchResult) -> Unit,
+) {
     val context = LocalContext.current
     val input = remember { SpeechInput(context) }
     var ui by remember(expected) { mutableStateOf<SpeakUi>(SpeakUi.Idle) }
@@ -599,6 +623,7 @@ fun SpeakButton(expected: String, modifier: Modifier = Modifier, onResult: (Matc
     val scope = rememberCoroutineScope()
     val currentOnResult by rememberUpdatedState(onResult)
     val currentExpected by rememberUpdatedState(expected)
+    val currentAccepted by rememberUpdatedState(accepted)
     val lifecycleOwner = LocalLifecycleOwner.current
     val prefs = LecturaApp.instance.prefs
     var manualStop by remember { mutableStateOf(prefs.speechManualStop) }
@@ -635,7 +660,7 @@ fun SpeakButton(expected: String, modifier: Modifier = Modifier, onResult: (Matc
                 SpeechInput.Event.Ready -> (ui as? SpeakUi.Listening)?.let { ui = it.copy(ready = true) }
                 is SpeechInput.Event.Partial -> ui = SpeakUi.Listening(ev.text, ready = true)
                 is SpeechInput.Event.Final -> {
-                    val r = SpeechMatch.compare(exp, ev.alternatives)
+                    val r = SpeechMatch.best(currentAccepted.ifEmpty { listOf(exp) }, ev.alternatives)
                     ui = SpeakUi.Done(r)
                     scope.launch {
                         runCatching { LecturaApp.instance.userData.recordSpeaking() }

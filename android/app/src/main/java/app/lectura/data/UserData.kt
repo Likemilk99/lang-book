@@ -219,6 +219,18 @@ class UserData(private val context: Context, private val db: AppDatabase) {
     }
 
     /** Упражнение без привязки к слову (ответ в диалоге, вопрос по главе). */
+    /** Шаг сценария пройден с результатом [percent]; храним лучший. */
+    suspend fun recordScenarioStep(scenarioId: String, step: String, percent: Int) = db.withTransaction {
+        val cur = db.scenarios().get(scenarioId, step)
+        db.scenarios().put(
+            ScenarioProgress(
+                scenarioId, step, maxOf(cur?.best ?: 0, percent.coerceIn(0, 100)), (cur?.count ?: 0) + 1,
+                System.currentTimeMillis(),
+            ),
+        )
+        stamp()
+    }
+
     suspend fun recordFreeExercise(correct: Boolean) = db.withTransaction {
         bumpStats { it.copy(reviews = it.reviews + 1, correct = it.correct + if (correct) 1 else 0) }
         stamp()
@@ -310,6 +322,9 @@ class UserData(private val context: Context, private val db: AppDatabase) {
             activity = db.activity().allOnce().map {
                 ActivityDto(it.bookId, it.chapter, it.kind, it.best, it.count, it.updatedAt)
             },
+            scenarios = db.scenarios().allOnce().map {
+                ScenarioDto(it.scenarioId, it.step, it.best, it.count, it.updatedAt)
+            },
             stats = db.stats().allOnce().map {
                 StatsDto(
                     it.day, it.reviews, it.correct, it.sentencesRead, it.speaking, it.newWords,
@@ -372,6 +387,12 @@ class UserData(private val context: Context, private val db: AppDatabase) {
                     db.activity().put(ChapterActivity(a.bookId, a.chapter, a.kind, a.best, a.count, a.updatedAt))
                 }
             }
+            b.scenarios.forEach { s ->
+                val cur = db.scenarios().get(s.scenarioId, s.step)
+                if (cur == null || s.best > cur.best) {
+                    db.scenarios().put(ScenarioProgress(s.scenarioId, s.step, s.best, s.count, s.updatedAt))
+                }
+            }
             b.stats.forEach { st ->
                 if (db.stats().get(st.day) == null) {
                     db.stats().put(
@@ -415,6 +436,7 @@ data class Backup(
     val stats: List<StatsDto> = emptyList(),
     val activity: List<ActivityDto> = emptyList(),
     val grammar: List<GrammarDto> = emptyList(),
+    val scenarios: List<ScenarioDto> = emptyList(),
 ) {
     companion object {
         const val FORMAT = 1
@@ -489,6 +511,15 @@ data class ActivityDto(
     val bookId: String,
     val chapter: Int,
     val kind: String,
+    val best: Int = 0,
+    val count: Int = 0,
+    val updatedAt: Long = 0,
+)
+
+@Serializable
+data class ScenarioDto(
+    val scenarioId: String,
+    val step: String,
     val best: Int = 0,
     val count: Int = 0,
     val updatedAt: Long = 0,

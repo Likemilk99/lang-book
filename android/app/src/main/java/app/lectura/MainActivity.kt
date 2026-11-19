@@ -44,6 +44,8 @@ import app.lectura.ui.HomeScreen
 import app.lectura.ui.PhraseThemeScreen
 import app.lectura.ui.PhraseTrainScreen
 import app.lectura.ui.PhrasebookScreen
+import app.lectura.ui.ScenarioScreen
+import app.lectura.ui.ScenarioStepScreen
 import app.lectura.ui.LibraryScreen
 import app.lectura.ui.ProgressScreen
 import app.lectura.ui.QuestionsScreen
@@ -131,6 +133,17 @@ private fun AppNav() {
                 HomeScreen(onRoute = { nav.openRoute(it) }, onProgress = { nav.navigate("progress") })
             }
             composable("talk") { TalkScreen(onRoute = { nav.openRoute(it) }) }
+            composable("scenario/{id}") { e ->
+                val id = e.arguments?.getString("id").orEmpty()
+                ScenarioScreen(id, onBack = { nav.popBackStack() }, onStep = { nav.navigate("scenario/$id/${it.key}") })
+            }
+            composable("scenario/{id}/{step}") { e ->
+                ScenarioStepScreen(
+                    e.arguments?.getString("id").orEmpty(),
+                    e.arguments?.getString("step").orEmpty(),
+                    onBack = { nav.popBackStack() },
+                )
+            }
             composable("phrasebook/{level}") { e ->
                 val level = e.arguments?.getString("level").orEmpty()
                 PhrasebookScreen(level, onBack = { nav.popBackStack() }, onTheme = { nav.navigate("phrasebook/$level/$it") })

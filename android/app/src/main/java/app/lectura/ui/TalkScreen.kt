@@ -60,6 +60,8 @@ fun TalkScreen(onRoute: (String) -> Unit) {
     val activity by app.db.activity().all().collectAsState(initial = null)
     LaunchedEffect(Unit) { if (app.books.books.value.isEmpty()) app.books.refresh() }
     val phrasebooks = rememberPhrasebooks()
+    val scenarios = rememberScenarios()
+    val scenarioStates = rememberScenarioStates(scenarios)
     val savedRefs = rememberSavedRefs()
     val list by produceState<List<TalkBook>?>(null, books, progress, activity) {
         val p = progress ?: return@produceState
@@ -98,6 +100,30 @@ fun TalkScreen(onRoute: (String) -> Unit) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            if (scenarios.isNotEmpty()) {
+                item {
+                    Column {
+                        Text("Сценарии", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Ситуация целиком: фразы → разговор → роль за обе стороны → неожиданный поворот → понять ответ → ответить своими словами.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                scenarios.groupBy { it.level }.forEach { (level, list) ->
+                    item(key = "sl-$level") {
+                        val can = list.count { scenarioStates[it.id]?.canDo == true }
+                        Text("$level · могу $can из ${list.size}", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
+                    }
+                    items(list, key = { "sc-" + it.id }) { sc ->
+                        ScenarioCard(sc, scenarioStates[sc.id]) { onRoute("scenario/${sc.id}") }
+                    }
+                }
+                item {
+                    Text("Разговорники", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp))
+                }
+            }
             items(phrasebooks, key = { "pb-" + it.level }) { pb ->
                 PhrasebookCard(pb, savedRefs) { onRoute("phrasebook/${pb.level}") }
             }

@@ -4,6 +4,8 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -123,6 +125,7 @@ fun HomeScreen(onRoute: (String) -> Unit, onProgress: () -> Unit) {
                     )
                 }
             }
+            item { CanDoCard(onOpen = { onRoute("talk") }) }
         }
     }
 
@@ -196,6 +199,31 @@ private fun StepRow(s: PlanStep, onClick: () -> Unit) {
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
             )
+        }
+    }
+}
+
+/** «Могу»: ситуации, которые вы уже умеете решать по-испански (пройденные сценарии). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CanDoCard(onOpen: () -> Unit) {
+    val scenarios = rememberScenarios()
+    if (scenarios.isEmpty()) return
+    val states = rememberScenarioStates(scenarios)
+    val can = scenarios.filter { states[it.id]?.canDo == true }
+    val next = scenarios.filter { states[it.id]?.canDo != true }.take(3)
+    Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Могу по-испански", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text("${can.size} из ${scenarios.size}", style = MaterialTheme.typography.labelLarge)
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                can.forEach { Text("✓ ${it.emoji} ${it.title}", color = app.lectura.review.Good, style = MaterialTheme.typography.bodyMedium) }
+                next.forEach {
+                    Text("○ ${it.emoji} ${it.title}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
         }
     }
 }

@@ -5,13 +5,17 @@ import android.util.Log
 import app.lectura.model.Phrase
 import app.lectura.model.PhraseTheme
 import app.lectura.model.Phrasebook
+import app.lectura.model.ScenarioFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
-/** Разговорники из assets/phrasebook/ (A0, A1…) и их озвучка, всё встроено в приложение. */
+/**
+ * Разговорники из assets/phrasebook/ (A0, A1…) и их озвучка, всё встроено в приложение.
+ * Индекс фраз по id включает и ключевые фразы сценариев (их озвучка лежит там же).
+ */
 class PhrasebookRepository(private val context: Context) {
     private val json = Json { ignoreUnknownKeys = true }
     private val mutex = Mutex()
@@ -34,7 +38,15 @@ class PhrasebookRepository(private val context: Context) {
             }.sortedBy { it.level }
         }.also { list ->
             books = list
-            byId = list.flatMap { b -> b.themes.flatMap { it.phrases } }.associateBy { it.id }
+            // Ключевые фразы сценариев — в том же индексе (шаблоны, озвучка, связь со словарём).
+            val scenarioPhrases = withContext(Dispatchers.IO) {
+                runCatching {
+                    json.decodeFromString<ScenarioFile>(
+                        context.assets.open(ScenarioRepository.FILE).use { it.readBytes().decodeToString() },
+                    ).scenarios.flatMap { it.phrases }
+                }.getOrDefault(emptyList())
+            }
+            byId = (scenarioPhrases + list.flatMap { b -> b.themes.flatMap { it.phrases } }).associateBy { it.id }
             themeOf = list.flatMap { b -> b.themes.flatMap { t -> t.phrases.map { it.id to t } } }.toMap()
         }
     }
