@@ -1,5 +1,7 @@
 package app.lectura.ui
 
+import android.widget.Toast
+
 import android.content.Intent
 import android.speech.tts.TextToSpeech
 import androidx.compose.foundation.background
@@ -88,6 +90,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.lectura.LecturaApp
+import app.lectura.data.BookAudio
 import app.lectura.data.ChapterActivity
 import app.lectura.data.ExpressionIndex
 import app.lectura.data.ExpressionMatch
@@ -242,6 +245,9 @@ class ReaderViewModel(private val app: LecturaApp, val bookId: String) : ViewMod
 
 private data class Selection(val sentence: Int, val token: Int)
 
+/** «5,2 МБ» */
+fun megabytes(bytes: Long): String = "%.1f МБ".format(java.util.Locale.forLanguageTag("ru"), bytes / 1_000_000.0)
+
 private val RATES = listOf(0.6f, 0.7f, 0.8f, 0.9f, 1.0f, 1.2f)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -257,6 +263,8 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
     val ps by app.player.state.collectAsStateWithLifecycle()
     val fontSize by app.prefs.fontSize.collectAsStateWithLifecycle()
     val showRu by app.prefs.showRu.collectAsStateWithLifecycle()
+    val audioInstalled by app.bookAudio.installed.collectAsStateWithLifecycle()
+    val audioDownloads by app.bookAudio.downloads.collectAsStateWithLifecycle()
     var selection by remember { mutableStateOf<Selection?>(null) }
     val expressions by vm.expressions.collectAsStateWithLifecycle()
     var chaptersMenu by remember { mutableStateOf(false) }
@@ -266,6 +274,10 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
     val ctx = LocalContext.current
 
     val b = book
+    val audioFailure = audioDownloads[bookId] as? BookAudio.Download.Failed
+    LaunchedEffect(audioFailure) {
+        audioFailure?.let { Toast.makeText(ctx, "Озвучка не скачалась: ${it.message}", Toast.LENGTH_LONG).show() }
+    }
     val chapterIdx = if (ps.bookId == bookId) ps.chapter else 0
     val chapter = b?.chapters?.getOrNull(chapterIdx)
     // Выражение, в которое входит выбранное слово («otra vez»): подсвечиваем его целиком.
@@ -334,6 +346,35 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
                                 moreMenu = false
                                 app.player.pause()
                                 onNavigate(route)
+                            }
+                            b?.audio?.let { pack ->
+                                val have = audioInstalled[bookId]
+                                val dl = audioDownloads[bookId]
+                                when {
+                                    dl is BookAudio.Download.Running -> DropdownMenuItem(
+                                        text = { Text("🎙 Скачиваю озвучку… ${(dl.progress * 100).toInt()}%") },
+                                        onClick = {},
+                                        enabled = false,
+                                    )
+                                    have == null || have != pack.version -> DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                (if (have == null) "🎙 Скачать озвучку" else "🎙 Обновить озвучку") +
+                                                    " (${megabytes(pack.size)})",
+                                            )
+                                        },
+                                        onClick = {
+                                            moreMenu = false
+                                            app.bookAudio.download(b)
+                                        },
+                                    )
+                                    else -> DropdownMenuItem(text = { Text("🗑 Удалить озвучку") }, onClick = {
+                                        moreMenu = false
+                                        app.player.pause()
+                                        app.bookAudio.delete(bookId)
+                                    })
+                                }
+                                HorizontalDivider()
                             }
                             DropdownMenuItem(text = { Text("💬 Полезные фразы") }, onClick = {
                                 moreMenu = false
@@ -674,6 +715,7 @@ private fun PlayerBar(ps: app.lectura.playback.Player.State) {
                     }
                 }
             }
+            if (ps.narration) Text("🎙", modifier = Modifier.padding(start = 4.dp))
             Spacer(Modifier.weight(1f))
             IconButton(onClick = { player.prev() }) { Icon(Icons.Filled.SkipPrevious, "Предыдущее") }
             FilledIconButton(onClick = { player.toggle() }, modifier = Modifier.padding(horizontal = 8.dp)) {

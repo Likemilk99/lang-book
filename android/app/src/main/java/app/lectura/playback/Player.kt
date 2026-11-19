@@ -1,6 +1,8 @@
 package app.lectura.playback
 
 import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.media.PlaybackParams
 import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
@@ -17,13 +19,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.Locale
 
 /** Тишина на месте пропуска «___» при озвучке упражнения. */
 const val GAP_PAUSE_MS = 1100L
 
 /**
- * Читает книгу вслух по предложениям через системный TTS.
+ * Читает книгу вслух по предложениям: файлом диктора, если озвучка книги скачана (data/BookAudio),
+ * иначе системным TTS. Слова, фразы и упражнения — всегда системный TTS.
  * Единственный источник правды о текущей позиции (книга / глава / предложение):
  * ридер и уведомление только отображают это состояние.
  */
@@ -41,6 +45,8 @@ class Player(private val app: LecturaApp) {
         val ttsReady: Boolean = false,
         val voiceMissing: Boolean = false,
         val voiceName: String = "",
+        /** Текущее предложение читает диктор (скачанная озвучка), а не системный голос. */
+        val narration: Boolean = false,
     )
 
     private val _state = MutableStateFlow(State(rate = app.prefs.rate))
@@ -53,6 +59,11 @@ class Player(private val app: LecturaApp) {
     private var playWhenReady = false
 
     private val tts: TextToSpeech = TextToSpeech(app) { status -> main.post { onInit(status) } }
+    private var media: MediaPlayer? = null
+    private val mediaAttributes = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_MEDIA)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build()
 
     val currentText: String
         get() {
@@ -72,12 +83,7 @@ class Player(private val app: LecturaApp) {
         voice?.let { tts.voice = it }
         narratorVoice = voice
         spanishVoices = installedSpanishVoices()
-        tts.setAudioAttributes(
-            AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                .build(),
-        )
+        tts.setAudioAttributes(mediaAttributes)
         tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {}
             override fun onDone(utteranceId: String?) {
@@ -271,9 +277,56 @@ class Player(private val app: LecturaApp) {
             return
         }
         generation++
+        stopMedia()
+        narrationFile()?.let { f -> if (playFile(f)) return }
+        _state.update { it.copy(narration = false) }
+        tts.stop()
         tts.setSpeechRate(_state.value.rate)
         applySpeaker(currentSentence?.sp)
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId())
+    }
+
+    private fun narrationFile(): File? {
+        val s = _state.value
+        val id = s.bookId ?: return null
+        val sentence = currentSentence ?: return null
+        return app.bookAudio.fileFor(id, s.chapter, s.sentence, sentence.tokens)
+    }
+
+    /** Предложение из файла диктора; скорость — та же настройка, что и у TTS (тон сохраняется). */
+    private fun playFile(f: File): Boolean = runCatching {
+        tts.stop()
+        val id = utteranceId()
+        val mp = MediaPlayer()
+        media = mp
+        mp.setAudioAttributes(mediaAttributes)
+        mp.setDataSource(f.path)
+        mp.setOnCompletionListener { main.post { onUtteranceDone(id) } }
+        mp.setOnErrorListener { _, what, extra ->
+            Log.w("Player", "media error $what/$extra: ${f.name}")
+            main.post { onUtteranceDone(id) }
+            true
+        }
+        mp.prepare()
+        mp.playbackParams = PlaybackParams().setSpeed(_state.value.rate).setPitch(1f)
+        if (!mp.isPlaying) mp.start()
+        _state.update { it.copy(narration = true) }
+        true
+    }.getOrElse {
+        Log.w("Player", "narration ${f.name}", it)
+        stopMedia()
+        false
+    }
+
+    private fun stopMedia() {
+        val mp = media ?: return
+        media = null
+        runCatching {
+            mp.setOnCompletionListener(null)
+            mp.setOnErrorListener(null)
+            mp.stop()
+        }
+        mp.release()
     }
 
     private val currentSentence
@@ -298,6 +351,7 @@ class Player(private val app: LecturaApp) {
 
     private fun stopSpeaking() {
         generation++
+        stopMedia()
         runCatching { tts.stop() }
     }
 

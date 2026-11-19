@@ -23,6 +23,8 @@ data class Book(
     val year: Int = 0,
     /** Например "Общественное достояние (автор умер в 1870)". */
     val license: String = "",
+    /** Дикторская озвучка (pipeline/audio.py): архив скачивается по кнопке, см. data/BookAudio. */
+    val audio: AudioPack? = null,
     val chapters: List<Chapter>,
 ) {
     val isOriginal: Boolean get() = kind == KIND_ORIGINAL
@@ -32,6 +34,15 @@ data class Book(
         const val KIND_ORIGINAL = "original"
     }
 }
+
+@Serializable
+data class AudioPack(
+    val url: String,
+    /** Размер архива в байтах — для подписи «Скачать озвучку (5 МБ)». */
+    val size: Long = 0,
+    /** Меняется при перегенерации — приложение предложит обновить скачанное. */
+    val version: String = "",
+)
 
 @Serializable
 data class Character(

@@ -24,8 +24,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.lectura.LecturaApp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lectura.data.AppVersion
+import app.lectura.data.BookAudio
 import app.lectura.data.DataInfo
+import app.lectura.model.Book
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -39,6 +42,13 @@ fun DataDialog(onDismiss: () -> Unit) {
     var info by remember { mutableStateOf<DataInfo?>(null) }
     var reload by remember { mutableIntStateOf(0) }
     LaunchedEffect(reload) { info = app.userData.info() }
+    var voiced by remember { mutableStateOf<List<Book>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        voiced = app.books.books.value.mapNotNull { i -> runCatching { app.books.load(i.id) }.getOrNull() }
+            .filter { it.audio != null }
+    }
+    val audioInstalled by app.bookAudio.installed.collectAsStateWithLifecycle()
+    val audioDownloads by app.bookAudio.downloads.collectAsStateWithLifecycle()
 
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) scope.launch {
@@ -77,6 +87,20 @@ fun DataDialog(onDismiss: () -> Unit) {
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                if (voiced.isNotEmpty()) {
+                    val missing = voiced.filter { audioInstalled[it.id] != it.audio?.version }
+                    val running = audioDownloads.values.count { it is BookAudio.Download.Running }
+                    Spacer(Modifier.height(16.dp))
+                    Text("Озвучка книг", style = MaterialTheme.typography.titleSmall)
+                    Text("Скачано: ${voiced.size - missing.size} из ${voiced.size}")
+                    when {
+                        running > 0 -> Text("Скачиваю… осталось книг: ${missing.size}")
+                        missing.isNotEmpty() -> OutlinedButton(
+                            onClick = { app.bookAudio.downloadAll(missing) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("Скачать озвучку (${megabytes(missing.sumOf { it.audio?.size ?: 0 })})") }
+                    }
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(

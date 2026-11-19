@@ -7,6 +7,7 @@ import android.content.Intent
 import android.util.Log
 import androidx.room.Room
 import app.lectura.data.AppDatabase
+import app.lectura.data.BookAudio
 import app.lectura.data.BookRepository
 import app.lectura.data.CurriculumRepository
 import app.lectura.data.MIGRATIONS
@@ -23,6 +24,7 @@ class LecturaApp : Application() {
     lateinit var prefs: Prefs
     lateinit var db: AppDatabase
     lateinit var books: BookRepository
+    lateinit var bookAudio: BookAudio
     lateinit var userData: UserData
     lateinit var curriculum: CurriculumRepository
     lateinit var player: Player
@@ -41,6 +43,7 @@ class LecturaApp : Application() {
             runCatching { userData.onAppStart() }.onFailure { Log.e("LecturaApp", "data upgrade failed", it) }
         }
         books = BookRepository(this, prefs)
+        bookAudio = BookAudio(this)
         player = Player(this)
         getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(CHANNEL_PLAYBACK, "Чтение вслух", NotificationManager.IMPORTANCE_LOW),
