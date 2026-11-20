@@ -11,6 +11,7 @@ import app.lectura.data.BookAudio
 import app.lectura.data.BookRepository
 import app.lectura.data.CurriculumRepository
 import app.lectura.data.MIGRATIONS
+import app.lectura.data.MacLink
 import app.lectura.data.PersonalRepository
 import app.lectura.data.PhrasebookRepository
 import app.lectura.data.ScenarioRepository
@@ -38,6 +39,8 @@ class LecturaApp : Application() {
     lateinit var phrasebook: PhrasebookRepository
     lateinit var scenarios: ScenarioRepository
     lateinit var personal: PersonalRepository
+    /** «Мои фразы» по Wi-Fi: сервер pipeline/server.py на Mac. */
+    lateinit var mac: MacLink
     lateinit var lessons: LessonPlayer
     lateinit var player: Player
     lateinit var wordImages: WordImageRepository
@@ -58,6 +61,7 @@ class LecturaApp : Application() {
         phrasebook = PhrasebookRepository(this)
         scenarios = ScenarioRepository(this)
         personal = PersonalRepository(this, db, userData, phrasebook)
+        mac = MacLink(this, prefs, db, personal, applicationScope)
         applicationScope.launch { runCatching { personal.sync() }.onFailure { Log.w("LecturaApp", "personal sync", it) } }
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { userData.onAppStart() }.onFailure { Log.e("LecturaApp", "data upgrade failed", it) }

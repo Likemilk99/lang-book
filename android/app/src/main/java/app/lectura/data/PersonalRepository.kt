@@ -18,8 +18,9 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 /**
- * «Мои фразы»: обмен с pipeline/personal.py через папку files/personal/ (видна по adb, как books/).
- * Приложение пишет inbox.json — записи, ждущие перевода; Mac кладёт personal.json и audio/<имя>.m4a.
+ * «Мои фразы»: результаты с Mac лежат в files/personal/ — personal.json и audio/<имя>.m4a.
+ * Доставка — по Wi-Fi от pipeline/server.py ([MacLink]) или по кабелю от pipeline/personal.py
+ * (adb; для него приложение пишет inbox.json — записи, ждущие перевода).
  */
 class PersonalRepository(
     context: Context,
@@ -30,7 +31,7 @@ class PersonalRepository(
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
     private val mutex = Mutex()
     val dir: File = File(context.getExternalFilesDir(null) ?: context.filesDir, "personal").apply { mkdirs() }
-    private val audioDir = File(dir, "audio")
+    val audioDir = File(dir, "audio")
     private var loadedMtime = -1L
 
     private val _results = MutableStateFlow<List<PersonalResult>>(emptyList())
@@ -70,19 +71,45 @@ class PersonalRepository(
     }
 
     private fun exportInbox(items: List<InboxItem>) {
-        val questions = ABOUT_QUESTIONS.associateBy { it.id }
-        val entries = items.filter { it.pending }.map {
-            InboxEntry(it.id, it.kind, it.ref, questions[it.ref]?.es.orEmpty(), it.ru)
-        }
-        runCatching { File(dir, "inbox.json").writeText(json.encodeToString(InboxFile.serializer(), InboxFile(entries))) }
+        runCatching { File(dir, "inbox.json").writeText(json.encodeToString(InboxFile.serializer(), InboxFile(entriesOf(items)))) }
             .onFailure { Log.w("Personal", "inbox.json", it) }
+    }
+
+    /** Записи, ждущие перевода, — в том виде, в каком их ждёт Mac. */
+    suspend fun pendingEntries(): List<InboxEntry> = withContext(Dispatchers.IO) { entriesOf(db.inbox().allOnce()) }
+
+    /**
+     * Дописать пришедшие по Wi-Fi переводы в personal.json (старые не теряются, перевод той же записи
+     * заменяется). Озвучка к этому моменту уже лежит в [audioDir]. Дальше всё делает [sync].
+     */
+    suspend fun addResults(new: List<PersonalResult>) = mutex.withLock {
+        withContext(Dispatchers.IO) {
+            val file = File(dir, "personal.json")
+            val old = if (file.exists()) runCatching { json.decodeFromString<PersonalFile>(file.readText()).items }.getOrDefault(emptyList()) else emptyList()
+            val tmp = File(dir, "personal.json.tmp")
+            tmp.writeText(json.encodeToString(PersonalFile.serializer(), PersonalFile(merge(old, new))))
+            if (!tmp.renameTo(file)) error("personal.json: не удалось записать")
+            loadedMtime = -1L
+        }
     }
 
     /** Результат для записи «Мои фразы», если перевод уже пришёл. */
     fun resultFor(item: InboxItem): PersonalResult? = _results.value.firstOrNull { it.matches(item.id, item.ru) }
 
     companion object {
-        /** Команда на Mac, которая переводит «Мои фразы». */
-        const val MAC_COMMAND = "python3 pipeline/personal.py"
+        /** Команда на Mac: сервер «Мои фразы» для домашней сети. */
+        const val MAC_COMMAND = "python3 pipeline/server.py"
+
+        internal fun entriesOf(items: List<InboxItem>): List<InboxEntry> {
+            val questions = ABOUT_QUESTIONS.associateBy { it.id }
+            return items.filter { it.pending }.map { InboxEntry(it.id, it.kind, it.ref, questions[it.ref]?.es.orEmpty(), it.ru) }
+        }
+
+        /** Ключ как в pipeline/personal.py: id записи + её текст. Новый перевод той же записи заменяет старый. */
+        internal fun merge(old: List<PersonalResult>, new: List<PersonalResult>): List<PersonalResult> {
+            val byKey = LinkedHashMap<String, PersonalResult>()
+            (old + new).forEach { byKey["${it.inboxId}:${it.ru}"] = it }
+            return byKey.values.toList()
+        }
     }
 }

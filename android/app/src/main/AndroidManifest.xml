@@ -7,7 +7,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Аудиоурок при выключенном экране: паузы между фразами не должны растягиваться. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- Только чтобы скачать дикторскую озвучку книг (GitHub Release «audio»). -->
+    <!-- Озвучка книг (GitHub Release «audio»), картинки (Pixabay) и сервер «Мои фразы» на Mac в домашней сети. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <queries>
@@ -25,7 +25,10 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Lectura">
+        android:theme="@style/Theme.Lectura"
+        android:usesCleartextTraffic="true">
+        <!-- cleartext: сервер «Мои фразы» (pipeline/server.py) — обычный http в домашней сети, без сертификата.
+             Внешние адреса (GitHub, Pixabay) в коде и так https. -->
 
         <activity
             android:name=".MainActivity"

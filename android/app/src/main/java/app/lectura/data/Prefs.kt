@@ -66,6 +66,19 @@ class Prefs(context: Context) {
         get() = sp.getInt("reminderMinutes", 20 * 60)
         set(v) = sp.edit().putInt("reminderMinutes", v.coerceIn(0, 24 * 60 - 1)).apply()
 
+    /** «Мои фразы» через сервер на Mac: код с экрана pipeline/server.py. */
+    var macCode: String
+        get() = sp.getString("macCode", "") ?: ""
+        set(v) = sp.edit().putString("macCode", v).apply()
+    /** Адрес сервера вручную («192.168.1.5:8765»), если телефон не находит Mac сам; "" — искать через Bonjour. */
+    var macAddress: String
+        get() = sp.getString("macAddress", "") ?: ""
+        set(v) = sp.edit().putString("macAddress", v).apply()
+    /** Где Mac нашёлся в последний раз — пробуем, если Bonjour молчит. */
+    var macLastHost: String
+        get() = sp.getString("macLastHost", "") ?: ""
+        set(v) = sp.edit().putString("macLastHost", v).apply()
+
     fun bundledHash(name: String): String? = sp.getString("bundledHash:$name", null)
     fun setBundledHash(name: String, hash: String) = sp.edit().putString("bundledHash:$name", hash).apply()
 

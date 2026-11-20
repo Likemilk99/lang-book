@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """«Мои фразы»: ответы «Обо мне» и «Входящие» из приложения → простой испанский с озвучкой → обратно на телефон.
 
+  Обычно удобнее pipeline/server.py — то же самое по Wi-Fi, телефон находит Mac сам.
+  Этот скрипт — запасной путь по кабелю (adb).
+
   python3 pipeline/personal.py                # телефон по USB: забрать, перевести, озвучить, вернуть
   python3 pipeline/personal.py --level A0     # проще (по умолчанию A1)
   python3 pipeline/personal.py --no-audio     # без озвучки (в приложении будет системный голос)
@@ -59,6 +62,55 @@ LEVEL = {
 }
 
 
+# ------------------------------------------------------------------ общее с server.py
+
+RESULTS = WORK / "results.json"
+AUDIO = WORK / "audio"
+
+
+def entry_key(i: dict) -> str:
+    """Ключ кэша — id записи И её текст: после переустановки приложения id начинаются заново,
+    и старый перевод не должен приклеиться к новому ответу."""
+    return f"{i['id']}:" + hashlib.sha1(f"{i['kind']}|{i.get('ref', '')}|{i['ru']}".encode()).hexdigest()[:10]
+
+
+def load_results() -> dict[str, dict]:
+    return json.loads(RESULTS.read_text(encoding="utf-8")) if RESULTS.exists() else {}
+
+
+def save_results(results: dict[str, dict]) -> None:
+    WORK.mkdir(parents=True, exist_ok=True)
+    tmp = RESULTS.with_suffix(".tmp")
+    tmp.write_text(json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(RESULTS)
+
+
+def make_result(it: dict, out: dict) -> dict:
+    """Ответ claude → результат для приложения (контракт model/Personal.kt PersonalResult)."""
+    phrases = []
+    for k, p in enumerate(out["phrases"][:3], 1):
+        if p["es"].strip():
+            phrases.append({"id": f"me-{it['id']}-{k}", "es": p["es"].strip(), "ru": p["ru"].strip(),
+                            **({"note": p["note"].strip()} if p["note"].strip() else {})})
+    res = {"inboxId": it["id"], "kind": it["kind"], "ref": it.get("ref", ""), "ru": it["ru"], "phrases": phrases}
+    if it["kind"] == "about":
+        full = " ".join(p["es"] for p in phrases)
+        res["question"] = it.get("question", "")
+        res["accepted"] = [full] + [a for a in out["accepted"] if a.strip() and a.strip() != full]
+    return res
+
+
+def clips_for(results: list[dict]) -> list[tuple[str, str, str]]:
+    """(имя, текст, голос): фразы — голос ученика m1, вопросы «Обо мне» — f2."""
+    clips = []
+    for r in results:
+        for p in r["phrases"]:
+            clips.append((p["id"], p["es"], "m1"))
+        if r["kind"] == "about" and r.get("question"):
+            clips.append((f"q-{r['ref']}", r["question"], "f2"))
+    return clips
+
+
 def adb() -> str:
     return str(ADB) if ADB.exists() else "adb"
 
@@ -106,32 +158,16 @@ def main() -> None:
 
     WORK.mkdir(parents=True, exist_ok=True)
     items = json.loads(args.inbox.read_text(encoding="utf-8"))["items"] if args.inbox else pull_inbox()
-    results_path = WORK / "results.json"
-    results: dict[str, dict] = json.loads(results_path.read_text(encoding="utf-8")) if results_path.exists() else {}
+    results = load_results()
 
-    # Ключ — id записи И её текст: после переустановки приложения id начинаются заново,
-    # и старый перевод не должен приклеиться к новому ответу.
-    def key(i: dict) -> str:
-        return f"{i['id']}:" + hashlib.sha1(f"{i['kind']}|{i.get('ref', '')}|{i['ru']}".encode()).hexdigest()[:10]
-
-    todo = [i for i in items if key(i) not in results]
+    todo = [i for i in items if entry_key(i) not in results]
     print(f"📥 Во «Входящих»: {len(items)}, новых для перевода: {len(todo)}")
     for it in todo:
         print(f"✍️  {it['ru'][:70]}", flush=True)
-        out = translate(it, args.level, args.model, args.effort)
-        phrases = []
-        for k, p in enumerate(out["phrases"][:3], 1):
-            if p["es"].strip():
-                phrases.append({"id": f"me-{it['id']}-{k}", "es": p["es"].strip(), "ru": p["ru"].strip(),
-                                **({"note": p["note"].strip()} if p["note"].strip() else {})})
-        res = {"inboxId": it["id"], "kind": it["kind"], "ref": it.get("ref", ""), "ru": it["ru"], "phrases": phrases}
-        if it["kind"] == "about":
-            full = " ".join(p["es"] for p in phrases)
-            res["question"] = it.get("question", "")
-            res["accepted"] = [full] + [a for a in out["accepted"] if a.strip() and a.strip() != full]
-        results[key(it)] = res
-        results_path.write_text(json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")
-        for p in phrases:
+        res = make_result(it, translate(it, args.level, args.model, args.effort))
+        results[entry_key(it)] = res
+        save_results(results)
+        for p in res["phrases"]:
             print(f"   → {p['es']}", flush=True)
 
     # Источник правды — телефон: берём его personal.json и дополняем новыми переводами
@@ -162,12 +198,7 @@ def phone_results(from_phone: bool) -> list[dict]:
 
 def voice(items: list[dict]) -> None:
     """Озвучка тем же движком, что и книги (в venv audio.py)."""
-    clips = []
-    for r in items:
-        for p in r["phrases"]:
-            clips.append((p["id"], p["es"], "m1"))
-        if r["kind"] == "about" and r.get("question"):
-            clips.append((f"q-{r['ref']}", r["question"], "f2"))
+    clips = clips_for(items)
     (WORK / "clips.json").write_text(json.dumps(clips, ensure_ascii=False), encoding="utf-8")
     subprocess.run([sys.executable, str(HERE / "audio.py"), "--clips", str(WORK / "clips.json"),
                     "--out", str(WORK / "audio")], check=True)

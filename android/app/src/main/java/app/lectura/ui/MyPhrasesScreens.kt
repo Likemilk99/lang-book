@@ -97,10 +97,11 @@ fun MyPhrasesCard(onOpen: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                "Обо мне: $about из ${ABOUT_QUESTIONS.size} · «как сказать»: $phrases" + if (pending > 0) " · ждут перевода: $pending" else "",
+                "Обо мне: $about из ${ABOUT_QUESTIONS.size} · «как сказать»: $phrases",
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(top = 4.dp),
             )
+            MacStatusRow(pending)
         }
     }
 }
@@ -114,6 +115,7 @@ fun MyPhrasesScreen(onBack: () -> Unit, onTrain: () -> Unit) {
     val results by app.personal.results.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(0) }
     SyncPersonalOnResume()
+    MacLinkWhileVisible()
     DisposableEffect(Unit) { onDispose { app.player.stopSpeech() } }
     val pending = inbox.count { it.pending }
     val trainable = trainableAbout(inbox, results)
@@ -139,12 +141,10 @@ fun MyPhrasesScreen(onBack: () -> Unit, onTrain: () -> Unit) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("Как это работает", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         Text("1. Пишите по-русски: ответы о себе или что хотите уметь сказать.")
-                        Text("2. Подключите телефон к Mac и запустите:")
+                        Text("2. Дома включите на Mac сервер (телефон найдёт его сам по Wi-Fi):")
                         Text(PersonalRepository.MAC_COMMAND, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium)
-                        Text("3. Откройте этот экран — фразы с озвучкой сами попадут в повторение.")
-                        if (pending > 0) {
-                            Text("⏳ Ждут перевода: $pending", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
-                        }
+                        Text("3. Переводы с озвучкой сами придут в повторение. Кружок ниже — связь с Mac; нажмите, чтобы ввести код.")
+                        MacStatusRow(pending, Modifier.padding(top = 4.dp))
                     }
                 }
             }

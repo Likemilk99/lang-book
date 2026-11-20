@@ -55,6 +55,7 @@ private data class TalkBook(val id: String, val title: String, val level: String
 @Composable
 fun TalkScreen(onRoute: (String) -> Unit) {
     val app = LecturaApp.instance
+    MacLinkWhileVisible()
     val books by app.books.books.collectAsStateWithLifecycle()
     val progress by app.db.progress().all().collectAsState(initial = null)
     val activity by app.db.activity().all().collectAsState(initial = null)
