@@ -47,13 +47,28 @@
 `ShadowingScreen`: shadowing (repeat after the narrator) and role-play (you say one character's lines) per chapter.
 
 ## Speech recognition (`speech/Speech.kt`)
-- **Recognizer:** es-ES, on-device first, cloud as fallback.
-- **`SpeakButton(expected, modifier, accepted, onResult)`:** «Нажмите и скажите вслух». Recording ends by button or on silence (`Prefs.speechManualStop`).
-- **`SpeechMatch`:** LCS over words, ignoring accents and punctuation.
+- **Engine (`SpeechInput`):** es-ES. Default is the system Google recognizer **online** (`createSpeechRecognizer`, `EXTRA_PREFER_OFFLINE=false`). It is the same quality as keyboard voice typing; the offline model was noticeably worse for a learner's accent.
+  - «Распознавание: на телефоне, офлайн» (`Prefs.speechOffline`) switches to `createOnDeviceSpeechRecognizer`.
+  - Automatic fallbacks, once per recording: Google has a network/language error → on-device; on-device lacks the es-ES model → asks the system to download it (`triggerModelDownload`) and uses Google meanwhile.
+  - The recognition itself goes through the system service; the app makes no network calls of its own.
+- **Biasing:** `SpeakButton` passes the expected/accepted phrases (names removed) as `EXTRA_BIASING_STRINGS`, so correct-but-accented speech is recognized as the right words.
+- **Robustness:**
+  - A fresh `SpeechRecognizer` for every recording (a reused one sometimes hung after errors).
+  - No `onReadyForSpeech` within 4 s → recreate and retry once, then a clear error.
+  - After «■» the recognizer has 2.5 s to answer; otherwise the result is what was heard so far.
+  - Errors that come instantly over and over stop the restart loop («Микрофон не отвечает»).
+  - Phone vibrates on Ready: words said before that are not heard.
+  - Empty result explains why: mic not ready yet / no voice level at all / «Не расслышал».
+- **`SpeakButton(expected, modifier, accepted, onResult)`:** «Нажмите и скажите вслух». Recording ends by button or on silence (`Prefs.speechManualStop`, default by button).
+  - By button: asks for one segmented session (`EXTRA_SEGMENTED_SESSION` + `EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS`, results via `onSegmentResults`), so pauses don't cut the audio. If the recognizer doesn't support it and stops on silence, it is restarted and the pieces are glued (`MAX_MANUAL_MS` = 60 s).
+- **`SpeechMatch`:** LCS over words, ignoring accents and punctuation; best of the recognizer's alternatives.
+  - Same-sounding words match (`sound()`: silent h, b = v, ll = y): «ola» = «hola».
+  - Words of 6+ letters allow one edit.
   - `SpeechMatch.best(accepted, alternatives)` takes the best over several accepted answers.
   - `SpeechMatch.withoutNames` makes proper names inside a sentence optional, so «Me llamo Iván» accepts any name.
   - `SpeechMatch.compare` marks missed words.
 - **`SpeechTts`:** TTS with a wait for completion.
+- **Debugging on the phone:** `adb logcat -s SpeechInput` shows the engine, error codes and timeouts.
 
 ## «Записать себя» (`ui/VoiceCompare.kt`)
 - `VoiceRecorder` records with MediaRecorder to `cacheDir/my_voice.m4a`. This is separate from recognition.
@@ -61,4 +76,4 @@
 - It is shown in the phrase trainer.
 
 ## Tests
-`PhrasebookTest` (format, every clip exists) and `ScenarioTest` (format, id reuse, audio, logic, free answer, names).
+`SpeechMatchTest` (matching, homophones), `PhrasebookTest` (format, every clip exists) and `ScenarioTest` (format, id reuse, audio, logic, free answer, names).

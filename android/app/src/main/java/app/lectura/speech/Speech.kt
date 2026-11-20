@@ -13,6 +13,7 @@ import android.speech.RecognitionSupportCallback
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import android.view.HapticFeedbackConstants
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.RepeatMode
@@ -56,6 +57,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
@@ -76,7 +78,13 @@ import kotlin.math.roundToInt
 // КОНТРАКТ модуля речи. Сигнатуры менять нельзя — на них опираются упражнения.
 // Реализация: агент «speech».
 
-/** Распознавание испанской речи (es-ES), по возможности на устройстве (офлайн). */
+/**
+ * Распознавание испанской речи (es-ES).
+ *
+ * Движок: по умолчанию системный распознаватель Google с сервером — тот же, что у голосового ввода
+ * клавиатуры, он заметно точнее офлайн-модели. Распознаватель на телефоне (офлайн) — если выбран
+ * [offline] или Google недоступен (нет сети).
+ */
 class SpeechInput(private val context: Context) {
     sealed interface Event {
         data object Ready : Event
@@ -90,26 +98,43 @@ class SpeechInput(private val context: Context) {
 
     /**
      * Запись заканчивается только по [stop] (или через [MAX_MANUAL_MS]): паузы «на подумать» не обрывают ответ.
-     * Системный распознаватель всё равно останавливается на тишине, поэтому мы незаметно перезапускаем его
-     * и склеиваем распознанные куски.
+     * Просим у распознавателя сегментированную сессию (одна запись, результаты кусками). Если он её не умеет
+     * и останавливается на тишине — незаметно перезапускаем его и склеиваем куски.
      */
     var manualStop: Boolean = false
 
-    private val main = android.os.Handler(android.os.Looper.getMainLooper())
-    private val segments = ArrayList<String>()
-    private var stopRequested = false
-    private var startedAt = 0L
-    private var restartPending = false
-    private var onEventCurrent: ((Event) -> Unit)? = null
+    /** Распознавать на телефоне (офлайн) вместо Google онлайн. */
+    var offline: Boolean = false
 
+    /** Ожидаемые фразы: распознаватель охотнее выбирает эти слова, акцент ученика меньше мешает. */
+    var bias: List<String> = emptyList()
+
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
     private val appContext: Context = context.applicationContext
     private var recognizer: SpeechRecognizer? = null
     private var recognizerOnDevice = false
-    /** Номер текущей сессии: колбэки от старых сессий игнорируются. */
+    /** Номер текущей сессии распознавателя: колбэки от старых сессий игнорируются. */
     private var session = 0
+    private var onEventCurrent: ((Event) -> Unit)? = null
+
+    // Состояние одной записи (от start до результата).
+    /** Распознанные куски; у каждого — варианты распознавания (лучший первый). */
+    private val segments = ArrayList<List<String>>()
     private var lastPartial = ""
-    private var fellBackToCloud = false
+    private var finished = true
+    private var stopRequested = false
+    private var restartPending = false
+    private var startedAt = 0L
+    private var begunAt = 0L
+    /** Текущая сессия распознавателя готова слушать. */
+    private var ready = false
+    private var everReady = false
+    private var heardVoice = false
+    private var quickFails = 0
     private var retries = 0
+    private var switchedEngine = false
+    /** Движок этой записи: true — на телефоне. */
+    private var useOnDevice = false
 
     fun isAvailable(): Boolean =
         SpeechRecognizer.isRecognitionAvailable(appContext) || SpeechRecognizer.isOnDeviceRecognitionAvailable(appContext)
@@ -117,73 +142,67 @@ class SpeechInput(private val context: Context) {
     /** Вызывать на главном потоке. Требует разрешения RECORD_AUDIO. */
     fun start(onEvent: (Event) -> Unit) {
         cancel()
-        fellBackToCloud = false
-        retries = 0
+        // Каждая запись — со свежим распознавателем: переиспользованный после ошибок иногда «зависает».
+        destroyRecognizer()
         segments.clear()
+        lastPartial = ""
+        finished = false
         stopRequested = false
         restartPending = false
         startedAt = System.currentTimeMillis()
+        everReady = false
+        heardVoice = false
+        quickFails = 0
+        retries = 0
+        switchedEngine = false
         onEventCurrent = onEvent
-        if (!isAvailable()) {
-            onEvent(Event.Error("Распознавание речи на телефоне недоступно"))
-            return
-        }
+        if (!isAvailable()) return fail("Распознавание речи на телефоне недоступно")
         if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            onEvent(Event.Error("Нет доступа к микрофону"))
-            return
+            return fail("Нет доступа к микрофону")
         }
-        probeOnDeviceSupport()
-        begin(onEvent)
+        useOnDevice = chooseOnDevice()
+        if (useOnDevice) probeOnDeviceSupport()
+        begin()
     }
 
-    /** Закончить запись: распознаватель выдаст результат по уже сказанному. */
+    /** Закончить запись: результат — по уже сказанному. */
     fun stop() {
+        if (finished) return
         stopRequested = true
-        if (restartPending) {
-            restartPending = false
-            onEventCurrent?.let { finishManual(it) }
-            return
+        when {
+            restartPending -> finish()
+            // Микрофон ещё не включился — ждать нечего.
+            !ready -> finish()
+            else -> {
+                runCatching { recognizer?.stopListening() }
+                // Распознаватель обязан ответить сам, но если молчит — не держим кнопку «■» вечно.
+                val id = session
+                main.postDelayed({
+                    if (!finished && session == id) {
+                        Log.i(TAG, "no result after stop — finishing with what we have")
+                        finish()
+                    }
+                }, STOP_GRACE_MS)
+            }
         }
-        runCatching { recognizer?.stopListening() }
-    }
-
-    private fun keepListening(): Boolean =
-        manualStop && !stopRequested && System.currentTimeMillis() - startedAt < MAX_MANUAL_MS
-
-    private fun joined(vararg tail: String): String =
-        (segments + tail.filter { it.isNotBlank() }).joinToString(" ").trim()
-
-    /** Кусок закончился на паузе — запоминаем его и сразу слушаем дальше. */
-    private fun continueManual(piece: String, onEvent: (Event) -> Unit) {
-        if (piece.isNotBlank()) segments += piece.trim()
-        if (segments.isNotEmpty()) onEvent(Event.Partial(joined()))
-        session++ // колбэки завершённого куска больше не нужны
-        restartPending = true
-        main.postDelayed({
-            if (!restartPending) return@postDelayed
-            restartPending = false
-            if (stopRequested) finishManual(onEvent) else begin(onEvent)
-        }, 150)
-    }
-
-    private fun finishManual(onEvent: (Event) -> Unit, lastAlternatives: List<String> = emptyList()) {
-        session++
-        runCatching { recognizer?.cancel() }
-        val alts = lastAlternatives.filter { it.isNotBlank() }.map { joined(it) }
-            .ifEmpty { listOf(joined(lastPartial)).filter { it.isNotBlank() } }
-        if (alts.isEmpty()) onEvent(Event.Error(errorMessage(SpeechRecognizer.ERROR_NO_MATCH)))
-        else onEvent(Event.Final(alts.distinct()))
     }
 
     /** Прервать без результата. */
     fun cancel() {
         session++
+        finished = true
         restartPending = false
+        main.removeCallbacksAndMessages(null)
         runCatching { recognizer?.cancel() }
     }
 
     fun destroy() {
-        session++
+        cancel()
+        destroyRecognizer()
+        onEventCurrent = null
+    }
+
+    private fun destroyRecognizer() {
         recognizer?.let {
             runCatching { it.cancel() }
             runCatching { it.destroy() }
@@ -191,37 +210,111 @@ class SpeechInput(private val context: Context) {
         recognizer = null
     }
 
-    private fun begin(onEvent: (Event) -> Unit) {
-        val rec = obtain(wantOnDevice()) ?: run {
-            onEvent(Event.Error("Не удалось запустить распознавание"))
-            return
-        }
-        val id = ++session
-        lastPartial = ""
-        rec.setRecognitionListener(Listener(id, onEvent))
-        try {
-            rec.startListening(recognizerIntent(appContext, manualStop))
-        } catch (e: Exception) {
-            Log.w(TAG, "startListening", e)
-            onEvent(Event.Error("Не удалось включить микрофон"))
-        }
-    }
-
-    private fun wantOnDevice(): Boolean {
+    private fun chooseOnDevice(): Boolean {
         val onDevice = SpeechRecognizer.isOnDeviceRecognitionAvailable(appContext)
         val cloud = SpeechRecognizer.isRecognitionAvailable(appContext)
         return when {
             !onDevice -> false
             !cloud -> true
-            else -> !preferCloud(appContext)
+            else -> offline
         }
+    }
+
+    private fun keepListening(): Boolean =
+        manualStop && !stopRequested && System.currentTimeMillis() - startedAt < MAX_MANUAL_MS
+
+    private fun joined(tail: String = ""): String =
+        (segments.map { it.first() } + tail).filter { it.isNotBlank() }.joinToString(" ").trim()
+
+    private fun partialTail(): List<String> = listOfNotNull(lastPartial.takeIf { it.isNotBlank() })
+
+    private fun begin() {
+        if (finished) return
+        val rec = obtain(useOnDevice) ?: return fail("Не удалось запустить распознавание")
+        val id = ++session
+        lastPartial = ""
+        ready = false
+        begunAt = System.currentTimeMillis()
+        rec.setRecognitionListener(Listener(id))
+        val left = (MAX_MANUAL_MS - (begunAt - startedAt)).coerceAtLeast(1_000L)
+        try {
+            rec.startListening(recognizerIntent(appContext, useOnDevice, if (manualStop) left else 0L, bias))
+        } catch (e: Exception) {
+            Log.w(TAG, "startListening", e)
+            return fail("Не удалось включить микрофон")
+        }
+        // Распознаватель не сказал «готов» — пересоздаём его, а не ждём бесконечно.
+        main.postDelayed({ if (session == id && !ready && !finished) onStartTimeout() }, READY_TIMEOUT_MS)
+    }
+
+    private fun onStartTimeout() {
+        Log.w(TAG, "recognizer not ready in ${READY_TIMEOUT_MS}ms (onDevice=$useOnDevice, retries=$retries)")
+        destroyRecognizer()
+        when {
+            retries < 1 -> {
+                retries++
+                begin()
+            }
+            segments.isNotEmpty() -> finish()
+            else -> fail("Микрофон не включился. Закройте приложения, которые могут его занимать, и попробуйте снова")
+        }
+    }
+
+    /** Кусок закончился (пауза) — запоминаем его и слушаем дальше. */
+    private fun restart(piece: List<String>) {
+        if (piece.isNotEmpty()) segments += piece
+        lastPartial = ""
+        // Распознаватель сразу же падает снова и снова — микрофон, видимо, недоступен; не крутимся вхолостую.
+        quickFails = if (System.currentTimeMillis() - begunAt < QUICK_FAIL_MS) quickFails + 1 else 0
+        if (quickFails >= 5) {
+            Log.w(TAG, "recognizer keeps failing instantly")
+            return if (segments.isNotEmpty()) finish() else fail("Микрофон не отвечает — попробуйте ещё раз")
+        }
+        if (quickFails == 3) destroyRecognizer()
+        session++ // колбэки завершённого куска больше не нужны
+        restartPending = true
+        if (segments.isNotEmpty()) onEventCurrent?.invoke(Event.Partial(joined()))
+        main.postDelayed({
+            if (!restartPending) return@postDelayed
+            restartPending = false
+            if (stopRequested) finish() else begin()
+        }, if (quickFails > 0) 300L else 50L)
+    }
+
+    /** Итог записи: склеенные куски + [tail] (варианты последнего куска). */
+    private fun finish(tail: List<String> = partialTail()) {
+        if (finished) return
+        finished = true
+        session++
+        restartPending = false
+        main.removeCallbacksAndMessages(null)
+        runCatching { recognizer?.cancel() }
+        val pieces = ArrayList(segments)
+        tail.filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }?.let { pieces += it }
+        val cb = onEventCurrent ?: return
+        if (pieces.isEmpty()) return cb(Event.Error(nothingHeardMessage()))
+        val prefix = pieces.dropLast(1).map { it.first() }
+        val alts = pieces.last().map { (prefix + it).joinToString(" ").trim() }.filter { it.isNotBlank() }.distinct()
+        cb(if (alts.isEmpty()) Event.Error(nothingHeardMessage()) else Event.Final(alts))
+    }
+
+    private fun fail(message: String) {
+        if (finished) return
+        val cb = onEventCurrent
+        cancel()
+        cb?.invoke(Event.Error(message))
+    }
+
+    private fun nothingHeardMessage(): String = when {
+        !everReady -> "Микрофон ещё не включился. Нажмите, дождитесь вибрации и говорите"
+        !heardVoice -> "Микрофон не слышит голоса. Говорите громче или ближе к телефону"
+        else -> errorMessage(SpeechRecognizer.ERROR_NO_MATCH)
     }
 
     private fun obtain(onDevice: Boolean): SpeechRecognizer? {
         recognizer?.let {
             if (recognizerOnDevice == onDevice) return it
-            runCatching { it.destroy() }
-            recognizer = null
+            destroyRecognizer()
         }
         val r = runCatching {
             if (onDevice) SpeechRecognizer.createOnDeviceSpeechRecognizer(appContext)
@@ -232,15 +325,24 @@ class SpeechInput(private val context: Context) {
         return r
     }
 
-    private inner class Listener(private val id: Int, private val onEvent: (Event) -> Unit) : RecognitionListener {
-        private val live get() = id == session
+    private inner class Listener(private val id: Int) : RecognitionListener {
+        private val live get() = id == session && !finished
 
         override fun onReadyForSpeech(params: Bundle?) {
-            if (live) onEvent(Event.Ready)
+            if (!live) return
+            ready = true
+            everReady = true
+            onEventCurrent?.invoke(Event.Ready)
+        }
+
+        override fun onBeginningOfSpeech() {
+            if (live) heardVoice = true
         }
 
         override fun onRmsChanged(rmsdB: Float) {
-            if (live) onLevel?.invoke(rmsdB)
+            if (!live) return
+            if (rmsdB >= VOICE_RMS) heardVoice = true
+            onLevel?.invoke(rmsdB)
         }
 
         override fun onPartialResults(partialResults: Bundle?) {
@@ -248,87 +350,86 @@ class SpeechInput(private val context: Context) {
             val text = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 ?.firstOrNull { it.isNotBlank() } ?: return
             lastPartial = text
-            onEvent(Event.Partial(if (manualStop) joined(text) else text))
+            onEventCurrent?.invoke(Event.Partial(joined(text)))
+        }
+
+        /** Сегментированная сессия: готов очередной кусок, запись продолжается. */
+        override fun onSegmentResults(segmentResults: Bundle) {
+            if (!live) return
+            val alts = segmentResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
+                .filter { it.isNotBlank() }
+            if (alts.isEmpty()) return
+            segments += alts
+            lastPartial = ""
+            onEventCurrent?.invoke(Event.Partial(joined()))
+        }
+
+        override fun onEndOfSegmentedSession() {
+            if (!live) return
+            if (keepListening()) restart(partialTail()) else finish()
         }
 
         override fun onResults(results: Bundle?) {
             if (!live) return
             val alts = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
                 .filter { it.isNotBlank() }
-                .ifEmpty { listOfNotNull(lastPartial.takeIf { it.isNotBlank() }) }
-            if (manualStop) {
-                if (keepListening()) continueManual(alts.firstOrNull().orEmpty(), onEvent)
-                else finishManual(onEvent, alts)
-                return
-            }
-            session++ // сессия закончена
-            if (alts.isEmpty()) onEvent(Event.Error(errorMessage(SpeechRecognizer.ERROR_NO_MATCH)))
-            else onEvent(Event.Final(alts))
+                .ifEmpty { partialTail() }
+            if (keepListening()) restart(alts) else finish(alts)
         }
 
         override fun onError(error: Int) {
             if (!live) return
-            Log.i(TAG, "recognizer error $error (onDevice=$recognizerOnDevice)")
-            val languageProblem = error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED ||
-                error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE
+            Log.i(TAG, "recognizer error $error (onDevice=$recognizerOnDevice, stop=$stopRequested)")
             val silence = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+            val language = error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED ||
+                error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE
+            val network = error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT ||
+                error == SpeechRecognizer.ERROR_SERVER || error == SpeechRecognizer.ERROR_TOO_MANY_REQUESTS
             when {
+                // Пользователь нажал «стоп» — отдаём всё, что накопилось.
+                stopRequested && (silence || error == SpeechRecognizer.ERROR_CLIENT) -> finish()
                 // Ручной режим: тишина — это пауза «на подумать», слушаем дальше.
-                manualStop && silence && keepListening() -> continueManual(lastPartial, onEvent)
-                // Ручной режим, пользователь нажал «стоп» (или вышло время) — отдаём всё, что накопилось.
-                manualStop && (silence || error == SpeechRecognizer.ERROR_CLIENT) && (stopRequested || segments.isNotEmpty()) ->
-                    finishManual(onEvent)
-                // Модели es-ES на устройстве нет — переходим на обычный (облачный) распознаватель и запоминаем это.
-                languageProblem && recognizerOnDevice && !fellBackToCloud &&
-                    SpeechRecognizer.isRecognitionAvailable(appContext) -> {
-                    fellBackToCloud = true
-                    recognizer?.let { requestModelDownload(it) }
-                    setPreferCloud(appContext, true)
-                    begin(onEvent)
-                }
-                // Облако испанский не умеет, а офлайн-распознаватель есть (модель могла уже скачаться) — пробуем его.
-                languageProblem && !recognizerOnDevice && !fellBackToCloud &&
+                silence && keepListening() -> restart(partialTail())
+                // Google онлайн недоступен (нет сети) или не знает язык — переходим на распознаватель телефона.
+                !useOnDevice && (network || language) && !switchedEngine &&
                     SpeechRecognizer.isOnDeviceRecognitionAvailable(appContext) -> {
-                    fellBackToCloud = true // одна попытка переключения за запуск записи
-                    setPreferCloud(appContext, false)
-                    begin(onEvent)
+                    switchedEngine = true
+                    useOnDevice = true
+                    probeOnDeviceSupport()
+                    begin()
+                }
+                // На телефоне нет испанской модели — просим скачать и пока работаем через Google.
+                useOnDevice && language && !switchedEngine && SpeechRecognizer.isRecognitionAvailable(appContext) -> {
+                    switchedEngine = true
+                    recognizer?.let { requestModelDownload(it) }
+                    useOnDevice = false
+                    begin()
                 }
                 // Распознаватель занят/отключился — пересоздаём и пробуем ещё раз.
-                (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY || error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED) &&
-                    retries < 1 -> {
+                (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY || error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED ||
+                    error == SpeechRecognizer.ERROR_CLIENT) && retries < 1 -> {
                     retries++
-                    recognizer?.let { runCatching { it.destroy() } }
-                    recognizer = null
-                    begin(onEvent)
-                }
-                // Что-то уже было распознано — засчитываем это как окончательный результат.
-                (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) &&
-                    lastPartial.isNotBlank() -> {
                     session++
-                    onEvent(Event.Final(listOf(lastPartial)))
+                    destroyRecognizer()
+                    main.postDelayed({ begin() }, 250L)
                 }
-                else -> {
-                    session++
-                    onEvent(Event.Error(errorMessage(error)))
-                }
+                // Тишина или сбой, но что-то уже распознано — засчитываем это.
+                silence || segments.isNotEmpty() || lastPartial.isNotBlank() -> finish()
+                else -> fail(errorMessage(error))
             }
         }
 
-        override fun onBeginningOfSpeech() {}
         override fun onBufferReceived(buffer: ByteArray?) {}
         override fun onEndOfSpeech() {}
         override fun onEvent(eventType: Int, params: Bundle?) {}
     }
 
-    /**
-     * Один раз за запуск приложения спрашиваем у распознавателя на устройстве, установлена ли модель es-ES.
-     * Установлена — снова предпочитаем офлайн; можно скачать — запускаем загрузку и пока работаем через облако.
-     */
+    /** Один раз за запуск приложения: если испанской модели на телефоне нет — просим систему её скачать. */
     private fun probeOnDeviceSupport() {
         if (probed || !SpeechRecognizer.isOnDeviceRecognitionAvailable(appContext)) return
         probed = true
         val probe = runCatching { SpeechRecognizer.createOnDeviceSpeechRecognizer(appContext) }.getOrNull() ?: return
-        val intent = recognizerIntent(appContext)
+        val intent = recognizerIntent(appContext, onDevice = true)
         runCatching {
             probe.checkRecognitionSupport(intent, ContextCompat.getMainExecutor(appContext), object : RecognitionSupportCallback {
                 override fun onSupportResult(support: RecognitionSupport) {
@@ -336,12 +437,7 @@ class SpeechInput(private val context: Context) {
                     val pending = support.pendingOnDeviceLanguages.any { it.equals(LANG, ignoreCase = true) }
                     val supported = support.supportedOnDeviceLanguages.any { it.equals(LANG, ignoreCase = true) }
                     Log.i(TAG, "on-device es-ES: installed=$installed pending=$pending supported=$supported")
-                    if (installed) {
-                        setPreferCloud(appContext, false)
-                    } else if (SpeechRecognizer.isRecognitionAvailable(appContext)) {
-                        setPreferCloud(appContext, true)
-                        if (supported && !pending) requestModelDownload(probe, intent)
-                    }
+                    if (!installed && supported && !pending) requestModelDownload(probe, intent)
                     runCatching { probe.destroy() }
                 }
 
@@ -356,7 +452,7 @@ class SpeechInput(private val context: Context) {
         }
     }
 
-    private fun requestModelDownload(rec: SpeechRecognizer, intent: Intent = recognizerIntent(appContext)) {
+    private fun requestModelDownload(rec: SpeechRecognizer, intent: Intent = recognizerIntent(appContext, onDevice = true)) {
         if (downloadRequested) return
         downloadRequested = true
         // Не блокирует: система качает модель в фоне (может показать своё уведомление).
@@ -366,36 +462,42 @@ class SpeechInput(private val context: Context) {
     companion object {
         private const val TAG = "SpeechInput"
         private const val LANG = "es-ES"
-        private const val PREFS = "lectura_speech"
-        private const val KEY_CLOUD = "preferCloud"
 
         private var probed = false
         private var downloadRequested = false
-        private var cloudCache: Boolean? = null
-
-        private fun preferCloud(ctx: Context): Boolean =
-            cloudCache ?: ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_CLOUD, false)
-                .also { cloudCache = it }
-
-        private fun setPreferCloud(ctx: Context, v: Boolean) {
-            if (cloudCache == v) return
-            cloudCache = v
-            ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_CLOUD, v).apply()
-        }
 
         /** Предел длины ответа в ручном режиме. */
         const val MAX_MANUAL_MS = 60_000L
+        private const val READY_TIMEOUT_MS = 4_000L
+        private const val STOP_GRACE_MS = 2_500L
+        /** Ошибка раньше этого срока после запуска — «мгновенный» сбой. */
+        private const val QUICK_FAIL_MS = 600L
+        /** Громкость (дБ), выше которой считаем, что микрофон слышит голос. */
+        private const val VOICE_RMS = 4f
 
-        private fun recognizerIntent(ctx: Context, manual: Boolean = false) = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        /** [manualMs] > 0 — запись по кнопке: просим одну длинную сегментированную сессию. */
+        private fun recognizerIntent(
+            ctx: Context,
+            onDevice: Boolean,
+            manualMs: Long = 0L,
+            bias: List<String> = emptyList(),
+        ) = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            val manual = manualMs > 0
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, LANG)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            // Офлайн-модель Google заметно хуже серверной — просим её, только если выбран распознаватель на телефоне.
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, onDevice)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, ctx.packageName)
             // Ученик говорит медленно, с паузами — не обрываем запись слишком рано.
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, if (manual) 10_000L else 2000L)
-            if (manual) putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 10_000L)
+            if (manual) {
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 10_000L)
+                putExtra(RecognizerIntent.EXTRA_SEGMENTED_SESSION, RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, manualMs)
+            }
+            if (bias.isNotEmpty()) putStringArrayListExtra(RecognizerIntent.EXTRA_BIASING_STRINGS, ArrayList(bias))
             // Звёздочки вместо слов сломали бы сравнение.
             putExtra(RecognizerIntent.EXTRA_MASK_OFFENSIVE_WORDS, false)
         }
@@ -554,10 +656,15 @@ object SpeechMatch {
     private fun same(a: String, b: String): Boolean = when {
         a == b -> true
         a in UNO && b in UNO -> true
+        // Звучат одинаково (h немая, b = v, ll = y) — произношение верное, это распознаватель выбрал написание.
+        sound(a) == sound(b) -> true
         // Мелкая оговорка/ошибка распознавания в длинном слове не считается промахом.
         minOf(a.length, b.length) >= 6 && editDistanceAtMostOne(a, b) -> true
         else -> false
     }
+
+    /** Как слово звучит в испанском Испании: «hola» = «ola», «vaso» = «baso», «llamo» = «yamo». */
+    internal fun sound(w: String): String = w.replace(SILENT_H, "").replace("ll", "y").replace('v', 'b')
 
     private fun editDistanceAtMostOne(a: String, b: String): Boolean {
         if (kotlin.math.abs(a.length - b.length) > 1) return false
@@ -595,6 +702,7 @@ object SpeechMatch {
     private val MARKS = Regex("\\p{Mn}+")
     private val NON_WORD = Regex("[^\\p{L}\\p{N}]+")
     private val UNO = setOf("un", "uno", "una")
+    private val SILENT_H = Regex("(?<!c)h")
 }
 
 private sealed interface SpeakUi {
@@ -627,6 +735,8 @@ fun SpeakButton(
     val lifecycleOwner = LocalLifecycleOwner.current
     val prefs = LecturaApp.instance.prefs
     var manualStop by remember { mutableStateOf(prefs.speechManualStop) }
+    var offline by remember { mutableStateOf(prefs.speechOffline) }
+    val view = LocalView.current
 
     DisposableEffect(input) {
         input.onLevel = { level = it }
@@ -654,10 +764,17 @@ fun SpeakButton(
         level = 0f
         ui = SpeakUi.Listening()
         input.manualStop = manualStop
+        input.offline = offline
+        // Имена из образца («Me llamo Iván») не подсказываем: у ученика своё имя.
+        input.bias = currentAccepted.ifEmpty { listOf(exp) }.map { SpeechMatch.withoutNames(it) }.distinct().take(20)
         input.start { ev ->
             if (exp != currentExpected) return@start
             when (ev) {
-                SpeechInput.Event.Ready -> (ui as? SpeakUi.Listening)?.let { ui = it.copy(ready = true) }
+                SpeechInput.Event.Ready -> (ui as? SpeakUi.Listening)?.takeIf { !it.ready }?.let {
+                    // Вибрация = «можно говорить»: слова, сказанные раньше, микрофон не слышит.
+                    view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                    ui = it.copy(ready = true)
+                }
                 is SpeechInput.Event.Partial -> ui = SpeakUi.Listening(ev.text, ready = true)
                 is SpeechInput.Event.Final -> {
                     val r = SpeechMatch.best(currentAccepted.ifEmpty { listOf(exp) }, ev.alternatives)
@@ -700,11 +817,15 @@ fun SpeakButton(
                             manualStop = it
                             prefs.speechManualStop = it
                         }
+                        EngineToggle(offline) {
+                            offline = it
+                            prefs.speechOffline = it
+                        }
                     }
                     is SpeakUi.Listening -> {
                         Text(
                             when {
-                                !state.ready -> "Включаю микрофон…"
+                                !state.ready -> "Включаю микрофон… говорите после вибрации"
                                 manualStop -> "Говорите, можно с паузами. Нажмите ■, когда закончите"
                                 else -> "Говорите… (нажмите, чтобы закончить)"
                             },
@@ -770,6 +891,17 @@ private fun StopModeToggle(manual: Boolean, onChange: (Boolean) -> Unit) {
     TextButton(onClick = { onChange(!manual) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
         Text(
             if (manual) "Конец записи: по кнопке ■ (сменить)" else "Конец записи: на паузе (сменить)",
+            style = MaterialTheme.typography.labelMedium,
+        )
+    }
+}
+
+/** Переключатель движка: Google онлайн (по умолчанию, точнее) или распознаватель на телефоне (офлайн). */
+@Composable
+private fun EngineToggle(offline: Boolean, onChange: (Boolean) -> Unit) {
+    TextButton(onClick = { onChange(!offline) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+        Text(
+            if (offline) "Распознавание: на телефоне, офлайн (сменить)" else "Распознавание: Google, онлайн (сменить)",
             style = MaterialTheme.typography.labelMedium,
         )
     }

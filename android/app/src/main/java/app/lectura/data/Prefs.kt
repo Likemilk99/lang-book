@@ -48,6 +48,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("speechManualStop", true)
         set(v) = sp.edit().putBoolean("speechManualStop", v).apply()
 
+    /** Распознавать речь на телефоне (офлайн) вместо Google онлайн. */
+    var speechOffline: Boolean
+        get() = sp.getBoolean("speechOffline", false)
+        set(v) = sp.edit().putBoolean("speechOffline", v).apply()
+
     /** Последний выбранный уровень во вкладке «Грамматика» ("" — выбрать автоматически). */
     var grammarLevel: String
         get() = sp.getString("grammarLevel", "") ?: ""
