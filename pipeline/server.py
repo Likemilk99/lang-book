@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import errno
 import hmac
 import json
 import os
@@ -281,7 +282,15 @@ async def serve(args) -> None:
     hub = Hub(args.level, args.model, args.effort, not args.no_audio)
     runner = web.AppRunner(make_app(hub, code), access_log=None)
     await runner.setup()
-    await web.TCPSite(runner, "0.0.0.0", args.port).start()
+    try:
+        await web.TCPSite(runner, "0.0.0.0", args.port).start()
+    except OSError as e:
+        await runner.cleanup()
+        if e.errno == errno.EADDRINUSE:
+            print(f"\n🟡 Порт {args.port} уже занят — скорее всего, сервер уже запущен в другом окне Терминала.\n"
+                  "   Второй не нужен: телефон работает с тем, что уже запущен.")
+            return
+        raise
     bonjour = subprocess.Popen(["dns-sd", "-R", f"Lectura {socket.gethostname().split('.')[0]}", SERVICE,
                                 "local", str(args.port)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     print(f"""

@@ -1,67 +1,58 @@
 # Lectura
 
-Personal Android app for learning Spanish (Spain, es-ES) by reading adapted books. The user is a native Russian speaker at A0–A1 and reads on a Pixel 8 Pro. It is a personal tool, not a product: no onboarding, paywall, accounts or catalog.
+Personal Android app for learning Spanish (Spain, es-ES). The user is a native Russian speaker at A0–A1 who lives in Spain and uses a Pixel 8 Pro. The main goal is speaking in everyday situations as soon as possible. Adapted books stay as the reading/listening part.
 
-## Architecture
-- **Content is prepared on the Mac**: `pipeline/prepare_book.py` calls `claude -p --json-schema` using the user's subscription. There is no API key, and the app makes no LLM calls.
-- **The app works offline**. A book is a JSON file `books/<id>.json`; every word already carries its translation and grammar. Network is used only for one-time downloads: a book's narrator pack from GitHub and card pictures from Pixabay; after that everything is shown from local files.
-- **Audio**: book text is read from pre-generated narrator audio (Qwen3-TTS on the Mac, a voice per character, dialogue tags like «—dice Lucía» in the narrator's voice) once the book's pack is downloaded; otherwise, and always for words, phrases and exercises, the Android system TTS (es-ES). `Sentence.audio` is unused (reserved).
-- Qwen3-TTS was chosen by the user after listening to one chapter voiced by Piper, Supertonic 3, Kokoro, Qwen3-TTS and Chatterbox (scripts and files in `books/.work/tts-compare/`, not in git). Don't re-open that choice without a reason; on-device models (Piper/Supertonic via sherpa-onnx) are the fallback idea if system TTS for words ever needs replacing.
+It is a personal tool, not a product: no onboarding, paywall, accounts or catalog.
 
-## Structure
-- `pipeline/prepare_book.py`: `--topic` writes an original story, `--source` adapts a txt/epub; `--enrich book.json` only refreshes a book's markup. Levels A0–B2. Results are cached in `books/.work/`, and `--push` sends the book to the phone over adb. The enrich step adds characters, the speaker of each line (`sp`), phrases, comprehension questions and dialogue replies, and tags (`--tags book.json` re-tags only). The tag catalog is `TAGS` in the pipeline = `model/Tags.kt` in the app (3 groups; ids are never changed).
-- `pipeline/audio.py`: narrator audio (`--all`, `--upload`, `--voices`). Qwen3-TTS via MLX in its own venv (`pipeline/.cache/audio-venv`, created automatically). Voice bank `pipeline/voices/` (committed; `narr` + 4 male + 3 female, handed out by gender in `Book.characters` order). Each sentence is split into speech and dialogue tags, every piece is checked by Whisper (best of 3), and the result is `<chapter>_<sentence>.m4a`. Packs `books/.work/audio/<id>.zip` (+ `manifest.json` with a token hash per sentence) go to the pre-release GitHub Release `audio` (never mark it latest). The book gets `audio{url,size,version}`. Only changed sentences are regenerated; ~1× real time on an M1 Pro, all books ≈ 7 h.
-- `android/`: Kotlin, Compose, Room, no DI. Package `app.lectura`.
-  - `model/Book.kt`: book format (Book{characters,audio} → Chapter{phrases,questions,replies,grammar,glossary} → Paragraph → Sentence{sp} → Token{t,l,ru,g,r}).
-  - `playback/Player.kt`: single source of truth for the current position. Reads sentence by sentence (narrator file via MediaPlayer, otherwise TTS) and saves progress.
-  - `playback/PlaybackService.kt`: foreground service with MediaSession, for listening with the screen off.
-  - `playback/Lessons.kt` + `LessonService.kt`: audio lessons for walks («Предугадай»: Russian prompt via ru-RU system TTS → pause sized by phrase length (`pauseFor`) → narrator clip twice; «Слушай и повторяй»: Spanish → pause → again). Built on the fly by `data/LessonSources.kt` from today's due items, «Мои фразы», scenarios (key phrases + your lines) and phrasebook themes — no extra audio files. Own foreground service + MediaSession (headset buttons) + partial wake lock while playing so pauses don't stretch with the screen off. `ClipPlayer` plays a clip and awaits its end (APK asset or absolute file path).
-  - `data/`: Room v8 (words, progress, meta, daily_stats, chapter_activity, grammar_progress, word_images, scenario_progress, inbox), `UserData.kt` (all user-data writes, version stamping, backup, `markKnown`, `addPhrases`, `recordPractice`, `recordChapterActivity`), `DailyPlan.kt` («План на сегодня»; the speaking step is the next unfinished scenario step, else a book role-play, else the phrasebook), `PhrasebookRepository` (phrasebooks + scenario key phrases, clip lookup), `Scenarios.kt` (`ScenarioRepository`, `ScenarioStep`, `ScenarioState`: done/next/canDo), `Srs.kt` (SM-2), `Memory.kt` (recall estimate on the FSRS curve, picking words for extra practice), `BookStats.kt` (book vocabulary coverage by lemma, chapter exercises), `BookRepository` (JSON files in `Android/data/app.lectura/files/books/`), `CurriculumRepository` (syllabus from assets), `BookAudio` (download/unzip narrator packs to `files/audio/<id>/`; a sentence whose token hash doesn't match the manifest falls back to TTS — the hash must equal `token_hash` in `pipeline/audio.py`), `Expressions.kt` (multi-word expressions, see Rules), `Prefs`.
-  - `ui/`: tabs Главная · Говорить · Повторение · Словарь (`MainActivity`). HomeScreen (StatsCard, «План на сегодня» from `data/DailyPlan.kt`: review → read/listen → speak → grammar, steps lead to a tab or screen; tiles open Library and Grammar as sections with «Назад»; reminder settings), TalkScreen («Говорить»: scenarios by level, phrasebook cards, role-play/shadowing by chapter of started books), LessonsScreen (audio lessons + now playing), ListenScreen («Тренажёр слуха»: dictation of your review phrases — missed words shown via `SpeechMatch.compare`, a miss on a review item goes through `recordPractice`; «Понять на слух» on the other person's lines and «понять» items from scenarios, distractors from the same scenario first (`data/Listening.kt`); speed 0.8/1.0/1.2 and «один раз»), `VoiceCompare` in the phrase trainer («🎙 Записать себя» → «▶ Диктор → вы», MediaRecorder, separate from recognition), MyPhrasesScreens («Обо мне» answers, «Как сказать…» inbox, «Расскажите о себе» training — your answer or any accepted one), ScenarioScreens (overview of 7 steps → phrases (`PhraseTrainer`), listen (text hidden), your role, the other person's role, twist, understand, answer in your own words — `SpeakButton(accepted = …)` passes on any accepted answer, plus «засчитать»; a step counts from 60 %, all steps = «Могу», shown on Home), PhrasebookScreens (themes → phrases with narrator audio, «Учить все» → `UserData.addPhrases`, «Тренировка» listen-and-repeat), Library (level and topic filters, book progress), BookStatsScreen (per-chapter table), MemoryCard («Память словаря»), Reader (tap a word → bottom sheet, «Выделить фразу», chapter phrasebook, chapter glossary with «Учить все», «Ещё» menu with «Скачать/Обновить/Удалить озвучку», 🎙 in the player bar while the narrator reads), Vocab, Review, ProgressScreen («мой прогресс»), DataDialog (backup/restore, «Озвучка книг»: download all packs), QuestionsScreen, ShadowingScreen (shadowing and role-play). `ui/grammar/`: topic list, theory and practice per grammar topic (`GrammarLogic` checks answers and builds the spoken prompt).
-  - `reminder/Reminder.kt`: daily reminder (WorkManager periodic work at `Prefs.reminderMinutes`, default 20:00) — a notification only if the day has no activity (`DailyStats.isActive`).
-  - `images/`: pictures for word cards (Pixabay). `PixabayApi` (key in the query string, redacted in logs; 400 → no retry, 429 → wait for `X-RateLimit-Reset`, 5xx/offline → 3 retries), `RateLimiter` (≤ 90 req/min), `ImageDownloader` (`filesDir/word_images/`, image/* only, ≤ 5 MB, tmp + rename), `WordImageRepository` (Room `word_images` → file; otherwise photo → illustration → Russian translation → `not_found`, retried after 7 days; candidates kept 24 h for «Другая картинка»; «Убрать картинку» = `disabled`; one in-flight load per word). `ui/WordImageView` shows it on the flashcard once the meaning is visible (not for phrases), with «Pixabay · author» linking to the page; `ReviewViewModel` prefetches the next 5 words.
-  - `review/`: mixed session. `ExerciseBuilder` picks the exercise by the item's stage (ladder 0–6) and alternates types. Types: flashcards, listen-and-choose, fill-in from options, fill-in by typing, sentence building, say it aloud, listen-and-repeat (stages 0–2), say by template (phrasebook phrases with `pattern`, stage 3+), dialogue reply. Speaking starts at stage 0 and is twice as likely for phrases. `playback/SpeakEs.kt` `speakEs(text, ref)` plays the narrator clip when the text matches the phrase or a variant, else TTS. `SessionBatch` caps a session; `TextMatch` compares answers.
-  - `speech/Speech.kt`: es-ES recognition (on-device first, cloud as fallback), `SpeechMatch` (LCS over words ignoring accents), `SpeakButton`. `SpeechTts` is TTS with a wait for completion. `SpanishNumbers`: digits → Spanish words.
-- `pipeline/prepare_book.py --original`: public-domain originals with no text changes (authors who died before 1945, published before 1930; sources in `pipeline/sources/README.md`). Words are flagged rare/old (`Token.r`), each chapter gets a glossary, and versions of one work are linked through `workId`.
-- `pipeline/phrasebook.py`: phrasebooks for speaking — A0 «Выживание» and A1 «Повседневные ситуации» (12 themes each, `assets/phrasebook/phrasebook_<L>.json`, contract `model/Phrasebook.kt`). Written theme by theme by `claude -p` (opus), cached in `pipeline/.cache/phrasebook/`; A1 avoids A0 phrases. A phrase may have a template `pattern` («Quería ___.») with `slots` (slot 0 = the phrase itself). Voiced by `audio.py --phrasebook` (narr voice) into `assets/phrasebook/audio/<id>.m4a` + `<id>_<k>.m4a` per variant — bundled in the APK, no upload; `PhrasebookTest` fails if a clip is missing.
-- `pipeline/scenarios.py`: speaking scenarios (12: 6 A0 + 6 A1 — café, pharmacy, shop, train, directions, neighbour, doctor, flat viewing, repair call, bank, police report, restaurant) in `assets/scenarios/scenarios.json` (contract `model/Scenario.kt`). Each: situation, «Могу …» goal, the other person's role/gender, 8–10 key phrases (phrasebook phrases are reused by exact text → same id, one card in review), 2 dialogues (normal + twist), 5 «понять ответ» items, 4–5 questions with several accepted answers. Voiced by `audio.py --scenarios` (learner m1, other person f2/m2, key phrases narr into `assets/phrasebook/audio`); `ScenarioTest` checks format, id reuse and that every clip exists.
-- `pipeline/server.py`: «Мои фразы» over home Wi-Fi, started by hand (`python3 pipeline/server.py`, Ctrl+C to stop; no autostart by the user's choice). aiohttp in the audio venv; advertises `_lectura._tcp` via the built-in `dns-sd`; port 8765. `/ws` (WebSocket: `status` {queue, busy, phase, current}, `done`, `error`), `POST /sync` (pending entries in → ready results out, missing ones queued), `GET /audio/<name>`. One worker thread does translation and voicing (MLX stays on one thread; the TTS engine is loaded once at start). Every request needs the 6-digit code from `books/.work/personal/server.json` in `X-Lectura-Code` (otherwise anyone on the Wi-Fi could spend the Claude subscription). Same code and cache as `personal.py` (shared helpers `entry_key`, `make_result`, `clips_for`). App side: `data/MacLink.kt` (NSD discovery → manual address → last host; OkHttp WebSocket with 10 s ping while «Говорить» or «Мои фразы» is visible, closed 5 s after; syncs on connect, on inbox changes and on `done`; downloads audio, then `PersonalRepository.addResults` + `sync`), `ui/MacStatus.kt` (dot: green connected, yellow working, red not found / code needed, grey searching; dialog with code and optional address). Port/service/header are checked against server.py by `MacLinkTest`. The manifest allows cleartext HTTP for this.
-- `pipeline/personal.py`: «Мои фразы» over USB (fallback). The app writes pending entries (answers to «Обо мне» questions — `model/Personal.kt` `ABOUT_QUESTIONS` — and «как сказать…» requests, in Russian) to `files/personal/inbox.json` on the phone; the script pulls it via adb, translates each entry once with `claude -p` (cache `books/.work/personal/results.json`, keyed by entry id + text hash), voices phrases (m1) and questions (f2) via `audio.py --clips`, and pushes `personal.json` + `audio/` back. `PersonalRepository.sync()` (app start, «Говорить», «Мои фразы» on resume) marks entries done and adds the phrases to review; a result belongs to an entry only if id AND text match (ids restart after a reinstall). **Personal data never goes to git** — only `books/.work/personal` (ignored) and the phone.
-- `pipeline/curriculum.py`: the syllabus (`assets/curriculum/vocab_*.json`, `grammar_*.json`, contract in `model/Curriculum.kt`) following the structure of the Plan Curricular del Instituto Cervantes (own wording, not a copy). A1–B2: about 4,800 words and 84 grammar topics with about 3,000 exercises.
-- `pipeline/library.py`: generates an adapted library per level so that it covers ≥ 90% of the level's vocabulary and every grammar topic (`Chapter.grammar`). Coverage reports are in `pipeline/coverage_*.md`.
-- `UserProgress` (`data/UserProgress.kt`, `ProgressService.compute`) is the single aggregate of user statistics, computed from Room. Level = 0.5·vocabulary + 0.5·grammar; 80% counts as covered.
-- Built-in books (`assets/books/`) refresh on the phone when their hash changes (`BookRepository.installBundled`).
-- Tests: `./gradlew testDebugUnitTest` (`BookFormatTest` checks the built-in books; `BookAudioTest` checks that the Kotlin token hash equals the pipeline's and that `audio` packs point to the release; `WordImagesTest` covers normalisation, `PixabayApi` on MockWebServer and the repository fallbacks/cache). Android's `Log` isn't available in unit tests, so code that logs must wrap it in `runCatching`.
+## Docs
+Feature docs live in [`docs/`](docs/README.md), one file per feature. **Read the relevant doc before changing a feature, and update it in the same change.** When a new feature appears, add a file and list it in `docs/README.md`.
 
-## Build and release
-- Local build: `cd android && JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew assembleDebug`
-- Version lives in `android/version.properties`; versionCode = MAJOR*10000+MINOR*100+PATCH.
-- Release: bump the version and push to `main`. `.github/workflows/release.yml` then publishes `vX.Y.Z` with `lectura.apk`.
-- Latest version: https://github.com/Likemilk99/lang-book/releases/latest/download/lectura.apk
-- Before a release: `./gradlew testDebugUnitTest assembleRelease`. After the push: `gh run watch <id>`, then `gh release view vX.Y.Z`.
-- Emulator: `adb`/`emulator` are not on PATH — `export PATH="$HOME/Library/Android/sdk/platform-tools:$HOME/Library/Android/sdk/emulator:$PATH"`; `emulator -avd Pixel_8_Pro -no-window -no-audio -no-boot-anim`, stop with `adb emu kill`. The installed app is release-signed, so install `app-release.apk` (a debug APK fails with INSTALL_FAILED_UPDATE_INCOMPATIBLE).
-- Narrator audio: `python3 pipeline/audio.py books/<id>.json --upload` (system `python3`; the script re-executes itself in its venv). For a long run use `nohup caffeinate -is python3 pipeline/audio.py --all --upload > books/.work/audio/all.log 2>&1 &`. Doubtful pieces (Whisper mismatch after 3 tries) are listed in `books/.work/audio/<id>/problems.json`; most are spelling noise, ≥3 wrong words is a real glitch.
-- `--upload` publishes to a public repo — it is outward-facing, confirm with the user before running it.
-- After a book's text changes (re-enrich, new book): rerun `audio.py` for it with `--upload`, then release the app, because the book JSON gets a new `audio.version`. Until then the changed sentences fall back to TTS.
-- Pixabay key: `PIXABAY_API_KEY` in `android/local.properties` (gitignored) locally, the `PIXABAY_API_KEY` secret in CI; it ends up in `BuildConfig`, so it is readable from the public APK. An empty key is fine: cards say «Не задан PIXABAY_API_KEY в local.properties».
-- Signing key: `~/.android/lectura-release.jks` + `.properties`, plus the `LECTURA_*` secrets on GitHub. **Never regenerate it**: a new key breaks updating the app on the phone.
+| Area | Doc |
+|---|---|
+| Principles, stack, package map, tabs | [docs/architecture.md](docs/architecture.md) |
+| Books, `prepare_book.py`, library, reader | [docs/books.md](docs/books.md) |
+| Qwen3-TTS narrator audio, `audio.py`, packs | [docs/narrator-audio.md](docs/narrator-audio.md) |
+| Review, SRS, exercises, answer matching | [docs/review.md](docs/review.md) |
+| Pixabay word pictures | [docs/word-images.md](docs/word-images.md) |
+| «Говорить»: phrasebooks, scenarios, recognition | [docs/speaking.md](docs/speaking.md) |
+| «Мои фразы»: `server.py` (Wi-Fi), `personal.py` (USB) | [docs/my-phrases.md](docs/my-phrases.md) |
+| Audio lessons, listening trainer | [docs/lessons-and-listening.md](docs/lessons-and-listening.md) |
+| Home, daily plan, reminder, progress | [docs/home-and-progress.md](docs/home-and-progress.md) |
+| Syllabus and grammar | [docs/grammar-curriculum.md](docs/grammar-curriculum.md) |
+| Room, `UserData`, backup, migrations | [docs/user-data.md](docs/user-data.md) |
+| Build, tests, release, emulator | [docs/build-and-release.md](docs/build-and-release.md) |
 
-## User data (must survive updates)
-- Write user data **only through `UserData`**: it stamps `appVersion` on the record and updates `meta.lastSaveVersion/lastSaveAt`.
-- Room is at v8 (v5 added `word_images`, a cache of card pictures that isn't in the backup; v6 added `words.ref` = phrasebook phrase id, in the backup as `WordDto.ref`; v7 added `scenario_progress` (best % per scenario step), in the backup as `Backup.scenarios`; v8 added `inbox` («Мои фразы» entries), in the backup as `Backup.inbox` — restored entries come back as pending, `personal.json` itself is not in the backup). Room schema change → bump `version` + add an `AutoMigration`/`Migration`; new columns get a `defaultValue`. Never use `fallbackToDestructiveMigration`.
-- `android/app/schemas/*.json` is committed; CI fails if the schema doesn't match.
-- Data steps between app versions go in `UserData.onAppStart()` (`if (from < X)`).
-- Backup format (`Backup`, `FORMAT`): new fields only with defaults; an incompatible change means `FORMAT + 1`.
-- Testing an upgrade: install the previous release APK on the emulator (AVD `Pixel_8_Pro`), create data, install the new one with `adb install -r`, open «Данные».
+## Core architecture (details in docs/architecture.md)
+- **Content is prepared on the Mac** by `pipeline/*.py` via `claude -p --json-schema` on the user's subscription. No API key; the app makes no LLM calls.
+- **The app works offline** (Kotlin, Compose, Room, no DI; package `app.lectura`). The network is used only for:
+  - narrator packs (GitHub);
+  - card pictures (Pixabay);
+  - the optional «Мои фразы» server on the Mac in the home Wi-Fi.
+- **Audio:** pre-generated Qwen3-TTS narrator audio where available, otherwise Android system TTS (es-ES). The Qwen3-TTS choice was made by the user after a comparison; don't re-open it without a reason.
 
-## Rules
-- Typed and spoken answers are compared ignoring case and punctuation; digits equal words («3» = «tres», «1» = uno/un/una; `TextMatch`, `SpanishNumbers`). A wrong answer is shown word by word.
-- Multi-word expressions (~1000 from the curriculum vocab) are recognised in the reader (`data/Expressions.kt`, `ExpressionIndex`): tapping a word shows the whole expression with its translation; verb + preposition counts only before an infinitive; accents matter. Saved phrases/expressions are highlighted in the text as a whole (`savedRanges`, `phraseIndex`); the expression card shows each word separately (curriculum level, other expressions with it).
-- Spanish is read aloud wherever possible: an exercise sentence is spoken on appearance with a pause at the gap (`Player.speakWithPauses`), and the right answer after the reply.
-- A review session is at most 20 words and phrases combined (`SessionBatch`): reviewed and most overdue first, at least 5 new ones (oldest added first). After it, «Ещё подход» takes the next 20.
-- Extra practice does not change the schedule when the answer is right; a wrong answer sends the word back into regular review.
-- «Знаю» = stage 3, interval 7 days. Words are matched by both form and lemma (`vocabIndex`).
-- Content focus: conversational Spanish and dialogues (`--style dialog` by default in the pipeline).
-- Spanish is Peninsular only (vosotros, Spain vocabulary). The interface and translations are in Russian.
-- Book format changes must stay backward compatible (`ignoreUnknownKeys`, new fields optional).
-- The project's ancestor is Eppika (reading adapted books). Features are prioritised for personal use.
+## Rules that must not be broken
+- **User data survives updates:**
+  - Write it only through `UserData`.
+  - Never use `fallbackToDestructiveMigration`.
+  - A Room schema change needs a version bump, a migration and the committed `android/app/schemas/*.json`.
+  - Backup fields are added only with defaults.
+  - Details: [docs/user-data.md](docs/user-data.md).
+- **Signing key** (`~/.android/lectura-release.jks` + `LECTURA_*` GitHub secrets): **never regenerate it.** A new key breaks updating the app on the phone.
+- **Personal data («Мои фразы») never goes to git.** It lives only in `books/.work/personal/` (gitignored) and on the phone. The repo is public.
+- **Outward-facing actions need the user's confirmation:**
+  - `audio.py --upload` (publishes to a public GitHub Release);
+  - commits, pushes and releases (the user approves each release).
+- **Book format stays backward compatible:** `ignoreUnknownKeys`, new fields optional. Tag ids (`TAGS` = `model/Tags.kt`) are never changed.
+- **Spanish is Peninsular only** (vosotros, Spain vocabulary). The interface and translations are in Russian. Content focus is conversational Spanish and dialogues.
+- **Answer comparison** ignores case, punctuation and accents. Digits equal words (`TextMatch`, `SpeechMatch`, `SpanishNumbers`). Spanish is read aloud wherever possible.
+
+## Quick commands
+- **Tests + release build** (CI doesn't run tests):
+  `cd android && JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew testDebugUnitTest assembleRelease`
+- **Release:** bump `android/version.properties`, push to `main`, then `gh run watch <id>` and `gh release view vX.Y.Z`. Latest APK: https://github.com/Likemilk99/lang-book/releases/latest/download/lectura.apk
+- **Emulator:**
+  - `export PATH="$HOME/Library/Android/sdk/platform-tools:$HOME/Library/Android/sdk/emulator:$PATH"`
+  - `emulator -avd Pixel_8_Pro -no-window -no-audio -no-boot-anim`
+  - Install `app-release.apk` (release-signed).
+- **«Мои фразы» server on the Mac:** double-click `Lectura Server.command` (or `python3 pipeline/server.py`).
+- **Ancestor:** the project's ancestor is Eppika (reading adapted books).
