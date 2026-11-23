@@ -22,6 +22,7 @@
 - **Output and caching:** results are cached in `books/.work/`. `--push` copies the book to the phone over adb; otherwise use «Импорт» in the app.
 - **The enrich step adds** characters, the speaker of each line (`sp`), phrases, comprehension questions, dialogue replies and tags.
 - **`--original`:** public-domain originals with no text changes (authors who died before 1945, published before 1930; sources in `pipeline/sources/README.md`). Words are flagged rare/old (`Token.r`), each chapter gets a glossary, and versions of one work are linked through `workId`.
+- **`pipeline/lemmas.py`:** dictionary translations of book lemmas that are not in the curriculum vocab → `assets/lemmas.json` (used for word cards: «mano — рука», not «руку»). Run it after adding books; only new lemmas are translated (cache in `books/.work/lemmas/`).
 - **`pipeline/library.py`:** generates an adapted library per level that covers ≥ 90 % of the level's vocabulary and every grammar topic (`Chapter.grammar`). Coverage reports are in `pipeline/coverage_*.md`.
 - **After a book's text changes,** re-voice it (see [narrator-audio.md](narrator-audio.md)) and release the app.
 
@@ -33,6 +34,8 @@
 
 ## Reader (`ui/ReaderScreen.kt`)
 - **Tapping a word** opens a bottom sheet with its translation in context, dictionary form and grammar. From there you can hear it and save it.
+  - «Учить» saves the card of the dictionary form (see «One card per word» in [review.md](review.md)). On another form of a saved word the button is «Добавить пример»; on a sentence already in the card it is «В словаре».
+  - The button never deletes: «Убрать» under it removes the card.
 - **«Выделить фразу»** saves a multi-word phrase.
 - **Chapter extras:** chapter phrasebook; chapter glossary with «Учить все».
 - **«Ещё» menu:** «Скачать / Обновить / Удалить озвучку».

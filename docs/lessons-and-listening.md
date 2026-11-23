@@ -9,11 +9,12 @@
   - «Мои фразы»;
   - each scenario (key phrases + your lines);
   - each phrasebook theme.
-- **`LessonPlayer`:** state flow (index, phase, playing, mode, slow); start/toggle/pause/resume/next/prev/stop. The Russian TTS is created lazily in `ru()` via `main.post` to avoid recursion during init. If no Russian voice is installed, the screen says so (`ruMissing`).
+- **Several topics in a loop:** each source has a checkbox; the selection is saved in `Prefs.lessonSelection`. «По кругу: N тем» plays the checked topics one after another (`LessonPlayer.playlist`, each `LessonItem.topic` remembers its topic) and starts again after the last phrase (`State.loop`, `State.round`) until stopped. Next/prev wrap around in a loop (`LessonPlayer.step`). The ▶ on a source still plays only that topic, once.
+- **`LessonPlayer`:** state flow (index, phase, playing, mode, slow, loop, round); start/toggle/pause/resume/next/prev/stop. The screen and notification show the current phrase's topic (`State.topic`). The Russian TTS is created lazily in `ru()` via `main.post` to avoid recursion during init. If no Russian voice is installed, the screen says so (`ruMissing`).
 - **`LessonService`:**
   - Its own foreground service (notification id 3, play/pause/next/prev) and MediaSession `lectura-lesson` for headset buttons.
   - A partial wake lock `lectura:lesson` is held while playing (20-minute timeout, re-armed on every state change), so pauses don't stretch while the CPU sleeps.
-- **UI:** `ui/LessonsScreen.kt` (mode chips, sources with an estimated length, `NowPlaying` card).
+- **UI:** `ui/LessonsScreen.kt` (mode chips, sources with checkboxes and an estimated length, the «По кругу» bottom bar, `NowPlaying` card with «🔁 круг N»).
 
 ## Listening trainer («Тренажёр слуха»)
 - **Data** (`data/Listening.kt`), 10 items per session (`Listening.SESSION`):

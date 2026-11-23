@@ -76,7 +76,7 @@ class LessonService : LifecycleService() {
         session.setMetadata(
             MediaMetadata.Builder()
                 .putString(MediaMetadata.METADATA_KEY_TITLE, s.current?.es.orEmpty())
-                .putString(MediaMetadata.METADATA_KEY_ARTIST, s.title)
+                .putString(MediaMetadata.METADATA_KEY_ARTIST, s.topic)
                 .build(),
         )
         val n = build(s)
@@ -97,9 +97,9 @@ class LessonService : LifecycleService() {
         val item = s.current
         return Notification.Builder(this, LecturaApp.CHANNEL_PLAYBACK)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("🎧 ${s.title}")
+            .setContentTitle("🎧 ${s.topic}")
             .setContentText(if (item == null) "" else "${item.ru} — ${item.es}")
-            .setSubText("${s.mode.label} · ${minOf(s.index + 1, s.items.size)}/${s.items.size}")
+            .setSubText("${s.mode.label} · ${minOf(s.index + 1, s.items.size)}/${s.items.size}" + if (s.loop) " · 🔁 круг ${s.round}" else "")
             .setContentIntent(open)
             .setDeleteIntent(action(ACTION_STOP, 14))
             .setOngoing(s.playing)

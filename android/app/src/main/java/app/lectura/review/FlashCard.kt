@@ -38,6 +38,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import app.lectura.LecturaApp
 import app.lectura.data.SavedWord
+import app.lectura.data.form
 import app.lectura.data.Srs
 import app.lectura.ui.WordImageView
 
@@ -119,8 +120,11 @@ fun ColumnScope.FlashCardView(vm: ReviewViewModel, ex: Exercise.Flash) {
 @Composable
 private fun SpanishSide(card: SavedWord) {
     Text(card.word, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+    // Карточка — начальная форма (hablar); форма из примера (hablamos) — подписью.
+    val form = card.form
     val extra = listOfNotNull(
         card.lemma.takeIf { it.isNotBlank() && !it.equals(card.word, ignoreCase = true) },
+        form.takeIf { !card.isPhrase && !it.equals(card.word, ignoreCase = true) }?.let { "в тексте: $it" },
         card.grammar.takeIf { it.isNotBlank() },
     )
     if (extra.isNotEmpty()) {
@@ -133,7 +137,7 @@ private fun SpanishSide(card: SavedWord) {
     }
     if (card.sentence.isNotBlank()) {
         Spacer(Modifier.height(16.dp))
-        Text(highlight(card.sentence, card.word), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+        Text(highlight(card.sentence, form), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
     }
 }
 

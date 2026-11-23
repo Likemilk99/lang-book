@@ -20,8 +20,11 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.Locale
 import kotlin.coroutines.resume
 
-/** Фраза урока: [clip] — озвучка диктора (путь в APK или файл), иначе системный голос. */
-data class LessonItem(val es: String, val ru: String, val clip: String? = null)
+/**
+ * Фраза урока: [clip] — озвучка диктора (путь в APK или файл), иначе системный голос.
+ * [topic] — тема, из которой фраза (когда по кругу играют несколько тем).
+ */
+data class LessonItem(val es: String, val ru: String, val clip: String? = null, val topic: String = "")
 
 enum class LessonMode(val label: String) {
     /** Русская фраза → пауза (вы говорите по-испански) → эталон дважды. */
@@ -48,9 +51,16 @@ class LessonPlayer(private val app: LecturaApp) {
         val slow: Boolean = false,
         /** Русского голоса нет — «Предугадай» показывает русский только на экране. */
         val ruMissing: Boolean = false,
+        /** По кругу: после последней фразы — снова первая, пока не остановят. */
+        val loop: Boolean = false,
+        /** Номер круга (с 1). */
+        val round: Int = 1,
     ) {
         val active: Boolean get() = items.isNotEmpty() && phase != Phase.DONE
         val current: LessonItem? get() = items.getOrNull(index)
+
+        /** Тема текущей фразы (у нескольких тем по кругу), иначе название урока. */
+        val topic: String get() = current?.topic?.takeIf { it.isNotBlank() } ?: title
     }
 
     private val _state = MutableStateFlow(State())
@@ -75,11 +85,11 @@ class LessonPlayer(private val app: LecturaApp) {
 
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
 
-    fun start(title: String, items: List<LessonItem>, mode: LessonMode) {
+    fun start(title: String, items: List<LessonItem>, mode: LessonMode, loop: Boolean = false) {
         if (items.isEmpty()) return
         stopSound()
         if (app.player.state.value.playing) app.player.pause()
-        _state.value = State(title, items, 0, Phase.PROMPT, playing = true, mode = mode, slow = _state.value.slow)
+        _state.value = State(title, items, 0, Phase.PROMPT, playing = true, mode = mode, slow = _state.value.slow, loop = loop)
         startService()
         run()
     }
@@ -107,7 +117,7 @@ class LessonPlayer(private val app: LecturaApp) {
         if (s.items.isEmpty()) return
         job?.cancel()
         stopSound()
-        _state.update { it.copy(index = (s.index + d).coerceIn(0, s.items.lastIndex), phase = Phase.PROMPT) }
+        _state.update { it.copy(index = step(s.index, d, s.items.size, s.loop), phase = Phase.PROMPT) }
         if (s.playing) run()
     }
 
@@ -141,6 +151,10 @@ class LessonPlayer(private val app: LecturaApp) {
                 clips.play(item.clip, item.es, rate)
                 delay(1300)
                 if (s.index >= s.items.lastIndex) {
+                    if (s.loop) {
+                        _state.update { it.copy(index = 0, round = it.round + 1) }
+                        continue
+                    }
                     _state.update { it.copy(phase = Phase.DONE, playing = false) }
                     break
                 }
@@ -186,6 +200,14 @@ class LessonPlayer(private val app: LecturaApp) {
     }
 
     companion object {
+        /** Несколько тем подряд одним уроком: каждая фраза помнит свою тему. */
+        fun playlist(topics: List<Pair<String, List<LessonItem>>>): List<LessonItem> =
+            topics.flatMap { (title, items) -> items.map { it.copy(topic = title) } }
+
+        /** Следующая/предыдущая фраза: по кругу — с переходом через край, иначе — в пределах урока. */
+        fun step(index: Int, d: Int, size: Int, loop: Boolean): Int =
+            if (loop) Math.floorMod(index + d, size) else (index + d).coerceIn(0, size - 1)
+
         /** Пауза на ответ: чем длиннее фраза, тем дольше (≈ время произнести её дважды медленно). */
         fun pauseFor(es: String, slow: Boolean): Long {
             val base = 1200L + es.length * 75L

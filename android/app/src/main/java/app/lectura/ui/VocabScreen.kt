@@ -44,6 +44,12 @@ import app.lectura.LecturaApp
 import app.lectura.data.Memory
 import app.lectura.data.MAX_STAGE
 import app.lectura.data.SavedWord
+import app.lectura.data.allExamples
+import app.lectura.review.TextMatch
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,6 +61,7 @@ fun VocabScreen(onReview: () -> Unit) {
     val now = remember { System.currentTimeMillis() }
     val due = words.count { it.due <= now }
     var filter by rememberSaveable { mutableStateOf(VocabFilter.ALL) }
+    var expanded by remember { mutableStateOf(emptySet<Long>()) }
     val shown = when (filter) {
         VocabFilter.ALL -> words
         VocabFilter.WORDS -> words.filter { !it.isPhrase }
@@ -115,13 +122,9 @@ fun VocabScreen(onReview: () -> Unit) {
                                     color = if (r < 70) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                            Text(
-                                w.sentence,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                            Examples(w, expanded = w.id in expanded) {
+                                expanded = if (w.id in expanded) expanded - w.id else expanded + w.id
+                            }
                         }
                         IconButton(onClick = { app.player.speakOnce(w.word) }) {
                             Icon(Icons.AutoMirrored.Filled.VolumeUp, "Произнести")
@@ -134,6 +137,46 @@ fun VocabScreen(onReview: () -> Unit) {
             }
         }
     }
+}
+
+/** Примеры карточки: первый — всегда, остальные — по нажатию «ещё N». Форма из текста выделена. */
+@Composable
+private fun Examples(w: SavedWord, expanded: Boolean, onToggle: () -> Unit) {
+    val all = if (w.isPhrase) emptyList() else w.allExamples
+    if (all.isEmpty()) {
+        if (w.sentence.isNotBlank() && w.sentence != w.word) Text(
+            w.sentence,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        return
+    }
+    val shown = if (expanded) all else all.take(1)
+    shown.forEach { ex ->
+        Text(
+            buildAnnotatedString {
+                val c = TextMatch.cloze(ex.sentence, ex.form)
+                if (c == null) append(ex.sentence) else {
+                    append(c.before)
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(c.answer) }
+                    append(c.after)
+                }
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = if (expanded) Int.MAX_VALUE else 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+    }
+    if (all.size > 1) Text(
+        if (expanded) "свернуть" else "ещё примеров: ${all.size - 1}",
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.clickable(onClick = onToggle).padding(vertical = 4.dp),
+    )
 }
 
 private enum class VocabFilter(val label: String) { ALL("Все"), WORDS("Слова"), PHRASES("Фразы") }

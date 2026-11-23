@@ -33,7 +33,11 @@ object MetaKeys {
  * Все записи пользовательских данных идут через этот класс:
  * каждая запись помечается versionCode приложения, а в meta обновляется «последнее сохранение».
  */
-class UserData(private val context: Context, private val db: AppDatabase) {
+class UserData(
+    private val context: Context,
+    private val db: AppDatabase,
+    private val lexicon: LexiconRepository? = null,
+) {
 
     suspend fun saveProgress(bookId: String, chapter: Int, sentence: Int) = db.withTransaction {
         db.progress().put(Progress(bookId, chapter, sentence, System.currentTimeMillis(), AppVersion.code))
@@ -44,6 +48,50 @@ class UserData(private val context: Context, private val db: AppDatabase) {
         val id = db.words().insert(word.copy(appVersion = AppVersion.code))
         if (id > 0) bumpStats { it.copy(newWords = it.newWords + 1) }
         stamp()
+    }
+
+    /**
+     * Слово из книги → в словарь. Одна карточка на начальную форму: если карточка уже есть
+     * (сохранили hablo, теперь hablamos), к ней добавляется пример, новая не создаётся.
+     * [known] — «Знаю»: карточка сразу на средней ступени (см. [markKnown]).
+     */
+    suspend fun saveWord(card: SavedWord, known: Boolean = false): SaveResult = db.withTransaction {
+        val now = System.currentTimeMillis()
+        val existing = db.words().byKey(card.key)
+        val result = when {
+            existing == null -> {
+                val w = (if (known) knownCopy(card, null, now) else card).copy(appVersion = AppVersion.code)
+                db.words().insert(w)
+                if (!known) bumpStats { it.copy(newWords = it.newWords + 1) }
+                SaveResult.ADDED
+            }
+            existing.isPhrase -> SaveResult.ALREADY
+            else -> {
+                val withExamples = card.examples.fold(existing) { w, ex -> w.plusExample(ex) ?: w }
+                val added = withExamples !== existing
+                val upd = if (known) knownCopy(withExamples, existing, now) else withExamples
+                if (upd != existing) db.words().update(upd.copy(appVersion = AppVersion.code))
+                if (added) SaveResult.EXAMPLE_ADDED else SaveResult.ALREADY
+            }
+        }
+        stamp()
+        result
+    }
+
+    /**
+     * Склеить карточки одного слова (hablo, hablamos → hablar) — см. [WordCards.consolidate].
+     * Возвращает число удалённых дублей.
+     */
+    suspend fun consolidateWords(): Int = db.withTransaction {
+        val plan = WordCards.consolidate(db.words().allOnce(), lexicon?.get() ?: Lexicon.EMPTY)
+        if (plan.isEmpty) return@withTransaction 0
+        plan.delete.forEach { db.words().delete(it) }
+        // Сначала временные ключи: новый ключ одной карточки может быть старым ключом другой.
+        plan.update.forEach { db.words().update(it.copy(key = "\u0000${it.id}")) }
+        plan.update.forEach { db.words().update(it) }
+        stamp()
+        Log.i("UserData", "consolidated words: ${plan.update.size} updated, ${plan.delete.size} merged")
+        plan.delete.size
     }
 
     /**
@@ -147,17 +195,18 @@ class UserData(private val context: Context, private val db: AppDatabase) {
     suspend fun markKnown(word: SavedWord): Unit = db.withTransaction {
         val now = System.currentTimeMillis()
         val existing = db.words().byKey(word.key)
-        val known = (existing ?: word).copy(
-            stage = maxOf(existing?.stage ?: 0, KNOWN_STAGE),
-            intervalDays = maxOf(existing?.intervalDays ?: 0, KNOWN_INTERVAL_DAYS),
-            reps = maxOf(existing?.reps ?: 0, 2),
-            due = maxOf(existing?.due ?: 0, now + KNOWN_INTERVAL_DAYS * 24L * 60 * 60 * 1000),
-            lastReviewed = now,
-            appVersion = AppVersion.code,
-        )
+        val known = knownCopy(existing ?: word, existing, now).copy(appVersion = AppVersion.code)
         if (existing == null) db.words().insert(known) else db.words().update(known)
         stamp()
     }
+
+    private fun knownCopy(w: SavedWord, existing: SavedWord?, now: Long) = w.copy(
+        stage = maxOf(existing?.stage ?: 0, KNOWN_STAGE),
+        intervalDays = maxOf(existing?.intervalDays ?: 0, KNOWN_INTERVAL_DAYS),
+        reps = maxOf(existing?.reps ?: 0, 2),
+        due = maxOf(existing?.due ?: 0, now + KNOWN_INTERVAL_DAYS * 24L * 60 * 60 * 1000),
+        lastReviewed = now,
+    )
 
     /**
      * Итог сессии по грамматической теме. ≥ 80% — тема закрепляется (ступень +1, интервал растёт),
@@ -300,6 +349,17 @@ class UserData(private val context: Context, private val db: AppDatabase) {
         if (from < AppVersion.code) {
             Log.i("UserData", "upgrade data from ${AppVersion.nameOf(from)} to ${AppVersion.name}")
             // Здесь добавлять шаги вида: if (from < 30000) { ... }
+            if (from < 1400) {
+                // 0.14.0: одна карточка на слово — склеиваем hablo / hablamos → hablar.
+                // Перед изменением данных — копия в Android/data/app.lectura/files/ (на всякий случай).
+                if (db.words().count() > 0) {
+                    runCatching {
+                        val dir = context.getExternalFilesDir(null) ?: context.filesDir
+                        exportTo(Uri.fromFile(java.io.File(dir, "backup-before-0.14.json")))
+                    }.onFailure { Log.w("UserData", "safety backup failed", it) }
+                }
+                consolidateWords()
+            }
         }
         meta.put(AppMeta(MetaKeys.LAST_LAUNCH_VERSION, AppVersion.code.toString()))
         snapshotMemory()
@@ -339,7 +399,7 @@ class UserData(private val context: Context, private val db: AppDatabase) {
                 WordDto(
                     it.key, it.word, it.lemma, it.ru, it.grammar, it.sentence, it.sentenceRu, it.bookId,
                     it.createdAt, it.due, it.intervalDays, it.ease, it.reps, it.lapses, it.appVersion,
-                    it.kind, it.stage, it.lastReviewed, it.practiceCount, it.ref,
+                    it.kind, it.stage, it.lastReviewed, it.practiceCount, it.ref, it.examples,
                 )
             },
             grammar = db.grammar().allOnce().map {
@@ -394,7 +454,7 @@ class UserData(private val context: Context, private val db: AppDatabase) {
                             createdAt = w.createdAt, due = w.due, intervalDays = w.intervalDays, ease = w.ease,
                             reps = w.reps, lapses = w.lapses, appVersion = w.appVersion,
                             kind = w.kind, stage = w.stage, lastReviewed = w.lastReviewed, practiceCount = w.practiceCount,
-                            ref = w.ref,
+                            ref = w.ref, examples = w.examples,
                         ),
                     )
                     words++
@@ -439,6 +499,8 @@ class UserData(private val context: Context, private val db: AppDatabase) {
             }
             stamp()
         }
+        // Слова из копии могли оказаться формами уже сохранённых (hablo из копии + hablar здесь).
+        runCatching { consolidateWords() }.onFailure { Log.w("UserData", "consolidate after import", it) }
         ImportResult(words, books, b.appVersionName)
     }
 }
@@ -452,6 +514,17 @@ data class DataInfo(
     val books: Int,
     val dbVersion: Int,
 )
+
+enum class SaveResult {
+    /** Новая карточка. */
+    ADDED,
+
+    /** Слово уже было — добавлен пример. */
+    EXAMPLE_ADDED,
+
+    /** Слово и этот пример уже есть. */
+    ALREADY,
+}
 
 data class ImportResult(val words: Int, val books: Int, val fromVersion: String)
 
@@ -509,6 +582,8 @@ data class WordDto(
     val lastReviewed: Long = 0,
     val practiceCount: Int = 0,
     val ref: String = "",
+    /** С 0.14: примеры карточки слова (у старых копий нет — пример берётся из sentence). */
+    val examples: List<WordExample> = emptyList(),
 )
 
 @Serializable

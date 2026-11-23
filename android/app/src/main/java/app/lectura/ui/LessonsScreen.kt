@@ -16,10 +16,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
@@ -61,7 +70,7 @@ fun LessonsCard(onOpen: () -> Unit) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("🎧 Аудиоуроки", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(
-                if (s.active) "Сейчас: ${s.title} · ${s.index + 1}/${s.items.size}"
+                if (s.active) "Сейчас: ${s.topic} · ${s.index + 1}/${s.items.size}" + if (s.loop) " · 🔁" else ""
                 else "Без экрана, в наушниках: русская фраза → вы говорите → диктор. Для прогулки и дороги.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -80,6 +89,14 @@ fun LessonsScreen(onBack: () -> Unit) {
     val sources by produceState<List<LessonSource>?>(null, refresh) {
         value = runCatching { LessonSources.all() }.getOrDefault(emptyList())
     }
+    // Отмеченные темы — играют подряд по кругу; выбор запоминается до следующей прогулки.
+    val prefs = LecturaApp.instance.prefs
+    var selected by remember { mutableStateOf(prefs.lessonSelection) }
+    fun toggle(id: String) {
+        selected = if (id in selected) selected - id else selected + id
+        prefs.lessonSelection = selected
+    }
+    val chosen = sources.orEmpty().filter { it.id in selected }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -88,6 +105,29 @@ fun LessonsScreen(onBack: () -> Unit) {
                 title = { Text("Аудиоуроки") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад") } },
             )
+        },
+        bottomBar = {
+            if (chosen.isNotEmpty()) {
+                Surface(tonalElevation = 3.dp) {
+                    Row(
+                        Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Button(
+                            onClick = {
+                                val title = if (chosen.size == 1) chosen[0].title else "${chosen.size} ${themes(chosen.size)} по кругу"
+                                lessons.start(title, LessonPlayer.playlist(chosen.map { it.title to it.items }), s.mode, loop = true)
+                            },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Icon(Icons.Filled.Repeat, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("По кругу: ${chosen.size} ${themes(chosen.size)} · круг ~${minutes(chosen.flatMap { it.items }, s.slow)} мин")
+                        }
+                        TextButton(onClick = { selected = emptySet(); prefs.lessonSelection = emptySet() }) { Text("Сбросить") }
+                    }
+                }
+            }
         },
     ) { pad ->
         val list = sources ?: return@Scaffold Loading(Modifier.padding(pad))
@@ -109,7 +149,8 @@ fun LessonsScreen(onBack: () -> Unit) {
                     when (s.mode) {
                         LessonMode.ANTICIPATE -> "Звучит русская фраза — в паузе скажите её по-испански, потом диктор дважды произнесёт правильно."
                         LessonMode.REPEAT -> "Звучит испанская фраза — в паузе повторите её вслух, потом ещё раз."
-                    } + " Экран можно выключить: управление — в уведомлении и кнопками наушников.",
+                    } + " Экран можно выключить: управление — в уведомлении и кнопками наушников." +
+                        " Отметьте несколько тем галочками — они будут звучать подряд по кругу, пока не остановите.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -120,8 +161,9 @@ fun LessonsScreen(onBack: () -> Unit) {
                     Text(group, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
                 }
                 items(sources, key = { it.id }) { src ->
-                    Card(onClick = { lessons.start(src.title, src.items, s.mode) }, modifier = Modifier.fillMaxWidth()) {
-                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Card(onClick = { toggle(src.id) }, modifier = Modifier.fillMaxWidth()) {
+                        Row(Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = src.id in selected, onCheckedChange = { toggle(src.id) })
                             Column(Modifier.weight(1f)) {
                                 Text(src.title, style = MaterialTheme.typography.titleSmall)
                                 Text(
@@ -130,13 +172,23 @@ fun LessonsScreen(onBack: () -> Unit) {
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                            Icon(Icons.Filled.PlayArrow, "Начать", tint = MaterialTheme.colorScheme.primary)
+                            // ▶ — только эта тема, один раз (как раньше).
+                            IconButton(onClick = { lessons.start(src.title, src.items, s.mode) }) {
+                                Icon(Icons.Filled.PlayArrow, "Начать", tint = MaterialTheme.colorScheme.primary)
+                            }
                         }
                     }
                 }
             }
         }
     }
+}
+
+/** «тема / темы / тем» */
+private fun themes(n: Int): String = when {
+    n % 10 == 1 && n % 100 != 11 -> "тема"
+    n % 10 in 2..4 && n % 100 !in 12..14 -> "темы"
+    else -> "тем"
 }
 
 /** Примерная длина урока: подсказка, пауза на ответ, эталон дважды. */
@@ -148,7 +200,10 @@ private fun NowPlaying(s: LessonPlayer.State, lessons: LessonPlayer) {
     val item = s.current
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("${s.title} · ${minOf(s.index + 1, s.items.size)} из ${s.items.size}", style = MaterialTheme.typography.labelLarge)
+            Text(
+                "${s.topic} · ${minOf(s.index + 1, s.items.size)} из ${s.items.size}" + if (s.loop) " · 🔁 круг ${s.round}" else "",
+                style = MaterialTheme.typography.labelLarge,
+            )
             LinearProgressIndicator(progress = { (s.index + 1f) / s.items.size }, modifier = Modifier.fillMaxWidth())
             if (s.phase == LessonPlayer.Phase.DONE) {
                 Text("Урок пройден 🎉", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)

@@ -12,6 +12,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import androidx.room.Update
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
@@ -47,6 +48,11 @@ data class SavedWord(
     @ColumnInfo(defaultValue = "0") val practiceCount: Int = 0,
     /** Фраза из разговорника: её id ("a0-control-03") — по нему шаблон, варианты и озвучка. "" — не из разговорника. */
     @ColumnInfo(defaultValue = "") val ref: String = "",
+    /**
+     * Примеры употребления (JSON, [WordExample]): у слова одна карточка на начальную форму,
+     * а формы из текста (hablo, hablamos) — её примеры. Пусто — карточка до 0.14 (пример в sentence).
+     */
+    @ColumnInfo(defaultValue = "[]") val examples: List<WordExample> = emptyList(),
 ) {
     val isPhrase: Boolean get() = kind == KIND_PHRASE
 
@@ -339,7 +345,7 @@ interface MetaDao {
  */
 @Database(
     entities = [SavedWord::class, Progress::class, AppMeta::class, DailyStats::class, ChapterActivity::class, GrammarProgress::class, WordImage::class, ScenarioProgress::class, InboxItem::class],
-    version = 8,
+    version = 9,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
@@ -349,8 +355,10 @@ interface MetaDao {
         AutoMigration(from = 5, to = 6),
         AutoMigration(from = 6, to = 7),
         AutoMigration(from = 7, to = 8),
+        AutoMigration(from = 8, to = 9),
     ],
 )
+@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun words(): WordDao
     abstract fun progress(): ProgressDao

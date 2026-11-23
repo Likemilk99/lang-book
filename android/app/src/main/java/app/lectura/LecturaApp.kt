@@ -10,6 +10,7 @@ import app.lectura.data.AppDatabase
 import app.lectura.data.BookAudio
 import app.lectura.data.BookRepository
 import app.lectura.data.CurriculumRepository
+import app.lectura.data.LexiconRepository
 import app.lectura.data.MIGRATIONS
 import app.lectura.data.MacLink
 import app.lectura.data.PersonalRepository
@@ -36,6 +37,8 @@ class LecturaApp : Application() {
     lateinit var bookAudio: BookAudio
     lateinit var userData: UserData
     lateinit var curriculum: CurriculumRepository
+    /** Словарные переводы начальных форм (для карточек слов). */
+    lateinit var lexicon: LexiconRepository
     lateinit var phrasebook: PhrasebookRepository
     lateinit var scenarios: ScenarioRepository
     lateinit var personal: PersonalRepository
@@ -56,8 +59,9 @@ class LecturaApp : Application() {
         db = Room.databaseBuilder(this, AppDatabase::class.java, "lectura.db")
             .addMigrations(*MIGRATIONS)
             .build()
-        userData = UserData(this, db)
         curriculum = CurriculumRepository(this)
+        lexicon = LexiconRepository(this, curriculum)
+        userData = UserData(this, db, lexicon)
         phrasebook = PhrasebookRepository(this)
         scenarios = ScenarioRepository(this)
         personal = PersonalRepository(this, db, userData, phrasebook)

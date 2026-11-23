@@ -87,6 +87,11 @@ class Prefs(context: Context) {
     fun bundledHash(name: String): String? = sp.getString("bundledHash:$name", null)
     fun setBundledHash(name: String, hash: String) = sp.edit().putString("bundledHash:$name", hash).apply()
 
+    /** Аудиоуроки: темы, отмеченные для прослушивания по кругу (id из LessonSources). */
+    var lessonSelection: Set<String>
+        get() = sp.getStringSet("lessonSelection", emptySet()).orEmpty().toSet()
+        set(v) = sp.edit().putStringSet("lessonSelection", v).apply()
+
     fun deletedBundled(): Set<String> = sp.getStringSet("deletedBundled", emptySet()).orEmpty()
     fun markBundledDeleted(name: String) {
         sp.edit().putStringSet("deletedBundled", deletedBundled() + name).apply()

@@ -3,12 +3,13 @@
 ## Writes
 - **Write user data only through `UserData`** (`data/UserData.kt`). It stamps `appVersion` on the record and updates `meta.lastSaveVersion/lastSaveAt`.
 - **Main entry points:**
-  - `markKnown`, `addPhrases`, `recordPractice`, `recordFreeExercise`, `recordChapterActivity`, `recordScenarioStep`;
+  - `saveWord` (words from books), `consolidateWords`, `markKnown`, `addPhrases`, `recordPractice`, `recordFreeExercise`, `recordChapterActivity`, `recordScenarioStep`;
   - `setAbout`, `addInbox`, `deleteInbox`, `markInboxDone`.
 - **Data steps between app versions** go in `UserData.onAppStart()` (`if (from < X)`).
+  - `from < 1400` (0.14.0): safety copy to `Android/data/app.lectura/files/backup-before-0.14.json`, then `consolidateWords()` merges cards of one word.
 
 ## Room
-- **Version: v8.** Tables: words, progress, meta, daily_stats, chapter_activity, grammar_progress, word_images, scenario_progress, inbox.
+- **Version: v9.** Tables: words, progress, meta, daily_stats, chapter_activity, grammar_progress, word_images, scenario_progress, inbox.
 
 | Version | Change | Backup |
 |---|---|---|
@@ -16,6 +17,7 @@
 | v6 | `words.ref` — phrasebook/scenario/personal phrase id | `WordDto.ref` |
 | v7 | `scenario_progress` — best % per scenario step | `Backup.scenarios` |
 | v8 | `inbox` — «Мои фразы» entries | `Backup.inbox` (restored as pending; `personal.json` itself is not backed up) |
+| v9 | `words.examples` — JSON list of `WordExample` (one card per word, see [review.md](review.md)) | `WordDto.examples` |
 
 - **Schema changes:** bump `version` and add an `AutoMigration`/`Migration`. New columns get a `defaultValue`.
 - **Never use `fallbackToDestructiveMigration`.** Without a migration it is better to crash than to erase progress.

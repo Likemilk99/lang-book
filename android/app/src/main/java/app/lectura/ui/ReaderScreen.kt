@@ -94,7 +94,10 @@ import app.lectura.data.BookAudio
 import app.lectura.data.ChapterActivity
 import app.lectura.data.ExpressionIndex
 import app.lectura.data.ExpressionMatch
+import app.lectura.data.SaveResult
 import app.lectura.data.SavedWord
+import app.lectura.data.WordCards
+import app.lectura.data.allExamples
 import app.lectura.data.WordStatus
 import app.lectura.data.phraseIndex
 import app.lectura.data.vocabIndex
@@ -103,6 +106,7 @@ import app.lectura.model.Chapter
 import app.lectura.model.GlossaryItem
 import app.lectura.model.PhraseItem
 import app.lectura.model.Sentence
+import app.lectura.model.Token
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
@@ -126,41 +130,50 @@ class ReaderViewModel(private val app: LecturaApp, val bookId: String) : ViewMod
     /** Устойчивые выражения из словаря учебной программы («otra vez», «darse cuenta»…). */
     val expressions = MutableStateFlow(ExpressionIndex(emptyList()))
 
-    /** «Я это слово знаю» — сразу средний уровень. */
-    fun markKnown(sentence: Sentence, tokenIndex: Int) {
+    /** Карточки по ключу — чтобы по любой форме слова найти его карточку (hablamos → hablar). */
+    val cards = app.db.words().all().map { list -> list.associateBy { it.key } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    /** Карточка слова: по начальной форме, а для карточек без неё — по форме из текста. */
+    fun cardFor(tk: Token): SavedWord? = WordCards.find(cards.value, tk)
+
+    /**
+     * «Учить» / «Знаю» слово из текста: одна карточка на начальную форму. Если карточка уже есть —
+     * к ней добавляется это предложение как пример.
+     */
+    fun saveWord(sentence: Sentence, tokenIndex: Int, known: Boolean = false) {
         val tk = sentence.tokens[tokenIndex]
-        val now = System.currentTimeMillis()
         viewModelScope.launch {
-            app.userData.markKnown(
-                SavedWord(
-                    key = tk.key, word = tk.t, lemma = tk.l ?: tk.t, ru = tk.ru.orEmpty(),
-                    grammar = tk.g.orEmpty(), sentence = sentence.text, sentenceRu = sentence.ru,
-                    bookId = bookId, createdAt = now, due = now,
-                ),
-            )
+            val card = WordCards.fromToken(tk, sentence, bookId, System.currentTimeMillis(), app.lexicon.get())
+            val result = app.userData.saveWord(card, known)
+            if (result == SaveResult.EXAMPLE_ADDED) {
+                Toast.makeText(app, "Уже в словаре (${card.word}) — добавлен пример", Toast.LENGTH_SHORT).show()
+            }
         }
     }
+
+    /** «Я это слово знаю» — сразу средний уровень. */
+    fun markKnown(sentence: Sentence, tokenIndex: Int) = saveWord(sentence, tokenIndex, known = true)
+
+    fun removeWord(card: SavedWord) = viewModelScope.launch { app.db.words().delete(card) }
 
     /** Слово из словарика главы: «Учить» — как новое, «Знаю» — сразу средний уровень. */
     fun saveGlossary(item: GlossaryItem, chapter: Chapter, known: Boolean) {
         val w = glossaryWord(item, chapter, System.currentTimeMillis())
-        viewModelScope.launch { if (known) app.userData.markKnown(w) else app.userData.addWord(w) }
+        viewModelScope.launch { app.userData.saveWord(w, known) }
     }
 
     /** «Учить все»: слова словарика, которых ещё нет в словаре, — в порядке словарика (так же и придут в повторение). */
     fun saveGlossaryAll(items: List<GlossaryItem>, chapter: Chapter) {
         val now = System.currentTimeMillis()
         val words = items.mapIndexed { i, g -> glossaryWord(g, chapter, now + i) }
-        viewModelScope.launch { words.forEach { app.userData.addWord(it) } }
+        viewModelScope.launch { words.forEach { app.userData.saveWord(it) } }
     }
 
     private fun glossaryWord(item: GlossaryItem, chapter: Chapter, now: Long): SavedWord {
         val form = item.form.ifBlank { item.l }
         val src = chapter.sentences.firstOrNull { s -> s.tokens.any { it.t.equals(form, ignoreCase = true) } }
-        return SavedWord(
-            key = form.lowercase(), word = form, lemma = item.l, ru = item.ru, grammar = item.note,
-            sentence = src?.text.orEmpty(), sentenceRu = src?.ru.orEmpty(), bookId = bookId, createdAt = now, due = now,
-        )
+        return WordCards.fromGlossary(item, src, bookId, now)
     }
 
     fun markChapterRead(chapter: Int) = viewModelScope.launch {
@@ -224,23 +237,6 @@ class ReaderViewModel(private val app: LecturaApp, val bookId: String) : ViewMod
         savePhrase(item.es, item.ru, src?.text ?: item.es, src?.ru ?: item.ru)
     }
 
-    fun toggleSave(sentence: Sentence, tokenIndex: Int) {
-        val tk = sentence.tokens[tokenIndex]
-        viewModelScope.launch {
-            if (tk.key in savedKeys.value) {
-                app.db.words().deleteKey(tk.key)
-            } else {
-                val now = System.currentTimeMillis()
-                app.userData.addWord(
-                    SavedWord(
-                        key = tk.key, word = tk.t, lemma = tk.l ?: tk.t, ru = tk.ru.orEmpty(),
-                        grammar = tk.g.orEmpty(), sentence = sentence.text, sentenceRu = sentence.ru,
-                        bookId = bookId, createdAt = now, due = now,
-                    ),
-                )
-            }
-        }
-    }
 }
 
 private data class Selection(val sentence: Int, val token: Int)
@@ -258,6 +254,7 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
     val book by vm.book.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
     val saved by vm.savedKeys.collectAsStateWithLifecycle()
+    val cards by vm.cards.collectAsStateWithLifecycle()
     val vocab by vm.vocab.collectAsStateWithLifecycle()
     val phrases by vm.phrases.collectAsStateWithLifecycle()
     val ps by app.player.state.collectAsStateWithLifecycle()
@@ -481,19 +478,21 @@ fun ReaderScreen(bookId: String, onBack: () -> Unit, onNavigate: (String) -> Uni
         val sentence = chapter.sentences.getOrNull(sel.sentence)
         val token = sentence?.tokens?.getOrNull(sel.token)
         if (sentence != null && token != null) {
+            val card = WordCards.find(cards, token)
             WordSheet(
                 sentence = sentence,
                 tokenIndex = sel.token,
-                isSaved = token.key in saved,
+                card = card,
                 status = vocab[token.key] ?: token.l?.lowercase()?.let { vocab[it] },
-                onToggleSave = { vm.toggleSave(sentence, sel.token) },
+                onSave = { vm.saveWord(sentence, sel.token) },
+                onRemove = { card?.let { vm.removeWord(it) } },
                 onKnown = { vm.markKnown(sentence, sel.token) },
                 savedKeys = saved,
                 vocab = vocab,
                 phraseStatus = selectedExpression?.let { m ->
                     phrases[ExpressionIndex.phraseKey(m.expr.es)] ?: phrases[ExpressionIndex.phraseKey(phraseText(sentence, m.range))]
                 },
-                onLearnWord = { i -> if (sentence.tokens[i].key !in saved) vm.toggleSave(sentence, i) },
+                onLearnWord = { i -> if (vm.cardFor(sentence.tokens[i]) == null) vm.saveWord(sentence, i) },
                 onSavePhrase = { es, ru -> vm.savePhrase(es, ru, sentence.text, sentence.ru) },
                 expression = selectedExpression,
                 expressions = expressions,
@@ -751,9 +750,10 @@ private fun VoiceMissingBanner(onInstall: () -> Unit) {
 private fun WordSheet(
     sentence: Sentence,
     tokenIndex: Int,
-    isSaved: Boolean,
+    card: SavedWord?,
     status: WordStatus?,
-    onToggleSave: () -> Unit,
+    onSave: () -> Unit,
+    onRemove: () -> Unit,
     onKnown: () -> Unit,
     savedKeys: Set<String>,
     vocab: Map<String, WordStatus>,
@@ -807,14 +807,34 @@ private fun WordSheet(
                 )
             }
             Spacer(Modifier.height(12.dp))
+            // Одна карточка на слово: по другой форме того же слова кнопка добавляет пример, а не удаляет.
+            val hasExample = card != null && card.allExamples.any { it.sentence.trim().equals(sentence.text.trim(), ignoreCase = true) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onToggleSave) {
-                    Icon(if (isSaved) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder, null)
+                Button(onClick = onSave, enabled = !hasExample) {
+                    Icon(if (card != null) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder, null)
                     Spacer(Modifier.width(8.dp))
-                    Text(if (isSaved) "В словаре" else "Учить")
+                    Text(
+                        when {
+                            card == null -> "Учить"
+                            hasExample -> "В словаре"
+                            else -> "Добавить пример"
+                        },
+                    )
                 }
                 FilledTonalButton(onClick = onKnown, enabled = status != WordStatus.KNOWN) {
                     Text(if (status == WordStatus.KNOWN) "Знаю ✓" else "Знаю")
+                }
+            }
+            if (card != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val n = card.allExamples.size
+                    Text(
+                        "В словаре: ${card.word}" + if (n > 0) " · примеров: $n" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = onRemove) { Text("Убрать") }
                 }
             }
             OutlinedButton(onClick = { phraseMode = !phraseMode }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {

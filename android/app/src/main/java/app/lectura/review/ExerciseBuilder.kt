@@ -1,6 +1,9 @@
 package app.lectura.review
 
 import app.lectura.data.SavedWord
+import app.lectura.data.allExamples
+import app.lectura.data.form
+import app.lectura.data.withExample
 import app.lectura.model.Phrase
 import app.lectura.model.ReplyItem
 import kotlin.random.Random
@@ -43,7 +46,8 @@ class ExerciseBuilder(
     private val direction: Direction,
     private val rnd: Random = Random.Default,
 ) {
-    fun forWord(w: SavedWord, last: ExerciseType?, avoid: ExerciseType?, cardsOnly: Boolean): Exercise {
+    fun forWord(card: SavedWord, last: ExerciseType?, avoid: ExerciseType?, cardsOnly: Boolean): Exercise {
+        val w = withNextExample(card)
         if (cardsOnly) return Exercise.Flash(w, spanishFront(w.stage))
         val ladder = ladder(w.stage, w.isPhrase)
         val everything = WORD_TYPES.shuffled(rnd)
@@ -57,6 +61,18 @@ class ExerciseBuilder(
             candidates.shuffled(rnd).firstNotNullOfOrNull { build(w, it) }?.let { return it }
         }
         return Exercise.Flash(w, spanishFront(w.stage))
+    }
+
+    /**
+     * У слова одна карточка и несколько примеров (hablar: «Hablo español», «Hablamos mucho»).
+     * Для упражнения берём пример, отличный от показанного в прошлый раз (он в sentence).
+     */
+    internal fun withNextExample(w: SavedWord): SavedWord {
+        if (w.isPhrase) return w
+        val all = w.allExamples
+        if (all.isEmpty()) return w
+        val fresh = all.filter { !it.sentence.trim().equals(w.sentence.trim(), ignoreCase = true) }.ifEmpty { all }
+        return w.withExample(fresh.random(rnd))
     }
 
     fun forReply(r: ReplyItem): Exercise.DialogReply {
@@ -119,9 +135,9 @@ class ExerciseBuilder(
         ExerciseType.DIALOG_REPLY -> null
     }
 
-    /** Пропуск в предложении-примере; если пропуском стало бы всё предложение — упражнения нет. */
+    /** Пропуск в предложении-примере — на месте формы из текста (hablamos, а не hablar); если пропуском стало бы всё предложение — упражнения нет. */
     private fun cloze(w: SavedWord): Cloze? =
-        TextMatch.cloze(w.sentence, w.word)?.takeIf { it.before.isNotBlank() || it.after.isNotBlank() }
+        TextMatch.cloze(w.sentence, w.form)?.takeIf { it.before.isNotBlank() || it.after.isNotBlank() }
 
     /** Другой вариант шаблона фразы из разговорника (не сама фраза — её и так учим). */
     private fun patternSay(w: SavedWord): Exercise.PatternSay? {
@@ -144,14 +160,14 @@ class ExerciseBuilder(
             else -> 0
         }
         val similar = sameKind.map { it to similarity(it) }.filter { it.second > 0 }
-            .shuffled(rnd).sortedByDescending { it.second }.map { TextMatch.plainForm(it.first.word, it.first.lemma) }
+            .shuffled(rnd).sortedByDescending { it.second }.map { TextMatch.plainForm(it.first.form, it.first.lemma) }
         val fromBooks = if (w.isPhrase || cls.isBlank()) {
             emptyList()
         } else {
             pool.tokens.filter { TextMatch.grammarClass(it.g) == cls }.shuffled(rnd).map { it.form }
         }
         val rest = (sameKind.shuffled(rnd) + others.filter { it.kind != w.kind }.shuffled(rnd))
-            .map { TextMatch.plainForm(it.word, it.lemma) }
+            .map { TextMatch.plainForm(it.form, it.lemma) }
         return distinct(similar + fromBooks + rest, exclude = listOf(answer, w.word))
     }
 
