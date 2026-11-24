@@ -24,6 +24,8 @@
 - **`--original`:** public-domain originals with no text changes (authors who died before 1945, published before 1930; sources in `pipeline/sources/README.md`). Words are flagged rare/old (`Token.r`), each chapter gets a glossary, and versions of one work are linked through `workId`.
 - **`pipeline/lemmas.py`:** dictionary translations of book lemmas that are not in the curriculum vocab → `assets/lemmas.json` (used for word cards: «mano — рука», not «руку»). Run it after adding books; only new lemmas are translated (cache in `books/.work/lemmas/`).
 - **`pipeline/library.py`:** generates an adapted library per level that covers ≥ 90 % of the level's vocabulary and every grammar topic (`Chapter.grammar`). Coverage reports are in `pipeline/coverage_*.md`.
+  - **`--focus` (supplement books):** targets only the words from `pipeline/vocab_fixes.json` ([grammar-curriculum.md](grammar-curriculum.md)). Levels A0 (words marked `a0`, A1 vocabulary and the first 10 A1 grammar topics), A1 and A2. Modern original stories in Spain, mostly dialogue (`FOCUS_SEEDS`). At least two books per level, so the second one repeats the words. Books are numbered after the existing ones (`a1-11-…`, `a0-01-…`); cache `pipeline/.cache/library/<L>-focus/`; report `pipeline/coverage_<L>_focus.md`.
+  - `python3 pipeline/library.py --focus --level A0 --jobs 3`
 - **After a book's text changes,** re-voice it (see [narrator-audio.md](narrator-audio.md)) and release the app.
 
 ## On the phone

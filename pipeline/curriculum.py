@@ -13,6 +13,8 @@
   python3 pipeline/curriculum.py --levels B1 --steps vocab
   python3 pipeline/curriculum.py --show a1-ser-estar          # посмотреть готовую тему
   python3 pipeline/curriculum.py --stats                      # только статистика по готовым файлам
+  python3 pipeline/curriculum.py --steps fix                  # применить ручные правки vocab_fixes.json
+  python3 pipeline/curriculum.py --audit 3000                 # сверка с частотным списком → vocab_audit.md
 
 Порядок шагов: vocab → plan → grammar. План грамматики (все уровни сразу, чтобы темы не
 повторялись) сохраняется в pipeline/curriculum_plan.json; его можно поправить руками —
@@ -862,6 +864,111 @@ def run_grammar(levels: list[str], plan: dict, args) -> None:
         log(f"   {level}: {len(topics)} тем, {n_ex} упражнений → grammar_{level}.json")
 
 
+# ---------------------------------------------------------------- ручные правки словаря
+
+FIXES_FILE = ROOT / "pipeline" / "vocab_fixes.json"
+
+
+def load_fixes() -> dict:
+    return json.loads(FIXES_FILE.read_text(encoding="utf-8")) if FIXES_FILE.exists() else {"words": [], "remove": []}
+
+
+def apply_fixes() -> None:
+    """Применяет pipeline/vocab_fixes.json к vocab_*.json всех уровней (идемпотентно).
+
+    words: слово ставится на указанный уровень и тему (в конец темы); если оно уже есть на другом
+    уровне или в другой теме — переносится, ru/pos/g берутся из правки. remove: удаляются.
+    """
+    fixes = load_fixes()
+    vocab = {}
+    for level in LEVELS:
+        p = ASSETS / f"vocab_{level}.json"
+        if not p.exists():
+            log(f"   правки: нет {p.name}, пропускаю")
+            return
+        vocab[level] = json.loads(p.read_text(encoding="utf-8"))
+    themes = {t[0] for t in THEMES}
+    entries = []
+    for f in fixes["words"]:
+        pos = f.get("pos", "")
+        lemma = norm_lemma(f["l"], pos)
+        if f["level"] not in LEVELS or f["theme"] not in themes:
+            raise SystemExit(f"vocab_fixes.json: {f['l']}: неизвестный уровень/тема {f['level']}/{f['theme']}")
+        e = {"l": lemma, "ru": f["ru"], "pos": pos}
+        if pos == "noun" and f.get("g") in ("m", "f"):
+            e["g"] = f["g"]
+        entries.append((lemma_key(lemma), f["level"], f["theme"], e))
+    drop = {lemma_key(norm_lemma(x, "")) for x in fixes.get("remove", [])}
+    fix_keys = {k for k, *_ in entries}
+
+    was: dict[str, str] = {}
+    removed = 0
+    for level, voc in vocab.items():
+        for t in voc["themes"]:
+            kept = []
+            for w in t["words"]:
+                k = lemma_key(w["l"])
+                if k in fix_keys:
+                    was.setdefault(k, level)
+                elif k in drop:
+                    removed += 1
+                else:
+                    kept.append(w)
+            t["words"] = kept
+    added = moved = 0
+    for k, level, theme, e in entries:
+        t = next(t for t in vocab[level]["themes"] if t["id"] == theme)
+        t["words"].append(e)
+        if k not in was:
+            added += 1
+        elif was[k] != level:
+            moved += 1
+    for level, voc in vocab.items():
+        write_compact(ASSETS / f"vocab_{level}.json", voc)
+    log(f"   правки словаря: новых {added}, перенесено на другой уровень {moved}, удалено дублей {removed}")
+
+
+def audit(top: int) -> None:
+    """Сверяет словарь с частотным списком (wordfreq + simplemma, ставятся отдельно) → pipeline/vocab_audit.md."""
+    try:
+        import simplemma
+        import wordfreq
+    except ImportError:
+        raise SystemExit("для --audit нужны пакеты: pip install wordfreq simplemma (лучше в отдельном venv)")
+    freq: dict[str, float] = {}
+    for w in wordfreq.top_n_list("es", 60000):
+        if w.isalpha() and w == w.lower():
+            lem = simplemma.lemmatize(w, lang="es")
+            freq[lem] = freq.get(lem, 0.0) + wordfreq.word_frequency(w, "es")
+    ranked = [l for l, _ in sorted(freq.items(), key=lambda x: -x[1])]
+    level_of: dict[str, str] = {}
+    in_expr: dict[str, str] = {}
+    for level in LEVELS:
+        for t in json.loads((ASSETS / f"vocab_{level}.json").read_text(encoding="utf-8"))["themes"]:
+            for w in t["words"]:
+                l = w["l"]
+                if " " in l:
+                    for part in l.split():
+                        in_expr.setdefault(part, f"{l} ({level})")
+                    continue
+                for k in {l, simplemma.lemmatize(l, lang="es"), l[:-2] if l.endswith("se") else l}:
+                    level_of.setdefault(k, level)
+    missing = [(i + 1, l) for i, l in enumerate(ranked[:top]) if l not in level_of]
+    high = [(i + 1, l, level_of[l]) for i, l in enumerate(ranked[: top // 2])
+            if level_of.get(l) in ("B1", "B2")]
+    lines = ["# Сверка словаря с частотным списком", "",
+             f"`python3 pipeline/curriculum.py --audit {top}` (wordfreq es + simplemma). В частотном списке есть "
+             "новости, Википедия и латиноамериканская лексика: это список для ручного разбора, а не правка. "
+             "Решения вносятся в `pipeline/vocab_fixes.json`.", "",
+             f"## Нет ни на одном уровне (из топ-{top}): {len(missing)}", ""]
+    lines += [f"- {r}. {l}" + (f" — только в «{in_expr[l]}»" if l in in_expr else "") for r, l in missing]
+    lines += ["", f"## Частые (топ-{top // 2}), но стоят на B1/B2: {len(high)}", ""]
+    lines += [f"- {r}. {l} — {lv}" for r, l, lv in high]
+    out = ROOT / "pipeline" / "vocab_audit.md"
+    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    log(f"Сверка: нет в словаре {len(missing)} из топ-{top}, на B1/B2 из топ-{top // 2}: {len(high)} → {out}")
+
+
 # ---------------------------------------------------------------- report
 
 def stats() -> None:
@@ -910,7 +1017,8 @@ def show(tid: str) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--levels", default=",".join(LEVELS), help="уровни через запятую, напр. A1,A2")
-    ap.add_argument("--steps", default="vocab,plan,grammar", help="какие шаги: vocab,plan,grammar")
+    ap.add_argument("--steps", default="vocab,plan,grammar",
+                    help="какие шаги: vocab,plan,grammar; fix — только применить pipeline/vocab_fixes.json")
     ap.add_argument("--model", default="sonnet", help="модель claude для словаря и тем")
     ap.add_argument("--plan-model", default="opus", help="модель для плана грамматики (один запрос)")
     ap.add_argument("--effort", default="medium", help="effort для тем грамматики")
@@ -918,10 +1026,15 @@ def main() -> None:
     ap.add_argument("--jobs", type=int, default=4, help="параллельных запросов claude")
     ap.add_argument("--stats", action="store_true", help="только статистика по готовым файлам")
     ap.add_argument("--show", metavar="TOPIC_ID", help="напечатать готовую тему")
+    ap.add_argument("--audit", type=int, nargs="?", const=3000, metavar="TOP",
+                    help="сверить словарь с частотным списком (топ-TOP лемм) → pipeline/vocab_audit.md")
     args = ap.parse_args()
 
     if args.stats:
         stats()
+        return
+    if args.audit:
+        audit(args.audit)
         return
     if args.show:
         show(args.show)
@@ -936,6 +1049,8 @@ def main() -> None:
 
     if "vocab" in steps:
         run_vocab(levels, args)
+    if "vocab" in steps or "fix" in steps:
+        apply_fixes()
     plan = None
     if "plan" in steps or "grammar" in steps:
         plan = build_plan(args)

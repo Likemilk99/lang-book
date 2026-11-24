@@ -25,6 +25,13 @@
 
   python3 pipeline/library.py --level A1 --jobs 3
   python3 pipeline/library.py --level A1 --report      # только пересчитать coverage_A1.md
+
+Режим --focus (книги-дополнения): цель — только слова из pipeline/vocab_fixes.json (пропущенные частые
+слова и разговорные выражения). Уровни A0 (слова с "a0": true; словарь и первые темы грамматики A1),
+A1, A2. Книги нумеруются после готовых (a1-11-…), кэш — pipeline/.cache/library/<L>-focus/,
+отчёт — coverage_<L>_focus.md. Грамматика уже покрыта основной библиотекой и не проверяется на ≥ 2.
+
+  python3 pipeline/library.py --focus --level A0 --jobs 3
 """
 
 from __future__ import annotations
@@ -60,6 +67,19 @@ LEVEL_CFG = {
     "A1": {"words": (200, 300), "per_ch": (14, 35), "min_books": 10, "max_books": 14, "avg_ch": 6},
     "A2": {"words": (300, 450), "per_ch": (16, 45), "min_books": 10, "max_books": 16, "avg_ch": 7},
 }
+
+# Режим --focus: книги-дополнения, которые покрывают только слова из pipeline/vocab_fixes.json
+# (A0 — слова с "a0": true, словарь и грамматика A1; A1/A2 — слова своего уровня).
+# Целевых слов меньше, поэтому на главу их меньше, а слова, встреченные один раз, повторяются
+# во второй книге.
+FOCUS_CFG = {
+    "A0": {"words": (120, 200), "per_ch": (5, 10), "min_books": 2, "max_books": 3, "avg_ch": 6},
+    "A1": {"words": (200, 300), "per_ch": (8, 25), "min_books": 2, "max_books": 3, "avg_ch": 6},
+    "A2": {"words": (300, 450), "per_ch": (10, 30), "min_books": 2, "max_books": 3, "avg_ch": 7},
+}
+FOCUS_VOCAB_LEVEL = {"A0": "A1", "A1": "A1", "A2": "A2"}
+FOCUS_A0_TOPICS = 10  # A0: только первые темы грамматики A1 (настоящее время, ser/estar, hay…)
+FIXES_FILE = PIPE / "vocab_fixes.json"
 
 # ---------------------------------------------------------------- семена книг
 
@@ -293,6 +313,76 @@ SEEDS: dict[str, list[dict]] = {
                   "Barcelona: a shop assistant, a retired policeman, a cook, a neighbour who lost his dog, two old "
                   "friends who meet again, a family that changes house, a bad day at the bank.",
              themes=[]),
+    ],
+}
+
+# Семена книг-дополнений (--focus): современные истории о жизни в Испании, почти всё — диалоги.
+FOCUS_SEEDS: dict[str, list[dict]] = {
+    "A0": [
+        dict(key="hola-malaga", kind=ORIG, chapters=6,
+             source="Оригинальная история: первые дни Нади в Малаге",
+             idea="Original modern story for absolute beginners. Nadia, a young Russian woman, has just moved to "
+                  "Málaga. Each chapter is one short everyday scene, almost all dialogue: she meets her neighbour "
+                  "Carmen on the stairs, has a coffee at the bar downstairs, calls her mamá and papá, buys bread "
+                  "and fruit at a small shop, takes the bus and gets a little lost, and on Saturday the neighbours "
+                  "invite her to a small party on the terrace.",
+             themes=["basic", "feelings", "family", "food", "shopping", "city"]),
+        dict(key="la-familia-de-leo", kind=ORIG, chapters=6,
+             source="Оригинальная история: один день из жизни Лео и его семьи в Мадриде",
+             idea="Original modern story for absolute beginners. Leo, eight years old, lives in Madrid with his mamá, "
+                  "his papá, his big sister Lucía and a cat. Short scenes, almost all dialogue: breakfast, the way to "
+                  "school, a lost key, the park with friends, a visit from the abuela, a film at home and bedtime.",
+             themes=["basic", "family", "home", "feelings", "food", "time"]),
+        dict(key="cafe-de-la-esquina", kind=ORIG, chapters=6,
+             source="Оригинальная история: маленькое кафе на углу в Валенсии",
+             idea="Original modern story for absolute beginners. A small café on a corner in Valencia: the owner "
+                  "Pepe and different customers every day (a student, an old lady, a tourist, a tired doctor). They "
+                  "order, chat about the weather and their day, pay, make small mistakes and laugh.",
+             themes=["basic", "food", "feelings", "shopping", "time"]),
+    ],
+    "A1": [
+        dict(key="companeros-de-piso", kind=ORIG, chapters=6,
+             source="Оригинальная история: трое соседей по квартире в Барселоне",
+             idea="Original modern story. Three flatmates in Barcelona: Marta from Sevilla, Luca from Italy and "
+                  "Dima from Russia. Who cleans the kitchen, the shopping list, a film night and choosing a film, a "
+                  "broken washing machine and a call to the landlord, Dima's first job interview, and a party for "
+                  "Marta's birthday with a funny misunderstanding.",
+             themes=["home", "feelings", "basic", "leisure", "media", "food"]),
+        dict(key="intercambio", kind=ORIG, chapters=6,
+             source="Оригинальная история: языковой обмен в Валенсии",
+             idea="Original modern story. Katia, from Saint Petersburg, and Javier, from Valencia, meet every week "
+                  "for a language exchange in a café. They talk about their families, food, their cities, "
+                  "transport, their favourite films and music, plans for the weekend; they go to a fallas "
+                  "celebration together and become good friends.",
+             themes=["feelings", "basic", "family", "travel", "leisure", "description"]),
+        dict(key="el-bar-de-manolo", kind=ORIG, chapters=6,
+             source="Оригинальная история: завсегдатаи бара в Сарагосе",
+             idea="Original modern story. Manolo's bar in a neighbourhood of Zaragoza. The regulars come every day: "
+                  "a retired teacher, a young doctor, two friends who always argue about football, a shy actor. "
+                  "Tapas, coffee, news of the neighbourhood, a lottery ticket, a small problem and a happy ending.",
+             themes=["food", "feelings", "basic", "leisure", "work", "city"]),
+    ],
+    "A2": [
+        dict(key="nuevo-curro", kind=ORIG, chapters=7,
+             source="Оригинальная история: первые месяцы Ирины на новой работе в Мадриде",
+             idea="Original modern story told mostly in dialogue, with the past tenses of A2. Irina, a Russian "
+                  "programmer, starts a new job in a small company in Madrid. The first day, the colleagues and the "
+                  "boss, a project that goes wrong, a team dinner, a misunderstanding with a client, a decision "
+                  "about her future, and a weekend trip with new friends.",
+             themes=["work", "basic", "feelings", "media", "description", "leisure"]),
+        dict(key="verano-en-cadiz", kind=ORIG, chapters=7,
+             source="Оригинальная история: лето в Кадисе",
+             idea="Original modern story told mostly in dialogue, with the past tenses of A2. Four friends spend the "
+                  "summer in Cádiz: the beach, a small flat that is too hot, a lost dog they try to save, a music "
+                  "festival, a prize in a contest, a love story and a secret, and saying goodbye in September.",
+             themes=["leisure", "feelings", "nature", "basic", "travel", "description"]),
+        dict(key="misterio-en-el-edificio", kind=ORIG, chapters=7,
+             source="Оригинальная история: загадка в многоквартирном доме в Бильбао",
+             idea="Original modern story told mostly in dialogue, with the past tenses of A2. Strange things happen in "
+                  "an apartment building in Bilbao: parcels disappear, a strange sound at night, a broken camera. "
+                  "Two neighbours, a journalist and a retired policewoman, investigate, ask questions, compare "
+                  "the details and find a surprising and kind solution.",
+             themes=["services", "basic", "home", "media", "feelings", "city"]),
     ],
 }
 
@@ -586,32 +676,46 @@ class Library:
     def __init__(self, level: str, args):
         self.L = level
         self.args = args
-        self.cfg = LEVEL_CFG[level]
-        self.dir = CACHE / level
+        self.focus = bool(getattr(args, "focus", False))
+        self.cfg = FOCUS_CFG[level] if self.focus else LEVEL_CFG[level]
+        self.seeds = FOCUS_SEEDS[level] if self.focus else SEEDS[level]
+        vlevel = FOCUS_VOCAB_LEVEL[level] if self.focus else level  # словарь и грамматика уровня
+        self.dir = CACHE / (f"{level}-focus" if self.focus else level)
         self.dir.mkdir(parents=True, exist_ok=True)
         self.state_path = self.dir / "state.json"
 
-        vocab = json.loads((CUR_DIR / f"vocab_{level}.json").read_text(encoding="utf-8"))
+        vocab = json.loads((CUR_DIR / f"vocab_{vlevel}.json").read_text(encoding="utf-8"))
         self.themes = [(t["id"], t["title"]) for t in vocab["themes"]]
         self.vocab: dict[str, dict] = {}
         for t in vocab["themes"]:
             for w in t["words"]:
                 self.vocab[low(w["l"])] = {"theme": t["id"], "ru": w["ru"], "pos": w.get("pos", "")}
         self.T = list(self.vocab)
+        if self.focus:
+            fixes = json.loads(FIXES_FILE.read_text(encoding="utf-8"))["words"]
+            want = {low(f["l"]) for f in fixes
+                    if (f.get("a0") if level == "A0" else f["level"] == level)}
+            self.T = [k for k in self.T if k in want]
+            lost = want - set(self.T)
+            if lost:
+                raise SystemExit(f"слов из vocab_fixes.json нет в vocab_{vlevel}.json: {sorted(lost)} — "
+                                 "сначала python3 pipeline/curriculum.py --steps fix")
         self.parts = {k: entry_parts(k) for k in self.T}
 
         # Слова, которые можно использовать свободно: словари этого уровня и ниже.
         self.allowed: set[str] = set()
-        for lv in LEVELS[: LEVELS.index(level) + 1]:
+        for lv in LEVELS[: LEVELS.index(vlevel) + 1]:
             p = CUR_DIR / f"vocab_{lv}.json"
             if p.exists():
                 for t in json.loads(p.read_text(encoding="utf-8"))["themes"]:
                     for w in t["words"]:
                         for part in entry_parts(w["l"]):
                             self.allowed.update(part)
-        grammar = json.loads((CUR_DIR / f"grammar_{level}.json").read_text(encoding="utf-8"))
+        grammar = json.loads((CUR_DIR / f"grammar_{vlevel}.json").read_text(encoding="utf-8"))
         self.topics = [{"id": t["id"], "title": t["title"], "titleEs": t.get("titleEs", ""),
                         "summary": t["summary"]} for t in grammar["topics"]]
+        if self.focus and level == "A0":
+            self.topics = self.topics[:FOCUS_A0_TOPICS]
         self.topic_idx = {t["id"]: i for i, t in enumerate(self.topics)}
 
         self.state = json.loads(self.state_path.read_text(encoding="utf-8")) if self.state_path.exists() \
@@ -636,7 +740,17 @@ class Library:
         return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
 
     def seed(self, key: str) -> dict:
-        return next(s for s in SEEDS[self.L] if s["key"] == key)
+        return next(s for s in self.seeds if s["key"] == key)
+
+    def next_number(self) -> int:
+        """Номер следующей книги уровня: в режиме --focus — после уже готовых книг (a1-10 → a1-11)."""
+        n = len(self.state["books"]) + 1
+        if self.focus:
+            pat = re.compile(rf"^{self.L.lower()}-(\d+)-")
+            nums = [int(m.group(1)) for p in ASSET_BOOKS.glob("*.json") if (m := pat.match(p.name))]
+            nums += [int(m.group(1)) for b in self.state["books"] if (m := pat.match(b["id"]))]
+            n = max(nums, default=0) + 1
+        return n
 
     def snapshot(self) -> dict:
         """Покрытие по файлам на диске: covered (первое появление), частоты, резерв, грамматика."""
@@ -702,18 +816,20 @@ class Library:
             nT = len(self.T)
             exp_cov = len(snap["covered"]) + 0.75 * len(snap["reserved"])
             g_total = snap["g_conf"] + snap["g_exp"]
-            g_short = [t["id"] for t in self.topics if g_total[t["id"]] < 2]
-            need = n < self.args.min_books or exp_cov < 0.9 * nT or g_short
+            # В дополнении грамматика уровня уже покрыта основной библиотекой — нужны только слова.
+            g_short = [] if self.focus else [t["id"] for t in self.topics if g_total[t["id"]] < 2]
+            need = n < self.args.min_books or exp_cov < (0.95 if self.focus else 0.9) * nT or g_short
             if not need:
                 return "wait" if self.active else None
             if n >= self.args.max_books:
                 return "wait" if self.active else None
             used = {b["seed"] for b in self.state["books"]}
-            free = [s for s in SEEDS[self.L] if s["key"] not in used]
+            free = [s for s in self.seeds if s["key"] not in used]
             if not free:
                 return "wait" if self.active else None
             seed = free[0]
-            entry = {"id": f"{self.L.lower()}-{n + 1:02d}-{seed['key']}", "seed": seed["key"], "status": "new"}
+            entry = {"id": f"{self.L.lower()}-{self.next_number():02d}-{seed['key']}", "seed": seed["key"],
+                     "status": "new"}
             self.state["books"].append(entry)
             self.save_state()
             self.active.add(entry["id"])
@@ -750,7 +866,7 @@ class Library:
     # ------------------------------------------------ план книги
 
     def assign_grammar(self, book_no: int, nch: int, g_total: Counter) -> list[list[str]]:
-        frontier = min(len(self.topics), 6 + 3 * book_no)
+        frontier = len(self.topics) if self.focus else min(len(self.topics), 6 + 3 * book_no)
         counts = Counter(g_total)
         out = []
         for _ in range(nch):
@@ -786,7 +902,7 @@ class Library:
         nch = seed["chapters"]
         taken = set(snap["covered"]) | set(snap["reserved"])
         pool = [w for w in self.T if w not in taken]
-        if snap["chapters_done"] < 6:
+        if snap["chapters_done"] < 6 and not self.focus:
             pool = [w for w in pool if self.vocab[w]["theme"] != "basic"]
         if seed["kind"] == PD and pool:
             pool = self.filter_anachronisms(seed, pool)
@@ -799,8 +915,14 @@ class Library:
         # (повторение важнее новых слов в последних книгах уровня).
         review: list[str] = []
         if per_ch < lo:
-            review = [x for x in self.T if x in snap["covered"] and snap["freq"][x] <= 1
-                      and self.vocab[x]["theme"] != "basic"]
+            if self.focus:
+                # Слова, которые встретились ≤ 2 раз или ждут в главах других книг (книги планируются
+                # параллельно): во второй книге их нужно повторить.
+                review = [x for x in self.T if x not in pool and
+                          (x in snap["reserved"] or (x in snap["covered"] and snap["freq"][x] <= 2))]
+            else:
+                review = [x for x in self.T if x in snap["covered"] and snap["freq"][x] <= 1
+                          and self.vocab[x]["theme"] != "basic"]
             per_ch = lo
         grammar = self.assign_grammar(book_no, nch, snap["g_conf"] + snap["g_exp"])
 
@@ -821,6 +943,10 @@ class Library:
             f"GRAMMAR POINTS per chapter:\n{gtxt}\n\n"
             f"POOL of not yet covered {self.L} words ({len(pool)}), by theme:\n\n" + "\n\n".join(lines)
         )
+        if self.focus:
+            prompt += ("\n\nThis book SUPPLEMENTS an existing library: the pool holds frequent everyday words and "
+                       "conversational chunks the library missed. Give each one a prominent, natural place in the "
+                       "dialogues (they are the point of the book).")
         if review:
             prompt += (
                 "\n\nThe pool is almost exhausted. First use the pool words that fit; then complete each chapter "
@@ -1089,9 +1215,16 @@ class Library:
             snap = self.snapshot()
         nT = len(self.T)
         cov = snap["covered"]
-        lines = [f"# Покрытие учебной программы {self.L} библиотекой книг", "",
-                 f"Сгенерировано `pipeline/library.py`. Словарь: `vocab_{self.L}.json` ({nT} лемм), "
-                 f"грамматика: `grammar_{self.L}.json` ({len(self.topics)} тем).", ""]
+        if self.focus:
+            lines = [f"# Книги-дополнения {self.L}: покрытие слов из правок словаря", "",
+                     f"Сгенерировано `pipeline/library.py --focus --level {self.L}`. Целевые слова: "
+                     f"`pipeline/vocab_fixes.json` ({nT} лемм"
+                     + (", помечены a0" if self.L == "A0" else f", уровень {self.L}") + "), "
+                     f"грамматика: {len(self.topics)} тем.", ""]
+        else:
+            lines = [f"# Покрытие учебной программы {self.L} библиотекой книг", "",
+                     f"Сгенерировано `pipeline/library.py`. Словарь: `vocab_{self.L}.json` ({nT} лемм), "
+                     f"грамматика: `grammar_{self.L}.json` ({len(self.topics)} тем).", ""]
         g_chapters: Counter = Counter()
         g_books: dict[str, set] = {}
         rows = []
@@ -1137,7 +1270,7 @@ class Library:
                 lines.append(f"| {b['id']} | (не готова) | | | | | | |")
                 continue
             info = d["info"]
-            topics = ", ".join(f"{t.removeprefix(self.L.lower() + '-')} ({n})"
+            topics = ", ".join(f"{re.sub(r'^[ab][0-9]-', '', t)} ({n})"
                                for t, n in sorted(d["topics"].items(), key=lambda x: self.topic_idx[x[0]]))
             bad, n = d["ool"]
             lines.append(f"| `{b['id']}` | {book['title']} | {book['source']} | {len(book['chapters'])} | "
@@ -1151,6 +1284,8 @@ class Library:
         for tid, title in self.themes:
             ws = [x for x in self.T if self.vocab[x]["theme"] == tid]
             c = sum(1 for x in ws if x in cov)
+            if not ws:
+                continue
             lines.append(f"| {title} (`{tid}`) | {c}/{len(ws)} ({100 * c / len(ws):.0f} %) |")
         lines += ["", f"## Непокрытые леммы ({nT - len(cov)})", ""]
         for tid, title in self.themes:
@@ -1159,7 +1294,7 @@ class Library:
                 lines.append(f"- **{title}**: " + ", ".join(f"{x} ({self.vocab[x]['ru']})" for x in miss))
         once = [x for x in self.T if snap["freq"][x] == 1]
         lines += ["", f"Лемм, встретившихся только один раз: {len(once)}.", ""]
-        path = PIPE / f"coverage_{self.L}.md"
+        path = PIPE / (f"coverage_{self.L}_focus.md" if self.focus else f"coverage_{self.L}.md")
         path.write_text("\n".join(lines), encoding="utf-8")
         log(f"Отчёт: {path} — словарь {len(cov)}/{nT} ({100 * len(cov) / nT:.1f} %), "
             f"темы ≥2: {sum(1 for t in self.topics if g_chapters[t['id']] >= 2)}/{len(self.topics)}")
@@ -1168,7 +1303,9 @@ class Library:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--level", required=True, choices=list(LEVEL_CFG))
+    ap.add_argument("--level", required=True, choices=["A0", *LEVEL_CFG])
+    ap.add_argument("--focus", action="store_true",
+                    help="книги-дополнения: покрыть слова из pipeline/vocab_fixes.json (A0, A1, A2)")
     ap.add_argument("--jobs", type=int, default=3, help="параллельных запросов claude (и книг)")
     ap.add_argument("--model", default="sonnet")
     ap.add_argument("--min-books", type=int, default=0)
@@ -1177,7 +1314,9 @@ def main() -> None:
     ap.add_argument("--rebuild", action="store_true",
                     help="пересобрать готовые книги из кэша (без новых запросов) и отчёт")
     args = ap.parse_args()
-    cfg = LEVEL_CFG[args.level]
+    if args.level == "A0" and not args.focus:
+        ap.error("A0 есть только в режиме --focus (у A0 нет своего словаря)")
+    cfg = FOCUS_CFG[args.level] if args.focus else LEVEL_CFG[args.level]
     args.min_books = args.min_books or cfg["min_books"]
     args.max_books = args.max_books or cfg["max_books"]
     global _SEM
