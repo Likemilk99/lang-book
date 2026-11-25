@@ -1,12 +1,13 @@
 # Speaking («Говорить» tab)
 
 ## Tab layout (`ui/TalkScreen.kt`), top to bottom
-1. **«Мои фразы»** card with the Mac status dot — see [my-phrases.md](my-phrases.md).
-2. **«Аудиоуроки»** — see [lessons-and-listening.md](lessons-and-listening.md).
-3. **«Тренажёр слуха»** — see [lessons-and-listening.md](lessons-and-listening.md).
-4. **Scenarios by level**, with «могу N из M».
-5. **Phrasebooks.**
-6. **Dialogues from books:** role-play and shadowing by chapter of started books.
+1. **«Живой разговор»** — a free conversation with a character on the Mac, see [live-chat.md](live-chat.md).
+2. **«Мои фразы»** card with the Mac status dot — see [my-phrases.md](my-phrases.md).
+3. **«Аудиоуроки»** — see [lessons-and-listening.md](lessons-and-listening.md).
+4. **«Тренажёр слуха»** — see [lessons-and-listening.md](lessons-and-listening.md).
+5. **Scenarios by level**, with «могу N из M».
+6. **Phrasebooks.**
+7. **Dialogues from books:** role-play and shadowing by chapter of started books.
 
 ## Phrasebooks
 - **Content:** `pipeline/phrasebook.py` builds A0 «Выживание» and A1 «Повседневные ситуации», 12 themes each (`THEMES`).

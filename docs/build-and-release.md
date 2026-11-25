@@ -16,12 +16,14 @@
 - **Logging:** Android's `Log` isn't available in unit tests, so code that logs must wrap it in `runCatching`.
 
 ## Release
+Only through the `/release` skill (`.claude/skills/release/SKILL.md`, local, not in git), invoked by the user. Claude never bumps the version on its own: the Actions workflow starts only on a push to `main` that changes `android/version.properties` (or manually via `workflow_dispatch`), and the GitHub plan is free with limits. One release = one push.
+
 1. Bump `android/version.properties` (`version=X.Y.Z`). versionCode = MAJOR·10000 + MINOR·100 + PATCH.
 2. Push to `main`. `.github/workflows/release.yml` builds a signed APK, checks the Room schemas and publishes `vX.Y.Z` with `lectura-X.Y.Z.apk` and `lectura.apk`.
 3. `gh run watch <id>`, then `gh release view vX.Y.Z`.
 
 - **Latest APK:** https://github.com/Likemilk99/lang-book/releases/latest/download/lectura.apk
-- **Approval:** each release is approved by the user before pushing.
+- **Approval:** invoking `/release` is the approval; without it, no version bump, commit to `version.properties` or release push.
 
 ## Keys
 - **Signing key:**

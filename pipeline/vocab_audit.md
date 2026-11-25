@@ -2,7 +2,7 @@
 
 `python3 pipeline/curriculum.py --audit 3000` (wordfreq es + simplemma). В частотном списке есть новости, Википедия и латиноамериканская лексика: это список для ручного разбора, а не правка. Решения вносятся в `pipeline/vocab_fixes.json`.
 
-## Нет ни на одном уровне (из топ-3000): 1207
+## Нет ни на одном уровне (из топ-3000): 1103
 
 - 12. del — только в «menú del día (A2)»
 - 21. al — только в «al lado de (A1)»
@@ -164,6 +164,7 @@
 - 818. club
 - 821. siquiera — только в «ni siquiera (B2)»
 - 823. expresar
+- 825. disponer — только в «disponer de (B1)»
 - 826. simple
 - 828. daño
 - 830. proponer
@@ -220,11 +221,9 @@
 - 1004. aqui
 - 1005. Barcelona
 - 1006. ii
-- 1007. importancia
 - 1008. re
 - 1011. electoral — только в «campaña electoral (B2)»
 - 1018. marco
-- 1025. independiente
 - 1028. estructura
 - 1029. golpe — только в «golpe de estado (B2)»
 - 1030. representante
@@ -232,26 +231,19 @@
 - 1034. h
 - 1036. York
 - 1040. concepto
-- 1047. enemigo
 - 1049. pase
 - 1053. Antonio
-- 1060. temporada — только в «temporada alta (B1)»
-- 1062. escena
 - 1063. verse
 - 1071. pablo
 - 1081. protección — только в «protección civil (B1)»
 - 1082. debate
 - 1084. cuba
-- 1086. positivo
 - 1089. creación
-- 1092. destruir
 - 1098. misión
 - 1100. Santiago
 - 1104. discurso
-- 1106. herramienta
 - 1108. expresión — только в «expresión oral (B2)»
 - 1110. financiero
-- 1111. eliminar
 - 1112. puro
 - 1115. venezolano
 - 1122. pensamiento
@@ -260,7 +252,6 @@
 - 1131. Manuel
 - 1132. identificar
 - 1133. diseño
-- 1135. intento
 - 1137. selección — только в «selección de personal (B2)»
 - 1138. vivar
 - 1143. interno
@@ -270,17 +261,13 @@
 - 1157. to
 - 1159. estadounidense
 - 1160. método
-- 1166. interesar
 - 1168. latino
-- 1172. criticar
 - 1177. inicio
 - 1180. j
 - 1181. jesús
 - 1185. gobernador
 - 1186. amo
 - 1189. bello
-- 1195. intención
-- 1201. presión — только в «olla a presión (B2)»
 - 1212. f
 - 1214. http
 - 1216. costo
@@ -311,7 +298,6 @@
 - 1297. estrategia
 - 1301. laboral — только в «mercado laboral (B1)»
 - 1304. David
-- 1308. sostener
 - 1311. bastar
 - 1313. corriente — только в «cuenta corriente (B1)»
 - 1316. ángel
@@ -323,7 +309,6 @@
 - 1331. comienzo
 - 1336. García
 - 1340. menudo — только в «a menudo (A2)»
-- 1342. revelar
 - 1349. disco — только в «disco duro (B1)»
 - 1353. promover
 - 1354. democrático
@@ -335,7 +320,6 @@
 - 1370. iniciativa
 - 1371. fundamental
 - 1377. penal
-- 1379. etapa
 - 1382. asistir — только в «asistir a clase (B2)»
 - 1383. contexto
 - 1384. eh
@@ -364,16 +348,13 @@
 - 1439. experto
 - 1442. lenguaje
 - 1443. presentación — только в «carta de presentación (B2)»
-- 1444. mirada
 - 1447. aforar
 - 1448. Alemania
 - 1449. ecuador
 - 1451. recién — только в «recién casados (B2)»
 - 1452. visión
 - 1453. fundación
-- 1455. admitir
 - 1457. periodo — только в «periodo de prueba (B2)»
-- 1458. impedir
 - 1459. indígena
 - 1466. extrañar
 - 1475. interesado
@@ -390,18 +371,14 @@
 - 1503. elevar
 - 1504. educativo
 - 1507. colombiano
-- 1512. garantizar
 - 1513. deportivo
 - 1516. físico
 - 1523. ejecutivo
 - 1524. agencia — только в «agencia de viajes (B1)»
-- 1527. escapar
 - 1528. poderoso
 - 1531. dejo
 - 1532. junta
 - 1533. Londres
-- 1535. reciente
-- 1538. amenaza
 - 1539. existencia
 - 1541. comité
 - 1542. división
@@ -410,8 +387,6 @@
 - 1549. contribuir
 - 1550. tiro
 - 1554. motor
-- 1555. alternativa
-- 1556. belleza
 - 1560. caballero
 - 1562. continuación
 - 1564. Fernando
@@ -432,13 +407,10 @@
 - 1601. citar
 - 1605. global — только в «calentamiento global (B1)»
 - 1611. voluntad
-- 1613. sugerir
 - 1614. disposición
-- 1615. reacción
 - 1618. productor
 - 1621. actuación
 - 1622. jamar
-- 1623. dudar
 - 1624. labor
 - 1625. intervención
 - 1627. distribución
@@ -458,7 +430,6 @@
 - 1654. académico — только в «expediente académico (B2)»
 - 1656. agarrar
 - 1661. impacto
-- 1667. breve
 - 1668. socio — только в «hacerse socio (B1)»
 - 1670. llena
 - 1671. ok
@@ -477,7 +448,6 @@
 - 1696. musical
 - 1701. disparar
 - 1702. ama
-- 1704. dificultad
 - 1707. diseñar
 - 1708. oponer
 - 1715. colaboración
@@ -488,7 +458,6 @@
 - 1731. licencia
 - 1735. montón — только в «un montón de (B2)»
 - 1736. Youtube
-- 1738. huir
 - 1740. show
 - 1741. bola
 - 1744. socialista
@@ -496,7 +465,6 @@
 - 1748. precisamente
 - 1749. Rodríguez
 - 1750. toca
-- 1756. perspectiva
 - 1759. senador
 - 1760. alejar
 - 1761. intelectual
@@ -506,7 +474,6 @@
 - 1774. transformar
 - 1780. raza
 - 1781. desaparecido
-- 1782. probable
 - 1783. moda — только в «de moda (A2)»
 - 1784. acaso — только в «por si acaso (B1)»
 - 1785. Diego
@@ -535,39 +502,29 @@
 - 1832. preparado
 - 1834. armar
 - 1836. fase
-- 1837. mental
 - 1838. muchacho
 - 1839. perseguir
 - 1840. introducir
 - 1841. sujeto
 - 1844. comprometer
 - 1845. comandante
-- 1846. ocultar
 - 1848. inicial
 - 1849. toque
-- 1850. justificar
-- 1857. modificar
 - 1860. involucrar
 - 1862. correspondiente
 - 1863. alianza
-- 1866. convencer
 - 1867. as
 - 1869. eeuu
 - 1870. for
 - 1872. new
 - 1873. on
 - 1874. Sevilla
-- 1875. variedad
 - 1876. copia — только в «con copia (B2)»
 - 1878. descripción
 - 1881. caída
 - 1882. universal
-- 1885. jurar
 - 1886. maldito
 - 1887. prever
-- 1888. insistir
-- 1891. desconocido
-- 1893. dibujo
 - 1894. rostro
 - 1895. ejecutar
 - 1897. circunstancia
@@ -578,20 +535,16 @@
 - 1907. revolucionario
 - 1908. conclusión
 - 1909. catalán
-- 1914. sobrevivir
 - 1918. peruano
 - 1919. sabio
-- 1921. advertir
 - 1922. participante
 - 1925. alcance
 - 1932. jurídico
-- 1934. desastre — только в «desastre natural (B2)»
 - 1935. firme
 - 1936. Alberto
 - 1938. corta — только в «de manga corta (B1)»
 - 1939. do
 - 1940. franco
-- 1945. renunciar
 - 1946. mecanismo
 - 1956. tropa
 - 1958. violento
@@ -599,7 +552,6 @@
 - 1962. nuevamente
 - 1963. verlo
 - 1964. you
-- 1966. sombra
 - 1967. virgen
 - 1968. definición
 - 1969. oído
@@ -614,7 +566,6 @@
 - 1985. elaborar
 - 1987. griego
 - 1988. torno — только в «en torno a (B2)»
-- 1990. mezcla
 - 1991. mejora
 - 1994. convertirse — только в «convertirse en (B1)»
 - 1995. someter
@@ -632,13 +583,10 @@
 - 2014. concreto
 - 2016. criterio
 - 2017. ultimar
-- 2020. confundir
 - 2021. combate
-- 2023. coincidir
 - 2025. provincial
 - 2026. aéreo
 - 2027. editor
-- 2028. engañar
 - 2033. ahi
 - 2034. cristo
 - 2035. Fernández
@@ -646,7 +594,6 @@
 - 2040. pasión
 - 2041. circular
 - 2043. impulsar
-- 2046. gratuito
 - 2048. columna — только в «columna vertebral (B1)»
 - 2049. explotar
 - 2050. irse
@@ -657,7 +604,6 @@
 - 2059. tomo
 - 2060. castro
 - 2061. triunfo
-- 2063. comprobar
 - 2065. múltiple
 - 2066. romano
 - 2068. coronel
@@ -671,23 +617,17 @@
 - 2080. patrón
 - 2083. oriental
 - 2084. Enrique
-- 2085. encargar
 - 2089. autorizar
-- 2090. arrancar
 - 2091. definitivo
 - 2093. renta — только в «declaración de la renta (B2)»
-- 2094. acudir
 - 2095. proceder
 - 2097. logro
 - 2099. variar
 - 2102. símbolo
-- 2103. idiota
 - 2104. cierre
 - 2106. juzgar
 - 2108. grito
 - 2109. artístico
-- 2111. horrible
-- 2113. castellano
 - 2114. peña
 - 2115. adentro
 - 2116. Ana
@@ -695,11 +635,9 @@
 - 2119. Guatemala
 - 2120. perfectamente
 - 2121. dirigente
-- 2124. aviso
 - 2126. inventar
 - 2127. localidad
 - 2129. centrar
-- 2130. promesa
 - 2131. potencia
 - 2132. árabe
 - 2134. literario
@@ -720,18 +658,15 @@
 - 2156. máxima — только в «capacidad máxima (B2)»
 - 2160. puesta
 - 2162. disculpa
-- 2163. locura
 - 2165. mata
 - 2168. manda
 - 2170. extra — только в «horas extra (B1)»
 - 2171. roca
-- 2172. abuso
 - 2176. tecnológico
 - 2177. legislativo
 - 2178. nave
 - 2179. fan
 - 2180. terrorista
-- 2181. aclarar
 - 2182. infraestructura
 - 2183. apertura
 - 2185. liberar
@@ -752,7 +687,6 @@
 - 2214. dama
 - 2216. norteamericano
 - 2219. carro
-- 2221. marchar
 - 2223. ausencia
 - 2224. olímpico
 - 2225. titulado
@@ -764,7 +698,6 @@
 - 2235. xd
 - 2236. palo
 - 2238. existente
-- 2239. estúpido
 - 2240. tender — только в «tender la ropa (A2)»
 - 2241. obispo
 - 2242. pacífico
@@ -773,11 +706,9 @@
 - 2246. externo
 - 2247. poquito
 - 2248. ejecución
-- 2250. obvio
 - 2251. intervenir
 - 2252. alimentar
 - 2253. formato
-- 2255. fila
 - 2259. emplear
 - 2260. agricultura
 - 2261. by
@@ -795,15 +726,10 @@
 - 2279. vincular
 - 2280. relativo
 - 2284. votación
-- 2286. reto
 - 2291. acontecimiento
-- 2292. evidente
 - 2293. condenado
 - 2295. homenaje
-- 2298. fallar
 - 2300. margen
-- 2301. forzar
-- 2302. juntar
 - 2303. fruto
 - 2305. Bogotá
 - 2306. et
@@ -817,7 +743,6 @@
 - 2319. tuya
 - 2320. extraordinario
 - 2322. lanzamiento
-- 2323. fracaso — только в «fracaso escolar (B2)»
 - 2325. defensor
 - 2335. princesa
 - 2336. masivo
@@ -828,12 +753,10 @@
 - 2341. mm
 - 2342. obviamente
 - 2344. trump
-- 2345. consciente
 - 2346. distribuir
 - 2347. conde
 - 2349. sagrado
 - 2350. brasileño
-- 2351. valorar
 - 2353. cura
 - 2357. leyenda
 - 2358. petróleo
@@ -846,7 +769,6 @@
 - 2372. lógica
 - 2375. lucir
 - 2377. corona
-- 2378. chiste
 - 2380. datar
 - 2381. Andrés
 - 2382. Asia
@@ -855,16 +777,14 @@
 - 2385. harry
 - 2386. impresión
 - 2387. man
-- 2390. olor
 - 2391. ridículo
 - 2392. pedazo
 - 2394. diablo
-- 2396. intenso
 - 2397. convenir
 - 2400. digno
-- 2402. solucionar
 - 2403. constar
 - 2404. reportar
+- 2405. enojar
 - 2408. atrapar
 - 2409. continente
 - 2412. antecedente
@@ -872,20 +792,16 @@
 - 2416. leo
 - 2417. muchísimo
 - 2419. testimonio
-- 2421. frecuente
 - 2425. manejo
 - 2430. competir
 - 2431. parlamentario
 - 2433. audio
-- 2435. impresionante
 - 2436. resistir
-- 2438. excusa
 - 2439. negativa
 - 2444. caracterizar
 - 2445. palma
 - 2447. violación
 - 2452. pedo
-- 2453. consultar
 - 2454. designar
 - 2456. creador
 - 2458. aliado
@@ -896,7 +812,6 @@
 - 2465. particularmente
 - 2466. fallo
 - 2468. montar — только в «montar en bici (A1)»
-- 2469. charla
 - 2472. violar
 - 2474. toro
 - 2480. componente
@@ -912,11 +827,9 @@
 - 2498. darte
 - 2500. personalmente
 - 2501. rol
-- 2503. tremendo
 - 2504. contemporáneo
 - 2510. eterno
 - 2511. poblar
-- 2512. atractivo
 - 2513. ampliar
 - 2514. protegido
 - 2516. sirio
@@ -947,7 +860,6 @@
 - 2561. manifiesto
 - 2563. capturar
 - 2564. ronda — только в «invitar a una ronda (B2)»
-- 2567. lujo
 - 2568. combatir
 - 2569. reducción
 - 2571. castilla
@@ -994,8 +906,6 @@
 - 2639. salto
 - 2640. provenir
 - 2641. republicano
-- 2642. reemplazar
-- 2645. urgente
 - 2647. integrante
 - 2650. músico
 - 2651. pacto
@@ -1004,9 +914,7 @@
 - 2655. rango
 - 2656. crónica
 - 2659. top
-- 2660. curiosidad
 - 2665. saco — только в «saco de dormir (B1)»
-- 2666. inútil
 - 2667. am
 - 2668. aparentemente
 - 2669. difusión
@@ -1018,7 +926,6 @@
 - 2683. bienvenida
 - 2684. evaluación
 - 2688. modificación
-- 2693. anotar
 - 2697. aparición
 - 2698. bolívar
 - 2700. suizo
@@ -1030,8 +937,6 @@
 - 2708. rebelde
 - 2711. uniforme
 - 2712. rival
-- 2714. novedad
-- 2715. obligatorio
 - 2717. percibir
 - 2718. Andalucía
 - 2719. Chávez
@@ -1052,7 +957,6 @@
 - 2740. retiro
 - 2741. formal
 - 2743. cerrada
-- 2747. repartir
 - 2748. espiritual
 - 2749. compuesto
 - 2750. localizar
@@ -1067,7 +971,6 @@
 - 2765. cometido
 - 2767. cumbre
 - 2771. verificar
-- 2772. ofender
 - 2773. explotación
 - 2774. conformar
 - 2776. renuncia
@@ -1095,11 +998,9 @@
 - 2815. pastor
 - 2818. coño
 - 2819. administrar
-- 2820. rumor
 - 2823. Gabriel
 - 2824. incremento
 - 2825. aborto
-- 2826. desafío
 - 2830. químico
 - 2831. sufrido
 - 2833. cerro
@@ -1121,10 +1022,7 @@
 - 2860. divino
 - 2864. mineral — только в «agua mineral (A2)»
 - 2866. caza
-- 2868. oler
-- 2871. absurdo
 - 2872. combinación
-- 2873. misterio
 - 2875. eje
 - 2876. corporación
 - 2880. Caribe
@@ -1147,7 +1045,6 @@
 - 2903. encerrar
 - 2904. proveer
 - 2907. institucional
-- 2908. evaluar
 - 2910. demonio
 - 2911. variable
 - 2912. posesión
@@ -1155,7 +1052,6 @@
 - 2914. africano
 - 2915. gil
 - 2916. gesto
-- 2919. detectar
 - 2921. actriz
 - 2923. realización
 - 2924. ejemplar
@@ -1212,10 +1108,10 @@
 - 2999. revisión
 - 3000. Roberto
 
-## Частые (топ-1500), но стоят на B1/B2: 309
+## Частые (топ-1500), но стоят на B1/B2: 306
 
 - 102. hecho — B2
-- 159. tratar — B2
+- 159. tratar — B1
 - 169. punto — B1
 - 183. dios — B1
 - 210. existir — B1
@@ -1225,7 +1121,6 @@
 - 262. información — B1
 - 273. nivel — B1
 - 292. estado — B2
-- 294. falta — B2
 - 302. sociedad — B1
 - 308. tras — B1
 - 319. frente — B1
@@ -1235,7 +1130,6 @@
 - 349. especial — B1
 - 363. mayoría — B1
 - 376. ofrecer — B2
-- 377. sentido — B2
 - 379. ambos — B1
 - 381. red — B1
 - 384. camino — B1
@@ -1245,13 +1139,11 @@
 - 405. prueba — B1
 - 410. obtener — B2
 - 419. interés — B1
-- 420. realmente — B1
 - 427. región — B1
 - 440. significar — B1
 - 448. cargo — B2
 - 450. producto — B1
 - 451. investigación — B1
-- 453. duda — B1
 - 457. formar — B2
 - 460. atención — B1
 - 465. común — B1
@@ -1265,13 +1157,10 @@
 - 503. cuyo — B2
 - 516. fondo — B2
 - 517. representar — B2
-- 521. vivo — B2
 - 524. causa — B2
 - 547. apoyar — B1
-- 548. natural — B2
 - 549. voto — B1
 - 555. diario — B1
-- 562. pena — B1
 - 575. arma — B2
 - 580. comentario — B1
 - 586. campaña — B1
@@ -1279,10 +1168,7 @@
 - 590. recurso — B1
 - 598. alcanzar — B2
 - 603. asunto — B1
-- 607. echar — B1
-- 610. justo — B1
 - 611. baja — B1
-- 615. simplemente — B1
 - 618. nación — B2
 - 623. ministro — B1
 - 630. cabo — B2
@@ -1335,10 +1221,7 @@
 - 807. legal — B2
 - 812. informe — B1
 - 819. administración — B2
-- 820. finalmente — B2
-- 825. disponer — B2
 - 832. esfuerzo — B1
-- 841. culpa — B1
 - 843. industria — B1
 - 844. reforma — B1
 - 857. ciento — B1
@@ -1352,11 +1235,9 @@
 - 883. alma — B2
 - 884. diputado — B2
 - 885. juicio — B1
-- 888. actualmente — B1
 - 892. riesgo — B2
 - 893. consecuencia — B2
 - 903. victoria — B2
-- 909. probablemente — B1
 - 912. marcha — B2
 - 913. religioso — B1
 - 922. género — B1
@@ -1375,7 +1256,6 @@
 - 978. confirmar — B2
 - 979. análisis — B1
 - 980. apenas — B1
-- 985. totalmente — B2
 - 986. materia — B2
 - 987. tribunal — B1
 - 990. causar — B2
@@ -1384,43 +1264,49 @@
 - 999. revolución — B2
 - 1000. régimen — B2
 - 1003. registrar — B2
-- 1009. superar — B2
+- 1007. importancia — B1
+- 1009. superar — B1
 - 1010. destino — B1
 - 1013. esperanza — B1
 - 1014. secreto — B1
 - 1017. ambiente — B1
 - 1022. prensa — B1
 - 1023. pertenecer — B2
+- 1025. independiente — B1
 - 1026. completo — B1
 - 1027. hogar — B1
 - 1032. provocar — B2
-- 1035. jamás — B1
 - 1037. exigir — B1
 - 1038. mínimo — B1
 - 1039. memoria — B1
 - 1043. democracia — B1
 - 1046. afectar — B2
-- 1054. completamente — B2
+- 1047. enemigo — B1
 - 1056. comentar — B1
 - 1058. amplio — B2
 - 1059. declaración — B1
+- 1060. temporada — B1
+- 1062. escena — B1
 - 1065. distancia — B1
 - 1068. básico — B2
 - 1070. fe — B2
 - 1073. reino — B2
-- 1075. aprovechar — B1
 - 1079. describir — B1
 - 1080. aumento — B2
 - 1083. recuperar — B1
 - 1085. generación — B1
+- 1086. positivo — B1
+- 1092. destruir — B1
 - 1097. detener — B1
+- 1106. herramienta — B1
 - 1107. cercano — B1
+- 1111. eliminar — B1
 - 1114. plazo — B1
 - 1117. teoría — B2
 - 1118. comercio — B1
 - 1121. característica — B2
 - 1123. soldado — B1
-- 1125. extraño — B1
+- 1135. intento — B2
 - 1139. enorme — B1
 - 1141. agente — B1
 - 1147. inversión — B2
@@ -1429,18 +1315,20 @@
 - 1152. conflicto — B2
 - 1155. confianza — B1
 - 1162. moral — B2
-- 1164. agradecer — B1
 - 1167. marcar — B1
 - 1170. colectivo — B2
 - 1171. cubrir — B2
+- 1172. criticar — B1
 - 1175. década — B1
 - 1176. frontera — B1
 - 1179. equivocar — B1
 - 1188. demanda — B2
 - 1193. asumir — B2
 - 1194. surgir — B1
+- 1195. intención — B1
 - 1196. municipio — B1
 - 1197. norma — B2
+- 1201. presión — B1
 - 1202. batalla — B1
 - 1209. disponible — B1
 - 1215. crédito — B2
@@ -1472,6 +1360,7 @@
 - 1282. cristiano — B1
 - 1292. pérdida — B1
 - 1299. distrito — B2
+- 1308. sostener — B2
 - 1309. avanzar — B1
 - 1314. asesinato — B2
 - 1315. constituir — B2
@@ -1482,6 +1371,7 @@
 - 1338. extender — B2
 - 1339. velocidad — B1
 - 1341. respetar — B1
+- 1342. revelar — B2
 - 1344. torre — B1
 - 1352. sesión — B1
 - 1357. secundario — B1
@@ -1493,6 +1383,7 @@
 - 1372. fijar — B1
 - 1373. obligar — B1
 - 1374. reina — B1
+- 1379. etapa — B1
 - 1380. proporcionar — B2
 - 1381. factor — B2
 - 1391. plantear — B2
@@ -1504,15 +1395,17 @@
 - 1415. plataforma — B2
 - 1416. sede — B1
 - 1420. máximo — B1
-- 1422. exactamente — B1
 - 1424. principalmente — B1
 - 1435. deuda — B1
 - 1436. enlace — B1
 - 1440. emitir — B1
 - 1441. masa — B1
+- 1444. mirada — B1
 - 1445. hallar — B2
 - 1454. tasa — B1
+- 1455. admitir — B1
 - 1456. blog — B2
+- 1458. impedir — B1
 - 1460. argumento — B1
 - 1462. dividir — B1
 - 1468. rechazar — B2

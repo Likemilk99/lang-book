@@ -1,13 +1,13 @@
 # Собирает подписанный APK и публикует GitHub Release, когда в main меняется
-# версия в android/version.properties (тег v<версия> ещё не существует).
+# версия в android/version.properties (тег v<версия> ещё не существует). Другие push-и workflow не
+# запускают (лимиты GitHub Actions); вручную — workflow_dispatch.
 name: Release APK
 
 on:
   push:
     branches: [main]
     paths:
-      - "android/**"
-      - ".github/workflows/release.yml"
+      - "android/version.properties"
   workflow_dispatch:
 
 permissions:

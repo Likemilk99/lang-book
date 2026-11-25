@@ -28,7 +28,7 @@
 
 Режим --focus (книги-дополнения): цель — только слова из pipeline/vocab_fixes.json (пропущенные частые
 слова и разговорные выражения). Уровни A0 (слова с "a0": true; словарь и первые темы грамматики A1),
-A1, A2. Книги нумеруются после готовых (a1-11-…), кэш — pipeline/.cache/library/<L>-focus/,
+A1, A2, B1, B2 (у B1/B2 других книг библиотеки нет). Книги нумеруются после готовых (a1-11-…), кэш — pipeline/.cache/library/<L>-focus/,
 отчёт — coverage_<L>_focus.md. Грамматика уже покрыта основной библиотекой и не проверяется на ≥ 2.
 
   python3 pipeline/library.py --focus --level A0 --jobs 3
@@ -69,15 +69,17 @@ LEVEL_CFG = {
 }
 
 # Режим --focus: книги-дополнения, которые покрывают только слова из pipeline/vocab_fixes.json
-# (A0 — слова с "a0": true, словарь и грамматика A1; A1/A2 — слова своего уровня).
+# (A0 — слова с "a0": true, словарь и грамматика A1; A1–B2 — слова своего уровня).
 # Целевых слов меньше, поэтому на главу их меньше, а слова, встреченные один раз, повторяются
 # во второй книге.
 FOCUS_CFG = {
     "A0": {"words": (120, 200), "per_ch": (5, 10), "min_books": 2, "max_books": 3, "avg_ch": 6},
     "A1": {"words": (200, 300), "per_ch": (8, 25), "min_books": 2, "max_books": 3, "avg_ch": 6},
     "A2": {"words": (300, 450), "per_ch": (10, 30), "min_books": 2, "max_books": 3, "avg_ch": 7},
+    "B1": {"words": (450, 650), "per_ch": (12, 35), "min_books": 2, "max_books": 4, "avg_ch": 7},
+    "B2": {"words": (550, 800), "per_ch": (8, 25), "min_books": 2, "max_books": 3, "avg_ch": 7},
 }
-FOCUS_VOCAB_LEVEL = {"A0": "A1", "A1": "A1", "A2": "A2"}
+FOCUS_VOCAB_LEVEL = {"A0": "A1", "A1": "A1", "A2": "A2", "B1": "B1", "B2": "B2"}
 FOCUS_A0_TOPICS = 10  # A0: только первые темы грамматики A1 (настоящее время, ser/estar, hay…)
 FIXES_FILE = PIPE / "vocab_fixes.json"
 
@@ -383,6 +385,63 @@ FOCUS_SEEDS: dict[str, list[dict]] = {
                   "Two neighbours, a journalist and a retired policewoman, investigate, ask questions, compare "
                   "the details and find a surprising and kind solution.",
              themes=["services", "basic", "home", "media", "feelings", "city"]),
+        dict(key="clases-en-granada", kind=ORIG, chapters=7,
+             source="Оригинальная история: курсы испанского для иностранцев в Гранаде",
+             idea="Original modern story told mostly in dialogue, with the past tenses of A2. A small Spanish "
+                  "(castellano) school in Granada: the patient teacher Lola and her students — Oleg from Russia, "
+                  "a Japanese cook, a German retiree and a young Brazilian. Speaking too fast and asking to speak "
+                  "slowly, funny mistakes and confusions, a cooking class where everything smells, a trip to the "
+                  "beach in Almuñécar, an exam, a goodbye party and what each of them decides to do next.",
+             themes=["education", "feelings", "food", "leisure", "basic", "description"]),
+    ],
+    "B1": [
+        dict(key="el-piso-de-lavapies", kind=ORIG, chapters=7,
+             source="Оригинальная история: год в общей квартире в мадридском Лавапьесе",
+             idea="Original modern story, mostly dialogue in colloquial Peninsular Spanish (vale, tío, qué rollo, "
+                  "flipar, mogollón, cutre, pijo — natural, not forced). Sasha, a Russian designer, rents a room "
+                  "in Lavapiés, Madrid. A difficult landlord (el casero) and the deposit, flatmates with very "
+                  "different habits, a broken boiler in January, a neighbourhood fiesta, a misunderstanding that "
+                  "ends a friendship and a reconciliation, a job offer in another city and a hard decision.",
+             themes=["home", "feelings", "basic", "description", "work", "city"]),
+        dict(key="la-gestoria", kind=ORIG, chapters=7,
+             source="Оригинальная история: маленькое агентство по оформлению документов в Севилье",
+             idea="Original modern story, mostly dialogue. Rocío runs a small gestoría in Sevilla with her "
+                  "nephew. Every chapter a different client with a problem: a foreigner who needs an appointment "
+                  "(cita previa) and his papers, an old man cheated by a fake company, a couple who want to open a "
+                  "bar, a student who lost her documents, a neighbour who hides something. They investigate, "
+                  "argue, advise, make mistakes, fix them and help each other.",
+             themes=["services", "work", "feelings", "basic", "society", "city"]),
+        dict(key="temporada-en-la-sierra", kind=ORIG, chapters=7,
+             source="Оригинальная история: сезон в горном приюте в Сьерра-Невада",
+             idea="Original modern story, mostly dialogue. A season working in a mountain hostel in Sierra "
+                  "Nevada: Pablo, who left his office job, the strict owner, a cook who tells terrible jokes, "
+                  "groups of guests, a storm, a lost hiker, an accident and the rescue, a mystery with an old "
+                  "map, and at the end of the season everyone chooses what to do next.",
+             themes=["nature", "leisure", "travel", "body-health", "feelings", "time"]),
+        dict(key="la-pelicula", kind=ORIG, chapters=7,
+             source="Оригинальная история: съёмки маленького фильма в Барселоне",
+             idea="Original modern story, mostly dialogue. A group of friends in Barcelona shoot a low-budget "
+                  "film: no money, a borrowed camera, a nervous actor, a director who exaggerates everything, "
+                  "rain on the day of the main scene, a rumour on social media, the premiere in a tiny bar and an "
+                  "unexpected success.",
+             themes=["leisure", "media", "feelings", "work", "description", "basic"]),
+    ],
+    "B2": [
+        dict(key="el-reto", kind=ORIG, chapters=7,
+             source="Оригинальная история: стартап в Валенсии на грани провала",
+             idea="Original modern story, mostly dialogue, natural B2 register (opinions, arguments, hypotheses, "
+                  "reported speech). Three founders of a small app company in Valencia face a hard year: an "
+                  "investor who doubts them, a rumour about the product, a conflict between friends, an "
+                  "abusive client, a crisis that threatens everything, a hard conversation and a realistic, "
+                  "not too sweet ending.",
+             themes=["work", "society", "feelings", "media", "basic", "description"]),
+        dict(key="cartas-a-la-abuela", kind=ORIG, chapters=7,
+             source="Оригинальная история: внучка и бабушка, письма между Бильбао и Кадисом",
+             idea="Original modern story in letters and conversations (phone calls, visits). Nerea, a young "
+                  "psychologist in Bilbao, and her grandmother in Cádiz. Their lives, a family secret, the "
+                  "grandmother's illness and therapy, a trip together, old photos, generational views on work, "
+                  "love and society, and what each of them learns from the other.",
+             themes=["family", "feelings", "body-health", "society", "description", "time"]),
     ],
 }
 
@@ -1303,9 +1362,9 @@ class Library:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--level", required=True, choices=["A0", *LEVEL_CFG])
+    ap.add_argument("--level", required=True, choices=list(FOCUS_CFG))
     ap.add_argument("--focus", action="store_true",
-                    help="книги-дополнения: покрыть слова из pipeline/vocab_fixes.json (A0, A1, A2)")
+                    help="книги-дополнения: покрыть слова из pipeline/vocab_fixes.json (A0–B2)")
     ap.add_argument("--jobs", type=int, default=3, help="параллельных запросов claude (и книг)")
     ap.add_argument("--model", default="sonnet")
     ap.add_argument("--min-books", type=int, default=0)
@@ -1314,8 +1373,8 @@ def main() -> None:
     ap.add_argument("--rebuild", action="store_true",
                     help="пересобрать готовые книги из кэша (без новых запросов) и отчёт")
     args = ap.parse_args()
-    if args.level == "A0" and not args.focus:
-        ap.error("A0 есть только в режиме --focus (у A0 нет своего словаря)")
+    if args.level not in LEVEL_CFG and not args.focus:
+        ap.error(f"{args.level} есть только в режиме --focus (основной библиотеки этого уровня нет)")
     cfg = FOCUS_CFG[args.level] if args.focus else LEVEL_CFG[args.level]
     args.min_books = args.min_books or cfg["min_books"]
     args.max_books = args.max_books or cfg["max_books"]

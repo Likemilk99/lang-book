@@ -44,6 +44,7 @@ import app.lectura.ui.AboutTrainScreen
 import app.lectura.ui.HomeScreen
 import app.lectura.ui.LessonsScreen
 import app.lectura.ui.ListenScreen
+import app.lectura.ui.LiveChatScreen
 import app.lectura.ui.MyPhrasesScreen
 import app.lectura.ui.PhraseThemeScreen
 import app.lectura.ui.PhraseTrainScreen
@@ -139,6 +140,7 @@ private fun AppNav() {
             composable("talk") { TalkScreen(onRoute = { nav.openRoute(it) }) }
             composable("lessons") { LessonsScreen(onBack = { nav.popBackStack() }) }
             composable("listen") { ListenScreen(onBack = { nav.popBackStack() }) }
+            composable("chat") { LiveChatScreen(onBack = { nav.popBackStack() }) }
             composable("mine") { MyPhrasesScreen(onBack = { nav.popBackStack() }, onTrain = { nav.navigate("mine/train") }) }
             composable("mine/train") { AboutTrainScreen(onBack = { nav.popBackStack() }) }
             composable("scenario/{id}") { e ->

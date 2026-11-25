@@ -15,6 +15,7 @@ Feature docs live in [`docs/`](docs/README.md), one file per feature. **Read the
 | Review, SRS, exercises, answer matching | [docs/review.md](docs/review.md) |
 | Pixabay word pictures | [docs/word-images.md](docs/word-images.md) |
 | «Говорить»: phrasebooks, scenarios, recognition | [docs/speaking.md](docs/speaking.md) |
+| «Живой разговор»: character on the Mac, `chat.py`, voices | [docs/live-chat.md](docs/live-chat.md) |
 | «Мои фразы»: `server.py` (Wi-Fi), `personal.py` (USB) | [docs/my-phrases.md](docs/my-phrases.md) |
 | Audio lessons, listening trainer | [docs/lessons-and-listening.md](docs/lessons-and-listening.md) |
 | Home, daily plan, reminder, progress | [docs/home-and-progress.md](docs/home-and-progress.md) |
@@ -27,7 +28,7 @@ Feature docs live in [`docs/`](docs/README.md), one file per feature. **Read the
 - **The app works offline** (Kotlin, Compose, Room, no DI; package `app.lectura`). The network is used only for:
   - narrator packs (GitHub);
   - card pictures (Pixabay);
-  - the optional «Мои фразы» server on the Mac in the home Wi-Fi.
+  - the optional Mac server in the home Wi-Fi («Мои фразы», «Живой разговор»).
 - **Audio:** pre-generated Qwen3-TTS narrator audio where available, otherwise Android system TTS (es-ES). The Qwen3-TTS choice was made by the user after a comparison; don't re-open it without a reason.
 
 ## Rules that must not be broken
@@ -42,6 +43,7 @@ Feature docs live in [`docs/`](docs/README.md), one file per feature. **Read the
 - **Outward-facing actions need the user's confirmation:**
   - `audio.py --upload` (publishes to a public GitHub Release);
   - commits, pushes and releases (the user approves each release).
+- **Never bump `android/version.properties` on your own.** Releases go only through the `/release` skill (`.claude/skills/release/`) when the user invokes it: every release build runs on GitHub Actions (triggered only by a change to `android/version.properties` on `main`), and the user is on the free plan with limits.
 - **Book format stays backward compatible:** `ignoreUnknownKeys`, new fields optional. Tag ids (`TAGS` = `model/Tags.kt`) are never changed.
 - **Spanish is Peninsular only** (vosotros, Spain vocabulary). The interface and translations are in Russian. Content focus is conversational Spanish and dialogues.
 - **Answer comparison** ignores case, punctuation and accents. Digits equal words (`TextMatch`, `SpeechMatch`, `SpanishNumbers`). Spanish is read aloud wherever possible.
@@ -49,7 +51,7 @@ Feature docs live in [`docs/`](docs/README.md), one file per feature. **Read the
 ## Quick commands
 - **Tests + release build** (CI doesn't run tests):
   `cd android && JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew testDebugUnitTest assembleRelease`
-- **Release:** bump `android/version.properties`, push to `main`, then `gh run watch <id>` and `gh release view vX.Y.Z`. Latest APK: https://github.com/Likemilk99/lang-book/releases/latest/download/lectura.apk
+- **Release:** only via `/release` (bumps `android/version.properties`, runs tests, one commit and one push to `main`, then `gh run watch <id>` and `gh release view vX.Y.Z`). Latest APK: https://github.com/Likemilk99/lang-book/releases/latest/download/lectura.apk
 - **Emulator:**
   - `export PATH="$HOME/Library/Android/sdk/platform-tools:$HOME/Library/Android/sdk/emulator:$PATH"`
   - `emulator -avd Pixel_8_Pro -no-window -no-audio -no-boot-anim`

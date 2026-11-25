@@ -37,10 +37,12 @@ The learner writes in Russian. The Mac turns each entry into simple Peninsular S
 | `GET /ws` (WebSocket, heartbeat 15 s) | `hello` {protocol, audio}, `status` {queue, busy, phase, current}, `done` {inboxId}, `error` {inboxId, text} |
 | `POST /sync` `{"items": [InboxEntry]}` | Returns `{"results": [...ready...], ...status}`; entries without a ready result are queued |
 | `GET /audio/<name>` | An `.m4a` from `books/.work/personal/audio/` |
+| `/chat/…` | «Живой разговор», see [live-chat.md](live-chat.md) |
 
 - **Worker:**
-  - One worker thread (`ThreadPoolExecutor(1)`) translates and voices in turn. MLX must stay on one thread.
-  - The TTS engine is loaded once at start; the phase is «готовлю голос».
+  - One MLX thread (`ThreadPoolExecutor(1)`) does all voicing (here and for «Живой разговор»); MLX must stay on one thread. Translation (`claude -p`) runs in the default thread pool so it doesn't block the conversation's audio.
+  - While a conversation is active, voicing waits (phase «жду конца разговора»); `clear_mlx_cache()` after each voicing.
+  - The TTS engine is loaded once at start and warmed up (f2, m2, Whisper); the phase is «готовлю голос».
   - A result is «ready» when it is translated and all its clips exist.
   - Voicing calls `voice_set` over all results; finished clips are skipped.
 
@@ -55,7 +57,7 @@ The learner writes in Russian. The Mac turns each entry into simple Peninsular S
   2. `PersonalRepository.addResults` merges into `files/personal/personal.json`.
   3. `sync()` marks entries done and adds phrases to review; a toast shows «+N фраз».
 - **Status UI: `ui/MacStatus.kt`.**
-  - Dot colours: 🟢 IDLE «Mac на связи», 🟡 BUSY «Mac переводит / озвучивает / готовится · в работе: N» (pulsing), 🔴 OFFLINE «Mac не найден» or NEED_CODE «нужен код» / «Mac не принял код», ⚪ SEARCHING.
+  - Dot colours: 🟢 IDLE «Mac на связи», 🟡 BUSY «Mac переводит / озвучивает / готовится / ждёт конца разговора · в работе: N» (pulsing), 🔴 OFFLINE «Mac не найден» or NEED_CODE «нужен код» / «Mac не принял код», ⚪ SEARCHING.
   - Tapping the dot opens a dialog with an explanation, the start command, the code field and an optional address field. Use the address field when the router blocks Bonjour.
 - **Manifest:** allows cleartext HTTP (`usesCleartextTraffic`), because the home server has no certificate. External hosts are https anyway.
 - **Contract test:** `MacLinkTest` checks that port, service type and header are the same in `server.py`.

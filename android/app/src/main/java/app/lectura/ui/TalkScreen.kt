@@ -101,6 +101,7 @@ fun TalkScreen(onRoute: (String) -> Unit) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            item { LiveChatCard { onRoute("chat") } }
             item { MyPhrasesCard { onRoute("mine") } }
             item { LessonsCard { onRoute("lessons") } }
             item { ListenCard { onRoute("listen") } }

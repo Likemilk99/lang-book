@@ -11,6 +11,7 @@ Project-wide rules (user data, signing key, privacy, language) live in [`../CLAU
 | [review.md](review.md) | SRS, the exercise ladder, sessions, answer matching, vocabulary |
 | [word-images.md](word-images.md) | Pixabay pictures on word cards |
 | [speaking.md](speaking.md) | «Говорить» tab: phrasebooks, scenarios, shadowing/role-play, speech recognition, «Записать себя» |
+| [live-chat.md](live-chat.md) | «Живой разговор»: a character on the Mac (`chat.py`), streaming over the server, voices, hints |
 | [my-phrases.md](my-phrases.md) | «Мои фразы»: entries in Russian → Mac (Wi-Fi server or USB) → phrases with audio in review |
 | [lessons-and-listening.md](lessons-and-listening.md) | Audio lessons for walks, the listening trainer |
 | [home-and-progress.md](home-and-progress.md) | Home screen, «План на сегодня», «Могу», reminder, progress and stats |

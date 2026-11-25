@@ -4,7 +4,7 @@
 - **Content is prepared on the Mac.** Python scripts in `pipeline/` call `claude -p --json-schema` (helper `claude_json` in `prepare_book.py`) on the user's Claude subscription. There is no API key, and the app makes no LLM calls.
 - **The app works offline.** Books, phrasebooks, scenarios and the syllabus are JSON with every translation precomputed. Network is used only for:
   - one-time downloads: book narrator packs (GitHub Release `audio`) and card pictures (Pixabay);
-  - the optional «Мои фразы» server on the Mac in the home network ([my-phrases.md](my-phrases.md)).
+  - the optional server on the Mac in the home network: «Мои фразы» ([my-phrases.md](my-phrases.md)) and «Живой разговор» ([live-chat.md](live-chat.md)). The conversation's LLM calls happen on the Mac, not in the app.
 - **Audio.**
   - Pre-generated narrator audio (Qwen3-TTS on the Mac) for book text, phrasebooks and scenarios.
   - The Android system TTS (es-ES) for everything else and as a fallback.
@@ -19,8 +19,8 @@
 
 | Package | Contents |
 |---|---|
-| `model/` | JSON contracts shared with the pipeline: `Book`, `Curriculum`, `Phrasebook`, `Scenario`, `Personal`, `Tags` |
-| `data/` | Room (`Db.kt`), `UserData` (all user-data writes), repositories (books, curriculum, phrasebook, scenarios, personal), `DailyPlan`, `Srs`, `Memory`, `BookStats`, `UserProgress`, `Expressions`, `Listening`, `LessonSources`, `MacLink`, `Prefs` |
+| `model/` | JSON contracts shared with the pipeline: `Book`, `Curriculum`, `Phrasebook`, `Scenario`, `Personal`, `LiveChat`, `Tags` |
+| `data/` | Room (`Db.kt`), `UserData` (all user-data writes), repositories (books, curriculum, phrasebook, scenarios, personal), `DailyPlan`, `Srs`, `Memory`, `BookStats`, `UserProgress`, `Expressions`, `Listening`, `LessonSources`, `MacLink`, `LiveChat`, `Prefs` |
 | `playback/` | `Player` (book reading + system TTS), `PlaybackService`, `Lessons` + `LessonService` (audio lessons), `ClipPlayer`, `SpeakEs` |
 | `speech/` | Recognition (`Speech.kt`: `SpeakButton`, `SpeechMatch`), `SpeechTts`, `SpanishNumbers` |
 | `review/` | Mixed review session: `ExerciseBuilder`, exercise views, `ReviewViewModel`, `SessionBatch`, `TextMatch` |
@@ -32,7 +32,7 @@
 - `MainActivity` has four tabs: **Главная · Говорить · Повторение · Словарь**. The start destination is `home`. The review tab shows a badge with the number of due items.
 - Library and Grammar are sections opened from Home and have «Назад».
 - Helpers: `NavHostController.openTab(route)` switches tabs; `openRoute(route)` switches to a tab or pushes a screen.
-- Routes: `library`, `grammar`, `grammar/{id}`, `grammar/{id}/practice`, `progress`, `bookstats/{id}`, `reader/{id}`, `questions/{id}/{ch}`, `speak/{id}/{ch}/{mode}`, `phrasebook/{level}[/{theme}[/train]]`, `scenario/{id}[/{step}]`, `mine`, `mine/train`, `lessons`, `listen`.
+- Routes: `library`, `grammar`, `grammar/{id}`, `grammar/{id}/practice`, `progress`, `bookstats/{id}`, `reader/{id}`, `questions/{id}/{ch}`, `speak/{id}/{ch}/{mode}`, `phrasebook/{level}[/{theme}[/train]]`, `scenario/{id}[/{step}]`, `chat`, `mine`, `mine/train`, `lessons`, `listen`.
 
 ## Language
 - Spanish is Peninsular only (vosotros, Spain vocabulary).

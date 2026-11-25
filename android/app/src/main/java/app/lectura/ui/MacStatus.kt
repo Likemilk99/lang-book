@@ -91,6 +91,7 @@ fun macStatusText(s: MacLink.State, pending: Int = 0): String = when (s.status) 
     Status.BUSY -> when (s.phase) {
         "готовлю голос" -> "Mac готовится"
         "озвучиваю" -> "Mac озвучивает"
+        "жду конца разговора" -> "Mac ждёт конца разговора"
         else -> "Mac переводит"
     } + if (s.queue > 0) " · в работе: ${s.queue}" else ""
 }

@@ -17,6 +17,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
@@ -65,83 +66,67 @@ private fun ColumnScope.AutoCheckedView(vm: ReviewViewModel, ex: Exercise) {
     }
 }
 
+/**
+ * Параметры подхода: режим, сторона карточек, озвучка. [practice] — параметры дополнительной практики
+ * (открываются кнопкой «Дополнительная практика», когда плановых нет или подход закончен).
+ */
 @Composable
-fun SetupPanel(vm: ReviewViewModel) {
+fun SetupPanel(vm: ReviewViewModel, practice: Boolean = false) {
     val phrases = vm.due.count { it.isPhrase }
     Column(Modifier.verticalScroll(rememberScrollState())) {
-    MemoryCard(vm.allWords, Modifier.padding(bottom = 12.dp))
+    if (!practice) MemoryCard(vm.allWords, Modifier.padding(bottom = 12.dp))
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp)) {
-            Text("К повторению: ${countText(vm.due.size)}", style = MaterialTheme.typography.titleLarge)
-            if (phrases > 0) {
+            if (practice) {
+                Text("Дополнительная практика: ${countText(vm.practiceAvailable)}", style = MaterialTheme.typography.titleLarge)
                 Text(
-                    "слов: ${vm.due.size - phrases}, фраз: $phrases",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (vm.due.size > SessionBatch.SIZE) {
-                Text(
-                    "За один подход — ${SessionBatch.SIZE}: сначала те, что вы уже учили и можете забыть, потом новые. " +
-                        "Остальные — следующими подходами.",
+                    PRACTICE_HINT,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),
                 )
+            } else {
+                Text("К повторению: ${countText(vm.due.size)}", style = MaterialTheme.typography.titleLarge)
+                if (phrases > 0) {
+                    Text(
+                        "слов: ${vm.due.size - phrases}, фраз: $phrases",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (vm.due.size > SessionBatch.SIZE) {
+                    Text(
+                        "За один подход — ${SessionBatch.SIZE}: сначала те, что вы уже учили и можете забыть, потом новые. " +
+                            "Остальные — следующими подходами.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
             Spacer(Modifier.height(16.dp))
-
-            Text("Режим", style = MaterialTheme.typography.titleSmall)
-            ReviewMode.entries.forEach { m ->
-                FilterChip(
-                    selected = vm.mode == m,
-                    onClick = { vm.mode = m },
-                    label = { Text(m.label) },
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-            if (vm.mode == ReviewMode.MIXED) {
-                Text(
-                    buildString {
-                        append("Говорите с первого раза: сначала повторяете за диктором и узнаёте на слух, ")
-                        append("потом вспоминаете сами — сказать вслух, по шаблону, вписать, собрать фразу.")
-                        if (vm.dialogsAvailable > 0) append(" Плюс до ${ReviewViewModel.MAX_DIALOGS} ответов в диалоге.")
-                        if (!vm.speechAvailable) append(" Распознавание речи недоступно — упражнения с речью пропускаются.")
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-
-            Spacer(Modifier.height(16.dp))
-            Text("Карточки: какой стороной показывать", style = MaterialTheme.typography.titleSmall)
-            Direction.entries.forEach { d ->
-                FilterChip(
-                    selected = vm.direction == d,
-                    onClick = { vm.direction = d },
-                    label = { Text(d.label) },
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
-
-            Spacer(Modifier.height(16.dp))
-            Text("Озвучка (только испанский)", style = MaterialTheme.typography.titleSmall)
-            SwitchRow("Сразу произносить слово", vm.autoWord) { vm.autoWord = it }
-            SwitchRow("Сразу произносить пример", vm.autoExample) { vm.autoExample = it }
-            Text(
-                "Испанский звучит только в момент, когда появляется на экране. Любое нажатие сразу прерывает озвучку.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            SessionSettings(vm)
 
             Spacer(Modifier.height(20.dp))
-            Button(onClick = { vm.start() }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                Text("Начать (${minOf(vm.due.size, SessionBatch.SIZE)})")
-            }
-            if (vm.practiceAvailable > 0) {
-                OutlinedButton(onClick = { vm.startPractice() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                    Text("Дополнительная практика (${vm.practiceAvailable})")
+            if (practice) {
+                Button(
+                    onClick = { vm.startPractice() },
+                    enabled = vm.practiceAvailable > 0,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                ) {
+                    Text("Начать практику (${vm.practiceAvailable})")
+                }
+                OutlinedButton(onClick = { vm.closePracticeSetup() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                    Text("Назад")
+                }
+            } else {
+                Button(onClick = { vm.start() }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                    Text("Начать (${minOf(vm.due.size, SessionBatch.SIZE)})")
+                }
+                if (vm.practiceAvailable > 0) {
+                    OutlinedButton(onClick = { vm.startPractice() }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                        Text("Дополнительная практика (${vm.practiceAvailable})")
+                    }
                 }
             }
         }
@@ -149,23 +134,83 @@ fun SetupPanel(vm: ReviewViewModel) {
     }
 }
 
-/** Кнопка «ещё потренироваться» с пояснением, что расписание она не ломает. */
+/** Общие параметры плановых повторений и дополнительной практики. */
+@Composable
+private fun SessionSettings(vm: ReviewViewModel) {
+    Text("Режим", style = MaterialTheme.typography.titleSmall)
+    ReviewMode.entries.forEach { m ->
+        FilterChip(
+            selected = vm.mode == m,
+            onClick = { vm.mode = m },
+            label = { Text(m.label) },
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+    if (vm.mode == ReviewMode.MIXED) {
+        Text(
+            buildString {
+                append("Говорите с первого раза: сначала повторяете за диктором и узнаёте на слух, ")
+                append("потом вспоминаете сами — сказать вслух, по шаблону, вписать, собрать фразу.")
+                if (vm.dialogsAvailable > 0) append(" Плюс до ${ReviewViewModel.MAX_DIALOGS} ответов в диалоге.")
+                if (!vm.speechAvailable) append(" Распознавание речи недоступно — упражнения с речью пропускаются.")
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+
+    Spacer(Modifier.height(16.dp))
+    Text("Карточки: какой стороной показывать", style = MaterialTheme.typography.titleSmall)
+    Direction.entries.forEach { d ->
+        FilterChip(
+            selected = vm.direction == d,
+            onClick = { vm.direction = d },
+            label = { Text(d.label) },
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+
+    Spacer(Modifier.height(16.dp))
+    Text("Озвучка (только испанский)", style = MaterialTheme.typography.titleSmall)
+    SwitchRow("Сразу произносить слово", vm.autoWord) { vm.autoWord = it }
+    SwitchRow("Сразу произносить пример", vm.autoExample) { vm.autoExample = it }
+    Text(
+        "Испанский звучит только в момент, когда появляется на экране. Любое нажатие сразу прерывает озвучку.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+private const val PRACTICE_HINT =
+    "Слова, которые вы скорее всего подзабыли. Верные ответы не сдвигают расписание, " +
+        "ошибка возвращает слово в обычное повторение."
+
+/**
+ * Кнопка «ещё потренироваться». Первая практика открывает параметры; «Ещё практика» сразу после
+ * практики начинается с теми же параметрами, их можно поменять ссылкой ниже.
+ */
 @Composable
 private fun PracticeButton(vm: ReviewViewModel) {
     if (vm.practiceAvailable == 0) return
-    Button(onClick = { vm.startPractice() }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(56.dp)) {
+    if (vm.practice) {
+        Button(onClick = { vm.startPractice() }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(56.dp)) {
+            Text("Ещё практика (${vm.practiceAvailable})", style = MaterialTheme.typography.titleMedium)
+        }
+        TextButton(onClick = { vm.openPracticeSetup() }, modifier = Modifier.fillMaxWidth()) {
+            Text("Параметры: ${vm.mode.label.substringBefore(" (")} · изменить")
+        }
+    } else {
+        Button(onClick = { vm.openPracticeSetup() }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(56.dp)) {
+            Text("Дополнительная практика (${vm.practiceAvailable})", style = MaterialTheme.typography.titleMedium)
+        }
         Text(
-            if (vm.practice) "Ещё практика (${vm.practiceAvailable})" else "Дополнительная практика (${vm.practiceAvailable})",
-            style = MaterialTheme.typography.titleMedium,
+            PRACTICE_HINT,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
         )
     }
-    Text(
-        "Слова, которые вы скорее всего подзабыли. Верные ответы не сдвигают расписание, " +
-            "ошибка возвращает слово в обычное повторение.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = 4.dp),
-    )
 }
 
 @Composable

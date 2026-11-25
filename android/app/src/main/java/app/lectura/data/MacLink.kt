@@ -30,6 +30,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -73,6 +74,10 @@ class MacLink(
         val error: String = "",
         /** Код задан, но Mac его не принял. */
         val wrongCode: Boolean = false,
+        /** Mac умеет озвучивать (Qwen3-TTS загружен, сервер без --no-audio). */
+        val macAudio: Boolean = false,
+        /** Сервер поддерживает «Живой разговор» (старый server.py — нет). */
+        val chat: Boolean = false,
     )
 
     private val _state = MutableStateFlow(State())
@@ -82,11 +87,17 @@ class MacLink(
     /** Сколько фраз только что добавилось в повторение. */
     val arrived: SharedFlow<Int> = _arrived.asSharedFlow()
 
+    private val _chatEvents = MutableSharedFlow<JsonObject>(extraBufferCapacity = 512)
+    /** События «Живого разговора» с Mac (type = "chat.delta" | "chat.sentence" | "chat.audio" | "chat.audio_error"). */
+    val chatEvents: SharedFlow<JsonObject> = _chatEvents.asSharedFlow()
+
     private val json = Json { ignoreUnknownKeys = true }
     private val http = OkHttpClient.Builder()
         .connectTimeout(4, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
+    /** Реплика разговора ждёт ответа модели — дольше обычного. */
+    private val chatHttp = http.newBuilder().readTimeout(150, TimeUnit.SECONDS).build()
     private val wsClient = http.newBuilder()
         .readTimeout(0, TimeUnit.SECONDS)
         .pingInterval(10, TimeUnit.SECONDS) // Mac пропал (уснул, вы ушли из дома) — заметим за ~10–20 с
@@ -197,7 +208,18 @@ class MacLink(
 
             override fun onMessage(webSocket: WebSocket, text: String) {
                 val msg = runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return
-                when (msg["type"]?.jsonPrimitive?.content) {
+                val type = msg["type"]?.jsonPrimitive?.content.orEmpty()
+                if (type.startsWith("chat.")) {
+                    _chatEvents.tryEmit(msg)
+                    return
+                }
+                when (type) {
+                    "hello" -> _state.update {
+                        it.copy(
+                            macAudio = msg["audio"]?.jsonPrimitive?.content == "true",
+                            chat = msg["chat"]?.jsonPrimitive?.content == "true",
+                        )
+                    }
                     "status" -> {
                         val queue = msg["queue"]?.jsonPrimitive?.intOrNull ?: 0
                         val busy = msg["busy"]?.jsonPrimitive?.content == "true"
@@ -291,6 +313,36 @@ class MacLink(
                     tmp.renameTo(dst)
                 }
         }
+    }
+
+    /** Ответ сервера: HTTP-код и тело. */
+    data class Reply(val code: Int, val body: String)
+
+    /** POST JSON на Mac (для «Живого разговора»). null — Mac не на связи или запрос не дошёл. */
+    suspend fun postJson(path: String, body: String): Reply? = withContext(Dispatchers.IO) {
+        val host = _state.value.host.takeIf { _state.value.status in CONNECTED } ?: return@withContext null
+        runCatching {
+            chatHttp.newCall(
+                Request.Builder().url("http://$host$path").header(HEADER, prefs.macCode)
+                    .post(body.toRequestBody("application/json".toMediaType())).build(),
+            ).execute().use { Reply(it.code, it.body.string()) }
+        }.onFailure { runCatching { Log.w("MacLink", path, it) } }.getOrNull()
+    }
+
+    /** Скачать файл с Mac во временный и переименовать. false — не получилось. */
+    suspend fun download(path: String, dst: File): Boolean = withContext(Dispatchers.IO) {
+        val host = _state.value.host.takeIf { it.isNotBlank() } ?: return@withContext false
+        runCatching {
+            http.newCall(Request.Builder().url("http://$host$path").header(HEADER, prefs.macCode).build())
+                .execute().use { resp ->
+                    if (!resp.isSuccessful) return@use false
+                    dst.parentFile?.mkdirs()
+                    val tmp = File(dst.path + ".part")
+                    tmp.outputStream().use { out -> resp.body.byteStream().copyTo(out) }
+                    dst.delete()
+                    tmp.renameTo(dst)
+                }
+        }.getOrDefault(false)
     }
 
     @Serializable

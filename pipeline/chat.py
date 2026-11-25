@@ -1,0 +1,442 @@
+#!/usr/bin/env python3
+"""«Живой разговор»: собеседник-персонаж для ученика, реплика за репликой (claude -p в постоянном процессе).
+
+  python3 pipeline/chat.py                         # проверить в терминале (кафе, A1), только текст
+  python3 pipeline/chat.py --level A0 --topic "В аптеке: у меня болит голова"
+
+Обычно этим пользуется pipeline/server.py: телефон присылает тему, уровень и реплики, сервер
+стримит ответ по WebSocket и озвучивает его по предложениям.
+
+Как устроено:
+- На разговор — один процесс `claude -p --input-format stream-json --output-format stream-json`:
+  история и кэш промпта живут в нём, поэтому ответ начинается через ~1 с (новый `claude -p` на каждую
+  реплику — это 5–10 с).
+- Системный промпт: роль и сцена, уровень и список слов уровня (assets/curriculum/vocab_*.json),
+  факты «Обо мне», цели сцены, правила (коротко, вопрос в конце, мягкие исправления).
+- Ответ модели — размеченный текст, а не --json-schema (та отдаёт результат только в конце):
+      <reply>испанская реплика</reply>
+      <meta>{"ru": …, "fix": …, "hints": […], "sample": …, "goals_done": […], "end": false}</meta>
+  [ReplyStream] разбирает поток на лету: готовые предложения реплики сразу уходят в озвучку.
+"""
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import re
+import sys
+import time
+import unicodedata
+from pathlib import Path
+from typing import Awaitable, Callable
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parent
+CURRICULUM = ROOT / "android" / "app" / "src" / "main" / "assets" / "curriculum"
+
+LEVELS = ("A0", "A1", "A2", "B1")
+
+LEVEL_RULES = {
+    "A0": ("absolute beginner (A0). Your turn: ONE very short sentence plus a very simple question "
+           "(at most ~10 words in total). Present tense only. Only the most frequent words. "
+           "Repeat key words the learner already used. Speak like to someone who knows 100 words."),
+    "A1": ("beginner (A1). Your turn: 1–2 short sentences (at most ~18 words in total). Present tense, "
+           "«ir a» + infinitive and fixed polite chunks (quería, me gustaría, ¿me pone…?, ¿cuánto es?). "
+           "No subjunctive, no long subordinate clauses."),
+    "A2": ("elementary (A2). Your turn: 1–3 sentences (at most ~30 words). Present, pretérito perfecto, "
+           "indefinido, imperfecto for descriptions, simple «porque / cuando / que» clauses."),
+    "B1": ("intermediate (B1). Natural but clear speech, 1–4 sentences, any common tense, "
+           "everyday idioms of Spain are welcome."),
+}
+
+# Словарь уровня для промпта: A0/A1 — слова A1, A2 — A1+A2, B1 — без списка (слишком длинный).
+VOCAB_FILES = {"A0": ["A1"], "A1": ["A1"], "A2": ["A1", "A2"], "B1": []}
+
+SYSTEM = """You are a role-play conversation partner for a Spanish learner.
+
+THE LEARNER: a native Russian speaker who lives in Spain and learns the Spanish of Spain to speak in everyday \
+situations. Level: {level_rule}
+
+THE SCENE: {scene}
+YOU PLAY: {role}. Stay in this role the whole time: you are a real person in Spain, not a teacher, not an AI.
+FORM OF ADDRESS: {address} — keep it consistent in every turn.
+{goals}{facts}
+LANGUAGE RULES
+- Speak only Spanish of Spain: vosotros, Spain vocabulary (móvil, coche, zumo, vale, ordenador), euros.
+- Write numbers, prices and times in words («un euro con ochenta», «a las cinco y media») — the reply is \
+read aloud.
+- {vocab_rule}
+- Keep turns short; one idea per turn. Most turns end with a question or a clear prompt, so the learner \
+always knows what to answer. Steer gently toward the scene goals that are not done yet.
+- Never correct the learner inside the reply. Instead, naturally reuse the correct form in your answer \
+(recast). Corrections go to meta.fix.
+- The learner's messages are often dictated by voice: ignore missing punctuation, capitals and accents, \
+and obvious speech-recognition slips (do not «fix» those).
+- If the learner writes Russian or mixes in Russian words, understand them, answer in character in simple \
+Spanish, and put the Spanish way to say what they meant in meta.fix.
+- If the learner goes off-topic, react briefly like a real person and come back to the scene.
+- If the learner is stuck («no sé», «?», silence), rephrase your last question more simply or offer \
+two options to choose from.
+
+OUTPUT FORMAT — exactly this, nothing before or after:
+<reply>your Spanish line(s)</reply>
+<meta>{{"ru": "Russian translation of your reply",
+"fix": null or {{"es": "the learner's LAST message said correctly and naturally (Spain)", \
+"ru": "very short explanation in Russian of what was wrong"}},
+"hints": [{{"es": "word or short chunk", "ru": "перевод"}}, ...3–6 items the learner can use in their NEXT \
+answer, from the allowed words],
+"sample": {{"es": "one natural answer the learner could say next, at their level", "ru": "перевод"}},
+"words": [{{"es": "word from your reply", "ru": "перевод"}}, ...0–4 words of your reply the learner \
+probably does not know],
+"goals_done": ["ids of ALL scene goals the learner has achieved so far"],
+"end": false}}</meta>
+
+meta is one valid JSON object (double quotes, no comments). fix is null when the learner's message was \
+fine or is the [START] message. fix is ALSO null when the only differences are punctuation, ¿¡, capitals \
+or accent marks — the learner speaks, they do not write. Naturalness tips only when they really help. \
+Set "end": true only when the scene has naturally finished (goodbye said).
+
+The first user message is [START]: open the scene with your first line (greeting + an opening question). \
+A message starting with [RESUME] gives the conversation so far: continue it from the learner's new message."""
+
+
+def load_lemmas(level: str) -> list[str]:
+    out: list[str] = []
+    for lv in VOCAB_FILES.get(level, []):
+        f = CURRICULUM / f"vocab_{lv}.json"
+        if not f.exists():
+            continue
+        for t in json.loads(f.read_text(encoding="utf-8"))["themes"]:
+            out += [w["l"] for w in t["words"]]
+    return list(dict.fromkeys(out))
+
+
+def build_system(level: str, topic: dict, about: list[dict]) -> str:
+    level = level if level in LEVEL_RULES else "A1"
+    lemmas = load_lemmas(level)
+    if lemmas:
+        vocab_rule = ("Use words from the ALLOWED WORDS list below (any inflected form), names, numbers, and only "
+                      "the few extra words the scene really needs. Prefer the simplest word.\n"
+                      f"ALLOWED WORDS ({len(lemmas)}): " + ", ".join(lemmas))
+    else:
+        vocab_rule = "Use common everyday vocabulary; avoid rare and regional words."
+    goals = topic.get("goals") or []
+    goals_txt = ""
+    if goals:
+        goals_txt = ("SCENE GOALS for the learner (ids for meta.goals_done):\n"
+                     + "\n".join(f"- {g['id']}: {g['ru']}" for g in goals) + "\n")
+    facts_txt = ""
+    if about:
+        facts_txt = ("\nFACTS ABOUT THE LEARNER (written by them in Russian; use naturally when it fits, never "
+                     "recite; if they say something different in the conversation, believe the conversation):\n"
+                     + "\n".join(f"- {a['q']} — {a['a']}" for a in about) + "\n")
+    gender = {"f": "a woman", "m": "a man"}.get(topic.get("gender", ""), "a person")
+    return SYSTEM.format(
+        level_rule=LEVEL_RULES[level],
+        scene=topic.get("scene") or topic.get("title") or "an everyday conversation in Spain",
+        role=f"{topic.get('role') or 'a friendly local'} ({gender})",
+        address="usted (formal)" if topic.get("usted") else "tú (informal, normal in Spain)",
+        goals=goals_txt,
+        facts=facts_txt,
+        vocab_rule=vocab_rule,
+    )
+
+
+# ------------------------------------------------------------------ потоковый разбор ответа
+
+_SENT_END = re.compile(r"[.!?…]+[»\"')]*(?=\s)")
+
+
+class ReplyStream:
+    """Собирает текст ответа по кусочкам: отдаёт реплику по мере роста и готовые предложения.
+
+    feed(chunk) -> (reply_so_far | None, [новые законченные предложения]).
+    Предложение считается законченным, когда после знака конца пошёл пробел (значит, началось следующее)
+    или закрылся </reply>.
+    """
+
+    def __init__(self):
+        self.raw = ""
+        self.sent_upto = 0  # сколько символов реплики уже отдано предложениями
+        self.closed = False
+
+    def _reply(self) -> str:
+        a = self.raw.find("<reply>")
+        if a < 0:
+            return ""
+        a += len("<reply>")
+        b = self.raw.find("</reply>", a)
+        if b >= 0:
+            self.closed = True
+            return self.raw[a:b]
+        # хвост может быть началом «</reply>» — не показываем его
+        tail = self.raw[a:]
+        for k in range(min(len(tail), 8), 0, -1):
+            if "</reply>".startswith(tail[-k:]):
+                return tail[:-k]
+        return tail
+
+    def feed(self, chunk: str) -> tuple[str | None, list[str]]:
+        was_closed = self.closed
+        before = self._reply()
+        self.raw += chunk
+        reply = self._reply()
+        if was_closed:
+            return None, []
+        sentences: list[str] = []
+        while True:
+            rest = reply[self.sent_upto:]
+            m = _SENT_END.search(rest)
+            if not m:
+                break
+            s = rest[: m.end()].strip()
+            self.sent_upto += m.end()
+            if s:
+                sentences.append(s)
+        if self.closed:
+            s = reply[self.sent_upto:].strip()
+            self.sent_upto = len(reply)
+            if s:
+                sentences.append(s)
+        return (reply.strip() if reply != before or self.closed else None), sentences
+
+    def reply(self) -> str:
+        return self._reply().strip()
+
+    def meta(self) -> dict:
+        m = re.search(r"<meta>(.*?)(</meta>|$)", self.raw, re.S)
+        return parse_meta(m.group(1) if m else "")
+
+
+def _pair(x) -> dict | None:
+    if isinstance(x, dict) and isinstance(x.get("es"), str) and x["es"].strip():
+        return {"es": x["es"].strip()[:300], "ru": str(x.get("ru") or "").strip()[:300]}
+    return None
+
+
+def norm_words(s: str) -> str:
+    """Для сравнения реплик: без регистра, ударений и знаков препинания."""
+    s = "".join(c for c in unicodedata.normalize("NFD", s.lower()) if unicodedata.category(c) != "Mn")
+    return " ".join(re.findall(r"[a-z0-9]+", s))
+
+
+def drop_trivial_fix(meta: dict, said: str) -> dict:
+    """Исправление, где отличаются только знаки, ¿¡, заглавные или ударения, — не исправление:
+    ученик говорит голосом, а не пишет."""
+    fix = meta.get("fix")
+    if fix and norm_words(fix["es"]) == norm_words(said):
+        meta["fix"] = None
+    return meta
+
+
+def parse_meta(text: str) -> dict:
+    """JSON из <meta>, терпимо к мусору вокруг; недостающее — пустое."""
+    data: dict = {}
+    a, b = text.find("{"), text.rfind("}")
+    if a >= 0 and b > a:
+        try:
+            data = json.loads(text[a: b + 1])
+        except json.JSONDecodeError:
+            data = {}
+    if not isinstance(data, dict):
+        data = {}
+    return {
+        "ru": str(data.get("ru") or "").strip()[:1000],
+        "fix": _pair(data.get("fix")),
+        "hints": [p for p in (_pair(h) for h in (data.get("hints") or [])[:8]) if p],
+        "sample": _pair(data.get("sample")),
+        "words": [p for p in (_pair(w) for w in (data.get("words") or [])[:6]) if p],
+        "goals_done": [str(g) for g in (data.get("goals_done") or []) if isinstance(g, (str, int))][:20],
+        "end": bool(data.get("end")),
+    }
+
+
+# ------------------------------------------------------------------ сессия
+
+Event = Callable[[dict], Awaitable[None]]
+
+
+class ChatSession:
+    """Один разговор = один процесс claude. Реплики по очереди ([turn] под замком)."""
+
+    def __init__(self, cid: str, level: str, topic: dict, about: list[dict], model: str, effort: str):
+        self.id = cid
+        self.level = level
+        self.topic = topic
+        self.system = build_system(level, topic, about)
+        self.model, self.effort = model, effort
+        self.proc: asyncio.subprocess.Process | None = None
+        self.lock = asyncio.Lock()
+        self.turn = 0
+        self.turns: list[dict] = []
+        # Реплики, сказанные до (пере)запуска процесса: телефон присылает их, если Mac перезапускался.
+        self.history: list[dict] = []
+        self.closed = False  # разговор закончен — его озвучку больше не делаем
+        self.used = time.time()
+
+    async def start(self) -> None:
+        self.proc = await asyncio.create_subprocess_exec(
+            "claude", "-p",
+            "--model", self.model,
+            "--effort", self.effort,
+            "--tools", "",
+            "--strict-mcp-config",
+            "--no-session-persistence",
+            "--input-format", "stream-json",
+            "--output-format", "stream-json",
+            "--include-partial-messages",
+            "--verbose",
+            "--system-prompt", self.system,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+            cwd="/tmp",
+            limit=16 * 1024 * 1024,
+        )
+
+    @property
+    def alive(self) -> bool:
+        return self.proc is not None and self.proc.returncode is None
+
+    async def say(self, text: str, on_event: Event, timeout: float = 120) -> dict:
+        """Отправить реплику ученика и дождаться ответа. on_event получает
+        {"type": "delta", "text"} и {"type": "sentence", "seq", "text"} по ходу ответа."""
+        async with self.lock:
+            said = text
+            if not self.alive:
+                await self.start()
+                past = self.history + [{"user": t["user"], "reply": t["reply"]} for t in self.turns]
+                if past:  # процесс новый — напоминаем ему разговор, иначе персонаж начнёт сначала
+                    lines = [f"Learner: {p['user']}\nYou: {p['reply']}" for p in past if p.get("user") != "[START]"]
+                    opening = next((p["reply"] for p in past if p.get("user") == "[START]"), "")
+                    text = ("[RESUME] The conversation so far (continue it, do not greet again):\n"
+                            + (f"You: {opening}\n" if opening else "") + "\n".join(lines)
+                            + f"\n\nThe learner now says: {text}")
+            self.turn += 1
+            self.used = time.time()
+            turn = self.turn
+            msg = {"type": "user", "message": {"role": "user", "content": text}}
+            self.proc.stdin.write((json.dumps(msg, ensure_ascii=False) + "\n").encode())
+            await self.proc.stdin.drain()
+            stream = ReplyStream()
+            seq = 0
+            t0 = time.time()
+            first = None
+            result_text = None
+            async def read() -> None:
+                nonlocal seq, first, result_text
+                while True:
+                    line = await self.proc.stdout.readline()
+                    if not line:
+                        raise RuntimeError("claude завершился")
+                    try:
+                        ev = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    kind = ev.get("type")
+                    if kind == "stream_event":
+                        e = ev.get("event") or {}
+                        if e.get("type") == "content_block_delta" and (e.get("delta") or {}).get("type") == "text_delta":
+                            if first is None:
+                                first = time.time() - t0
+                            reply, sentences = stream.feed(e["delta"].get("text", ""))
+                            if reply is not None:
+                                await on_event({"type": "delta", "turn": turn, "text": reply})
+                            for s in sentences:
+                                await on_event({"type": "sentence", "turn": turn, "seq": seq, "text": s})
+                                seq += 1
+                    elif kind == "result":
+                        if ev.get("is_error"):
+                            raise RuntimeError(str(ev.get("result") or "ошибка claude")[:300])
+                        result_text = ev.get("result") or ""
+                        return
+            try:
+                await asyncio.wait_for(read(), timeout)
+            except Exception:
+                await self.close()  # поток мог остаться посреди ответа — следующий say начнёт заново
+                raise
+            if not stream.reply() and result_text:  # частичных сообщений не было — разбираем итог целиком
+                reply, sentences = stream.feed(result_text)
+                for s in sentences:
+                    await on_event({"type": "sentence", "turn": turn, "seq": seq, "text": s})
+                    seq += 1
+            reply = stream.reply()
+            if not reply:
+                raise RuntimeError("пустой ответ")
+            out = {"turn": turn, "reply": reply, "sentences": seq, **drop_trivial_fix(stream.meta(), said),
+                   "firstMs": int((first or 0) * 1000), "totalMs": int((time.time() - t0) * 1000)}
+            self.turns.append({"user": said, **out})
+            self.used = time.time()
+            return out
+
+    async def close(self) -> None:
+        p, self.proc = self.proc, None
+        if p and p.returncode is None:
+            try:
+                p.stdin.close()
+                await asyncio.wait_for(p.wait(), 3)
+            except Exception:  # noqa: BLE001
+                p.kill()
+
+
+# ------------------------------------------------------------------ проверка в терминале
+
+DEMO_TOPIC = {
+    "title": "В кафе",
+    "scene": "A small bar-café in Madrid in the morning. The learner comes in for breakfast.",
+    "role": "Javi, the waiter",
+    "gender": "m",
+    "usted": False,
+    "goals": [{"id": "order", "ru": "заказать напиток"}, {"id": "food", "ru": "заказать что-то поесть"},
+              {"id": "pay", "ru": "спросить, сколько стоит, и заплатить"}],
+}
+
+
+async def demo(args) -> None:
+    topic = dict(DEMO_TOPIC)
+    if args.topic:
+        topic = {"title": args.topic, "scene": args.topic, "role": "a local person in this situation",
+                 "gender": "f", "usted": False, "goals": []}
+    s = ChatSession("demo", args.level, topic, [], args.model, args.effort)
+
+    async def show(ev: dict) -> None:
+        if ev["type"] == "sentence":
+            print(f"   🔊 [{ev['seq']}] {ev['text']}", flush=True)
+
+    text = "[START]"
+    try:
+        while True:
+            out = await s.say(text, show)
+            print(f"🤖 {out['reply']}\n   ({out['ru']})  — первый токен {out['firstMs']} мс, всего {out['totalMs']} мс")
+            if out["fix"]:
+                print(f"   ✏️  {out['fix']['es']} — {out['fix']['ru']}")
+            print("   💡 " + " · ".join(f"{h['es']} ({h['ru']})" for h in out["hints"]))
+            if out["sample"]:
+                print(f"   ↪ {out['sample']['es']}")
+            if out["goals_done"]:
+                print(f"   ✓ {', '.join(out['goals_done'])}")
+            text = input("🙂 ").strip()
+            if not text:
+                break
+    except (EOFError, KeyboardInterrupt):
+        pass
+    finally:
+        await s.close()
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--level", default="A1", choices=LEVELS)
+    ap.add_argument("--topic", default="")
+    ap.add_argument("--model", default="sonnet")
+    ap.add_argument("--effort", default="low")
+    ap.add_argument("--print-prompt", action="store_true")
+    args = ap.parse_args()
+    if args.print_prompt:
+        print(build_system(args.level, DEMO_TOPIC, []))
+        return
+    asyncio.run(demo(args))
+
+
+if __name__ == "__main__":
+    sys.exit(main())

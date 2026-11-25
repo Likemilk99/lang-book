@@ -51,6 +51,13 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
     var practice by mutableStateOf(false)
         private set
 
+    /** Открыт экран параметров дополнительной практики (когда плановых нет или подход закончен). */
+    var practiceSetup by mutableStateOf(false)
+        private set
+
+    fun openPracticeSetup() { practiceSetup = true }
+    fun closePracticeSetup() { practiceSetup = false }
+
     // Настройки
     var mode by mutableStateOf(ReviewMode.of(app.prefs.reviewMode))
     var direction by mutableStateOf(Direction.of(app.prefs.reviewDirection))
@@ -88,6 +95,7 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
     fun load() = viewModelScope.launch {
         loaded = false
         started = false
+        practiceSetup = false
         current = null
         answer = null
         queue.clear()
@@ -153,6 +161,7 @@ class ReviewViewModel(private val app: LecturaApp) : ViewModel() {
 
     /** Дополнительная практика: слова, которые пора бы освежить, хотя по плану ещё рано. */
     fun startPractice() = viewModelScope.launch {
+        practiceSetup = false
         writeJob?.join()
         val fresh = app.db.words().allOnce()
         allWords = fresh

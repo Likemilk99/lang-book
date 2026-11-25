@@ -16,6 +16,9 @@
 - «Знаю» = stage 3, interval 7 days.
 - `data/Memory.kt`: recall estimate on the FSRS curve. It is used to pick words for extra practice and for «Память словаря» (`ui/MemoryCard`).
 - Extra practice doesn't change the schedule when the answer is right; a wrong answer sends the word back into regular review (`UserData.recordPractice`).
+- **Settings for both kinds of session:** mode (mixed / cards only), card side and auto-speech are the same block (`SessionSettings` in `SessionViews.kt`) and are remembered in `Prefs`.
+  - Planned review: `SetupPanel` shows them before «Начать»; «Дополнительная практика» there starts with them.
+  - When nothing is due or a batch is finished, «Дополнительная практика» opens `SetupPanel(practice = true)` (`ReviewViewModel.practiceSetup`; «Назад» / system back closes it). After a practice, «Ещё практика» starts right away with the same settings, and «Параметры: … · изменить» reopens them.
 
 ## Session (`review/`)
 - **Batch size:** a session is at most 20 words and phrases combined (`SessionBatch`). Reviewed and most overdue items come first, with at least 5 new ones (oldest added first). After it, «Ещё подход» takes the next 20.

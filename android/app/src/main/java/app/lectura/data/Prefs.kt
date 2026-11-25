@@ -84,6 +84,25 @@ class Prefs(context: Context) {
         get() = sp.getString("macLastHost", "") ?: ""
         set(v) = sp.edit().putString("macLastHost", v).apply()
 
+    /** «Живой разговор»: уровень, голос собеседника ("none" | "phone" | "mac"), проверка Whisper, своя тема. */
+    var chatLevel: String
+        get() = sp.getString("chatLevel", "A1") ?: "A1"
+        set(v) = sp.edit().putString("chatLevel", v).apply()
+    var chatVoice: String
+        get() = sp.getString("chatVoice", "phone") ?: "phone"
+        set(v) = sp.edit().putString("chatVoice", v).apply()
+    /** Голос Mac: проверять каждое предложение Whisper (до 3 попыток) — медленнее, для сравнения. */
+    var chatWhisper: Boolean
+        get() = sp.getBoolean("chatWhisper", false)
+        set(v) = sp.edit().putBoolean("chatWhisper", v).apply()
+    /** Голосовой ответ в разговоре отправляется сразу после распознавания (без правки в поле). */
+    var chatAutoSend: Boolean
+        get() = sp.getBoolean("chatAutoSend", false)
+        set(v) = sp.edit().putBoolean("chatAutoSend", v).apply()
+    var chatCustomTopic: String
+        get() = sp.getString("chatCustomTopic", "") ?: ""
+        set(v) = sp.edit().putString("chatCustomTopic", v).apply()
+
     fun bundledHash(name: String): String? = sp.getString("bundledHash:$name", null)
     fun setBundledHash(name: String, hash: String) = sp.edit().putString("bundledHash:$name", hash).apply()
 

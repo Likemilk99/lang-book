@@ -1,5 +1,6 @@
 package app.lectura.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,6 +38,7 @@ fun ReviewScreen() {
     val task = vm.current
     LaunchedEffect(task?.id) { task?.let { vm.onAppear(it) } }
     val inSession = vm.started && task != null
+    BackHandler(enabled = vm.practiceSetup && !inSession) { vm.closePracticeSetup() }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -44,7 +46,7 @@ fun ReviewScreen() {
             Column {
                 TopAppBar(
                     title = {
-                        val name = if (vm.practice && inSession) "Практика" else "Повторение"
+                        val name = if ((vm.practice && inSession) || (vm.practiceSetup && !inSession)) "Практика" else "Повторение"
                         Text(if (inSession) "$name · осталось ${vm.remaining}" else name)
                     },
                 )
@@ -61,6 +63,7 @@ fun ReviewScreen() {
             when {
                 !vm.loaded -> Unit
                 task != null && vm.started -> SessionView(vm, task)
+                vm.practiceSetup -> SetupPanel(vm, practice = true)
                 vm.started || vm.due.isEmpty() -> FinishedView(vm, onAgain = { vm.load() })
                 else -> SetupPanel(vm)
             }
