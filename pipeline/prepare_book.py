@@ -35,8 +35,10 @@ import html
 import json
 import random
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import unicodedata
 import zipfile
@@ -734,7 +736,7 @@ def realign_tokens(src: str, tokens: list[dict]) -> list[dict]:
 
 def claude_json(prompt: str, system: str, schema: dict, model: str, effort: str, retries: int = 2) -> dict:
     cmd = [
-        "claude", "-p", prompt,
+        shutil.which("claude") or "claude", "-p", prompt,
         "--model", model,
         "--effort", effort,
         "--tools", "",
@@ -747,7 +749,7 @@ def claude_json(prompt: str, system: str, schema: dict, model: str, effort: str,
     last_err = ""
     for attempt in range(retries + 1):
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=900, cwd="/tmp")
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=900, cwd=tempfile.gettempdir())
             out = json.loads(proc.stdout)
             if out.get("is_error") or "structured_output" not in out:
                 last_err = (out.get("result") or proc.stderr or "no structured_output")[:500]

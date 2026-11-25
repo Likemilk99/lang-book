@@ -12,7 +12,7 @@ The learner writes in Russian. The Mac turns each entry into simple Peninsular S
 
 ## Translation on the Mac
 - **Shared code:** both delivery paths use the same code and cache in `pipeline/personal.py`:
-  - `translate()` — `claude -p`, opus;
+  - `translate()` — `claude -p`, opus, or the local model via `llm.json_call` when there is no Claude ([home-server.md](home-server.md));
   - `entry_key()` — cache key = entry id + sha1 of kind|ref|ru. Ids restart after a reinstall, so an old translation must not attach to a new entry;
   - `make_result()`, `clips_for()`.
 - **Cache:** `books/.work/personal/results.json`.
@@ -21,10 +21,10 @@ The learner writes in Russian. The Mac turns each entry into simple Peninsular S
 - **Audio:** phrases in the m1 voice (`me-<inboxId>-<n>.m4a`), «Обо мне» questions in f2 (`q-<ref>.m4a`), in `books/.work/personal/audio/`.
 
 ## Delivery 1: Wi-Fi server (main path)
-- **Start and stop:** double-click `Lectura Server.command` in the project root (opens Terminal, runs the server under `caffeinate -i` so the Mac doesn't idle-sleep; arguments pass through), or `python3 pipeline/server.py` (`--level A0`, `--no-audio`, `--new-code`). It is started by hand; there is no autostart, by the user's choice. Ctrl+C or closing the window stops it. A second start finds the port busy and says the server is already running.
+- **Start and stop:** double-click `Lectura Server.command` in the project root (Windows: `Lectura Server.bat`, see [home-server.md](home-server.md)) (opens Terminal, runs the server under `caffeinate -i` so the Mac doesn't idle-sleep; arguments pass through), or `python3 pipeline/server.py` (`--level A0`, `--no-audio`, `--new-code`). It is started by hand; there is no autostart, by the user's choice. Ctrl+C or closing the window stops it. A second start finds the port busy and says the server is already running.
 - **Runtime:**
   - aiohttp in the audio venv.
-  - Port 8765. Advertised as `_lectura._tcp` via the built-in `dns-sd`.
+  - Port 8765. Advertised as `_lectura._tcp` via the built-in `dns-sd` (python-zeroconf on Windows). Leftover `dns-sd` registrations of killed servers are removed at start; `kill` (SIGTERM) now cleans up like Ctrl+C.
   - At start it prints the code and the LAN address.
 - **Security:**
   - Every request needs the 6-digit code from `books/.work/personal/server.json` in the `X-Lectura-Code` header. Without it, anyone on the same Wi-Fi could spend the Claude subscription.

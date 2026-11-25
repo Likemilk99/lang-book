@@ -3,6 +3,7 @@
 
   python3 pipeline/chat.py                         # проверить в терминале (кафе, A1), только текст
   python3 pipeline/chat.py --level A0 --topic "В аптеке: у меня болит голова"
+  python3 pipeline/chat.py --llm local             # the same with a local model (Ollama) instead of Claude
 
 Обычно этим пользуется pipeline/server.py: телефон присылает тему, уровень и реплики, сервер
 стримит ответ по WebSocket и озвучивает его по предложениям.
@@ -23,8 +24,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import re
+import shutil
 import sys
+import tempfile
 import time
 import unicodedata
 from pathlib import Path
@@ -257,56 +261,49 @@ Event = Callable[[dict], Awaitable[None]]
 
 
 class ChatSession:
-    """Один разговор = один процесс claude. Реплики по очереди ([turn] под замком)."""
+    """One conversation. Turns go one at a time ([turn] under the lock).
+    Subclasses only stream the model's raw answer: ClaudeChat (a long-lived `claude -p`) and
+    LocalChat (a local model in Ollama)."""
 
-    def __init__(self, cid: str, level: str, topic: dict, about: list[dict], model: str, effort: str):
+    timeout = 120.0
+
+    def __init__(self, cid: str, level: str, topic: dict, about: list[dict]):
         self.id = cid
         self.level = level
         self.topic = topic
         self.system = build_system(level, topic, about)
-        self.model, self.effort = model, effort
-        self.proc: asyncio.subprocess.Process | None = None
         self.lock = asyncio.Lock()
         self.turn = 0
         self.turns: list[dict] = []
-        # Реплики, сказанные до (пере)запуска процесса: телефон присылает их, если Mac перезапускался.
+        # Turns said before the session (re)started: the phone sends them if the server restarted.
         self.history: list[dict] = []
-        self.closed = False  # разговор закончен — его озвучку больше не делаем
+        self.closed = False  # the conversation is over: its audio is no longer made
         self.used = time.time()
-
-    async def start(self) -> None:
-        self.proc = await asyncio.create_subprocess_exec(
-            "claude", "-p",
-            "--model", self.model,
-            "--effort", self.effort,
-            "--tools", "",
-            "--strict-mcp-config",
-            "--no-session-persistence",
-            "--input-format", "stream-json",
-            "--output-format", "stream-json",
-            "--include-partial-messages",
-            "--verbose",
-            "--system-prompt", self.system,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
-            cwd="/tmp",
-            limit=16 * 1024 * 1024,
-        )
 
     @property
     def alive(self) -> bool:
-        return self.proc is not None and self.proc.returncode is None
+        """Holds an idle resource (a process) that the janitor may close."""
+        return False
 
-    async def say(self, text: str, on_event: Event, timeout: float = 120) -> dict:
-        """Отправить реплику ученика и дождаться ответа. on_event получает
-        {"type": "delta", "text"} и {"type": "sentence", "seq", "text"} по ходу ответа."""
+    async def open(self) -> bool:
+        """Prepare for a turn; True if the model starts from scratch and needs a [RESUME] reminder."""
+        raise NotImplementedError
+
+    def stream(self, text: str):
+        """Async iterator over chunks of the model's raw answer to `text`."""
+        raise NotImplementedError
+
+    async def close(self) -> None:
+        pass
+
+    async def say(self, text: str, on_event: Event, timeout: float | None = None) -> dict:
+        """Send the learner's turn and wait for the answer. on_event gets
+        {"type": "delta", "text"} and {"type": "sentence", "seq", "text"} while the answer streams."""
         async with self.lock:
             said = text
-            if not self.alive:
-                await self.start()
+            if await self.open():
                 past = self.history + [{"user": t["user"], "reply": t["reply"]} for t in self.turns]
-                if past:  # процесс новый — напоминаем ему разговор, иначе персонаж начнёт сначала
+                if past:  # fresh model: remind it of the conversation, or the character starts over
                     lines = [f"Learner: {p['user']}\nYou: {p['reply']}" for p in past if p.get("user") != "[START]"]
                     opening = next((p["reply"] for p in past if p.get("user") == "[START]"), "")
                     text = ("[RESUME] The conversation so far (continue it, do not greet again):\n"
@@ -315,51 +312,28 @@ class ChatSession:
             self.turn += 1
             self.used = time.time()
             turn = self.turn
-            msg = {"type": "user", "message": {"role": "user", "content": text}}
-            self.proc.stdin.write((json.dumps(msg, ensure_ascii=False) + "\n").encode())
-            await self.proc.stdin.drain()
             stream = ReplyStream()
             seq = 0
             t0 = time.time()
             first = None
-            result_text = None
+
             async def read() -> None:
-                nonlocal seq, first, result_text
-                while True:
-                    line = await self.proc.stdout.readline()
-                    if not line:
-                        raise RuntimeError("claude завершился")
-                    try:
-                        ev = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    kind = ev.get("type")
-                    if kind == "stream_event":
-                        e = ev.get("event") or {}
-                        if e.get("type") == "content_block_delta" and (e.get("delta") or {}).get("type") == "text_delta":
-                            if first is None:
-                                first = time.time() - t0
-                            reply, sentences = stream.feed(e["delta"].get("text", ""))
-                            if reply is not None:
-                                await on_event({"type": "delta", "turn": turn, "text": reply})
-                            for s in sentences:
-                                await on_event({"type": "sentence", "turn": turn, "seq": seq, "text": s})
-                                seq += 1
-                    elif kind == "result":
-                        if ev.get("is_error"):
-                            raise RuntimeError(str(ev.get("result") or "ошибка claude")[:300])
-                        result_text = ev.get("result") or ""
-                        return
+                nonlocal seq, first
+                async for chunk in self.stream(text):
+                    if first is None:
+                        first = time.time() - t0
+                    reply, sentences = stream.feed(chunk)
+                    if reply is not None:
+                        await on_event({"type": "delta", "turn": turn, "text": reply})
+                    for s in sentences:
+                        await on_event({"type": "sentence", "turn": turn, "seq": seq, "text": s})
+                        seq += 1
+
             try:
-                await asyncio.wait_for(read(), timeout)
+                await asyncio.wait_for(read(), timeout or self.timeout)
             except Exception:
-                await self.close()  # поток мог остаться посреди ответа — следующий say начнёт заново
+                await self.close()  # the stream may have stopped mid-answer: the next turn starts afresh
                 raise
-            if not stream.reply() and result_text:  # частичных сообщений не было — разбираем итог целиком
-                reply, sentences = stream.feed(result_text)
-                for s in sentences:
-                    await on_event({"type": "sentence", "turn": turn, "seq": seq, "text": s})
-                    seq += 1
             reply = stream.reply()
             if not reply:
                 raise RuntimeError("пустой ответ")
@@ -369,6 +343,74 @@ class ChatSession:
             self.used = time.time()
             return out
 
+
+class ClaudeChat(ChatSession):
+    """One conversation = one `claude -p` process: it keeps the history and the prompt cache."""
+
+    def __init__(self, cid: str, level: str, topic: dict, about: list[dict], model: str, effort: str):
+        super().__init__(cid, level, topic, about)
+        self.model, self.effort = model, effort
+        self.proc: asyncio.subprocess.Process | None = None
+        self.prompt_file: Path | None = None
+
+    @property
+    def alive(self) -> bool:
+        return self.proc is not None and self.proc.returncode is None
+
+    async def open(self) -> bool:
+        if self.alive:
+            return False
+        # The prompt goes through a file: on Windows a command line is limited to 32 767 characters.
+        fd, name = tempfile.mkstemp(prefix="lectura-chat-", suffix=".txt")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(self.system)
+        self.prompt_file = Path(name)
+        self.proc = await asyncio.create_subprocess_exec(
+            shutil.which("claude") or "claude", "-p",
+            "--model", self.model,
+            "--effort", self.effort,
+            "--tools", "",
+            "--strict-mcp-config",
+            "--no-session-persistence",
+            "--input-format", "stream-json",
+            "--output-format", "stream-json",
+            "--include-partial-messages",
+            "--verbose",
+            "--system-prompt-file", name,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+            cwd=tempfile.gettempdir(),
+            limit=16 * 1024 * 1024,
+        )
+        return True
+
+    async def stream(self, text: str):
+        msg = {"type": "user", "message": {"role": "user", "content": text}}
+        self.proc.stdin.write((json.dumps(msg, ensure_ascii=False) + "\n").encode())
+        await self.proc.stdin.drain()
+        got = False
+        while True:
+            line = await self.proc.stdout.readline()
+            if not line:
+                raise RuntimeError("claude завершился")
+            try:
+                ev = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            kind = ev.get("type")
+            if kind == "stream_event":
+                e = ev.get("event") or {}
+                if e.get("type") == "content_block_delta" and (e.get("delta") or {}).get("type") == "text_delta":
+                    got = True
+                    yield e["delta"].get("text", "")
+            elif kind == "result":
+                if ev.get("is_error"):
+                    raise RuntimeError(str(ev.get("result") or "ошибка claude")[:300])
+                if not got and ev.get("result"):  # no partial messages: take the whole result
+                    yield ev["result"]
+                return
+
     async def close(self) -> None:
         p, self.proc = self.proc, None
         if p and p.returncode is None:
@@ -377,6 +419,62 @@ class ChatSession:
                 await asyncio.wait_for(p.wait(), 3)
             except Exception:  # noqa: BLE001
                 p.kill()
+        if self.prompt_file:
+            self.prompt_file.unlink(missing_ok=True)
+            self.prompt_file = None
+
+
+class LocalChat(ChatSession):
+    """A local model in Ollama: the history is kept here and sent with every turn
+    (Ollama reuses the cached prompt prefix, so only the new turn is processed)."""
+
+    timeout = 300.0  # the first turn also reads the long system prompt
+
+    def __init__(self, cid: str, level: str, topic: dict, about: list[dict], backend):
+        super().__init__(cid, level, topic, about)
+        self.backend = backend
+        self.messages: list[dict] = []
+
+    async def open(self) -> bool:
+        return not self.messages
+
+    async def stream(self, text: str):
+        import llm
+
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+        stop = [False]
+        msgs = [{"role": "system", "content": self.system}, *self.messages, {"role": "user", "content": text}]
+
+        def work() -> None:
+            try:
+                for chunk in llm.stream_chat(self.backend, msgs, stop):
+                    loop.call_soon_threadsafe(queue.put_nowait, chunk)
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+            except Exception as e:  # noqa: BLE001 — passed to the reader below
+                loop.call_soon_threadsafe(queue.put_nowait, e)
+
+        loop.run_in_executor(None, work)
+        raw = ""
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                if isinstance(item, Exception):
+                    raise RuntimeError(f"локальная модель: {item}")
+                raw += item
+                yield item
+        finally:
+            stop[0] = True
+        self.messages += [{"role": "user", "content": text}, {"role": "assistant", "content": raw}]
+
+
+def make_session(backend, cid: str, level: str, topic: dict, about: list[dict], model: str,
+                 effort: str) -> ChatSession:
+    if backend is not None and backend.kind == "local":
+        return LocalChat(cid, level, topic, about, backend)
+    return ClaudeChat(cid, level, topic, about, model, effort)
 
 
 # ------------------------------------------------------------------ проверка в терминале
@@ -397,7 +495,9 @@ async def demo(args) -> None:
     if args.topic:
         topic = {"title": args.topic, "scene": args.topic, "role": "a local person in this situation",
                  "gender": "f", "usted": False, "goals": []}
-    s = ChatSession("demo", args.level, topic, [], args.model, args.effort)
+    import llm
+
+    s = make_session(llm.choose(args.llm, args.local_model), "demo", args.level, topic, [], args.model, args.effort)
 
     async def show(ev: dict) -> None:
         if ev["type"] == "sentence":
@@ -430,8 +530,15 @@ def main() -> None:
     ap.add_argument("--topic", default="")
     ap.add_argument("--model", default="sonnet")
     ap.add_argument("--effort", default="low")
+    ap.add_argument("--llm", default="auto", choices=["auto", "claude", "local"],
+                    help="auto: Claude if Claude Code is logged in, else a local model in Ollama")
+    ap.add_argument("--local-model", default=None)
     ap.add_argument("--print-prompt", action="store_true")
     args = ap.parse_args()
+    if args.local_model is None:
+        import llm
+
+        args.local_model = llm.DEFAULT_LOCAL_MODEL
     if args.print_prompt:
         print(build_system(args.level, DEMO_TOPIC, []))
         return

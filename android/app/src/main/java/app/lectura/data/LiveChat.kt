@@ -11,6 +11,7 @@ import app.lectura.model.ChatVoice
 import app.lectura.model.Phrase
 import app.lectura.playback.ClipPlayer
 import app.lectura.speech.SpeechTts
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -336,10 +337,17 @@ class LiveChat(
         for (p in queue) {
             if (p.turn != playTurn) continue
             val file = p.file
-            if (file != null) {
-                clips?.play(file.path, p.text)
-            } else if (p.text.isNotBlank()) {
-                tts?.speak(p.text, prefs.rate, PARTNER)
+            // One broken clip must not end the loop: then the rest of the conversation would be silent.
+            try {
+                if (file != null) {
+                    clips?.play(file.path, p.text)
+                } else if (p.text.isNotBlank()) {
+                    tts?.speak(p.text, prefs.rate, PARTNER)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("LiveChat", "play", e)
             }
         }
     }

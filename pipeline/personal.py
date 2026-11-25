@@ -38,7 +38,7 @@ PHONE_DIR = "/sdcard/Android/data/app.lectura/files/personal"
 
 sys.path.insert(0, str(HERE))
 from phrasebook import SYSTEM as PB_SYSTEM  # noqa: E402
-from prepare_book import claude_json  # noqa: E402
+import llm  # noqa: E402
 
 SCHEMA = {
     "type": "object",
@@ -88,15 +88,18 @@ def save_results(results: dict[str, dict]) -> None:
 def make_result(it: dict, out: dict) -> dict:
     """Ответ claude → результат для приложения (контракт model/Personal.kt PersonalResult)."""
     phrases = []
-    for k, p in enumerate(out["phrases"][:3], 1):
-        if p["es"].strip():
-            phrases.append({"id": f"me-{it['id']}-{k}", "es": p["es"].strip(), "ru": p["ru"].strip(),
-                            **({"note": p["note"].strip()} if p["note"].strip() else {})})
+    # .get: a local model (pipeline/llm.py) may skip a key that Claude's --json-schema always fills.
+    good = [p for p in out.get("phrases") or [] if isinstance(p, dict) and str(p.get("es") or "").strip()]
+    for k, p in enumerate(good[:3], 1):
+        note = str(p.get("note") or "").strip()
+        phrases.append({"id": f"me-{it['id']}-{k}", "es": str(p["es"]).strip(), "ru": str(p.get("ru") or "").strip(),
+                        **({"note": note} if note else {})})
     res = {"inboxId": it["id"], "kind": it["kind"], "ref": it.get("ref", ""), "ru": it["ru"], "phrases": phrases}
     if it["kind"] == "about":
         full = " ".join(p["es"] for p in phrases)
         res["question"] = it.get("question", "")
-        res["accepted"] = [full] + [a for a in out["accepted"] if a.strip() and a.strip() != full]
+        res["accepted"] = [full] + [a for a in out.get("accepted") or []
+                                    if isinstance(a, str) and a.strip() and a.strip() != full]
     return res
 
 
@@ -123,7 +126,7 @@ def pull_inbox() -> list[dict]:
     return json.loads(dst.read_text(encoding="utf-8")).get("items", [])
 
 
-def translate(item: dict, level: str, model: str, effort: str) -> dict:
+def translate(item: dict, level: str, model: str, effort: str, backend: llm.Backend | None = None) -> dict:
     if item["kind"] == "about":
         prompt = (
             f"The learner is a {LEVEL[level]} learner of Spanish (Spain). Someone asks him: «{item['question']}».\n"
@@ -143,7 +146,7 @@ def translate(item: dict, level: str, model: str, effort: str) -> dict:
             "would say it to staff/strangers, tú to friends — mention which in `note` (Russian) if it matters. "
             "`ru` = natural Russian translation. `accepted` = [] ."
         )
-    return claude_json(prompt, PB_SYSTEM, SCHEMA, model, effort)
+    return llm.json_call(backend, prompt, PB_SYSTEM, SCHEMA, model, effort)
 
 
 def main() -> None:
@@ -154,7 +157,11 @@ def main() -> None:
     ap.add_argument("--effort", default="medium")
     ap.add_argument("--no-audio", action="store_true")
     ap.add_argument("--no-push", action="store_true", help="не копировать результат на телефон")
+    ap.add_argument("--llm", default="auto", choices=["auto", "claude", "local"],
+                    help="auto: Claude if Claude Code is logged in, else a local model in Ollama")
+    ap.add_argument("--local-model", default=llm.DEFAULT_LOCAL_MODEL)
     args = ap.parse_args()
+    backend = llm.choose(args.llm, args.local_model)
 
     WORK.mkdir(parents=True, exist_ok=True)
     items = json.loads(args.inbox.read_text(encoding="utf-8"))["items"] if args.inbox else pull_inbox()
@@ -164,7 +171,7 @@ def main() -> None:
     print(f"📥 Во «Входящих»: {len(items)}, новых для перевода: {len(todo)}")
     for it in todo:
         print(f"✍️  {it['ru'][:70]}", flush=True)
-        res = make_result(it, translate(it, args.level, args.model, args.effort))
+        res = make_result(it, translate(it, args.level, args.model, args.effort, backend))
         results[entry_key(it)] = res
         save_results(results)
         for p in res["phrases"]:

@@ -4,6 +4,13 @@
   python3 pipeline/server.py              # запустить (Ctrl+C — остановить)
   python3 pipeline/server.py --level A0   # переводить проще (по умолчанию A1)
   python3 pipeline/server.py --new-code   # сменить код для телефона
+  python3 pipeline/server.py --llm local  # писать тексты локальной моделью (Ollama), даже если есть Claude
+
+Runs on macOS and Windows (launchers: `Lectura Server.command`, `Lectura Server.bat`).
+- Texts (translations, the conversation partner) come from Claude Code if it is installed and logged in,
+  otherwise from a local model in Ollama (pipeline/llm.py).
+- The server's own voice (Qwen3-TTS) needs MLX, i.e. a Mac with Apple silicon. Elsewhere the phone reads
+  everything with its system voice.
 
 Как устроено:
 - Mac объявляет себя в сети через Bonjour (`dns-sd`, встроен в macOS) как _lectura._tcp — телефон
@@ -32,8 +39,11 @@ import errno
 import hmac
 import json
 import os
+import platform
 import re
 import secrets
+import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -42,8 +52,12 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-VENV = HERE / ".cache" / "audio-venv"
+MLX = sys.platform == "darwin" and platform.machine() == "arm64"   # the server voice (Qwen3-TTS) needs MLX
+AUDIO_VENV = HERE / ".cache" / "audio-venv"
+SERVER_VENV = HERE / ".cache" / "server-venv"
 sys.path.insert(0, str(HERE))
+
+import llm  # noqa: E402  (standard library only)
 
 PORT = 8765
 SERVICE = "_lectura._tcp"
@@ -55,18 +69,106 @@ CHAT_FORGET = 3 * 60 * 60     # совсем забываем разговор
 CHAT_QUIET = 120              # столько секунд после реплики фоновая озвучка «Моих фраз» не трогает MLX
 
 
-def ensure_venv() -> None:
-    """Перезапуск в venv озвучки (mlx-audio) — там же ставится aiohttp."""
-    if Path(sys.prefix).resolve() == VENV.resolve():
+def venv_python(venv: Path) -> Path:
+    return venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+
+
+def ensure_venv(want_audio: bool) -> None:
+    """Restart inside a venv with the server's dependencies.
+    Mac with Apple silicon + voice: the audio venv of audio.py (mlx-audio; needs uv) plus aiohttp.
+    Otherwise (Windows, Intel Mac, --no-audio without that venv): a small venv with aiohttp (+ zeroconf)."""
+    if Path(sys.prefix).resolve() in (AUDIO_VENV.resolve(), SERVER_VENV.resolve()):
         return
-    py = VENV / "bin" / "python"
+    venv, deps = SERVER_VENV, ["aiohttp"] + ([] if sys.platform == "darwin" else ["zeroconf"])
+    if MLX and (want_audio or venv_python(AUDIO_VENV).exists()):
+        if venv_python(AUDIO_VENV).exists() or shutil.which("uv"):
+            venv, deps = AUDIO_VENV, ["aiohttp"]
+        else:
+            print("⚠️  Для голоса Mac нужен uv (brew install uv) — пока без него, фразы прочитает телефон.")
+    py = venv_python(venv)
     if not py.exists():
-        print("📦 Готовлю окружение озвучки (один раз, несколько минут)…")
-        subprocess.run([sys.executable, str(HERE / "audio.py"), "--voices"], check=True)
-    if subprocess.run([str(py), "-c", "import aiohttp"], capture_output=True).returncode:
-        print("📦 Ставлю aiohttp в", VENV)
-        subprocess.run(["uv", "pip", "install", "-q", "--python", str(py), "aiohttp"], check=True)
+        if venv == AUDIO_VENV:
+            print("📦 Готовлю окружение озвучки (один раз, несколько минут)…", flush=True)
+            subprocess.run([sys.executable, str(HERE / "audio.py"), "--voices"], check=True)
+        else:
+            print("📦 Готовлю окружение сервера (один раз)…", flush=True)
+            subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True)
+    imports = ", ".join(d for d in deps)
+    if subprocess.run([str(py), "-c", f"import {imports}"], capture_output=True).returncode:
+        print("📦 Ставлю", " ".join(deps), flush=True)
+        if shutil.which("uv"):
+            subprocess.run(["uv", "pip", "install", "-q", "--python", str(py), *deps], check=True)
+        else:
+            subprocess.run([str(py), "-m", "pip", "install", "-q", "--disable-pip-version-check", *deps], check=True)
+    if os.name == "nt":  # no real exec on Windows: run the child and wait for it in the same window
+        child = subprocess.Popen([str(py), __file__, *sys.argv[1:]])
+        while True:
+            try:
+                sys.exit(child.wait())
+            except KeyboardInterrupt:
+                continue  # Ctrl+C reaches the child too; wait for it to stop
     os.execv(str(py), [str(py), __file__, *sys.argv[1:]])
+
+
+def keep_awake() -> None:
+    """Windows: don't let the computer go to sleep while the server runs (on the Mac: caffeinate in the launcher)."""
+    if sys.platform == "win32":
+        import ctypes
+
+        ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001)  # ES_CONTINUOUS | ES_SYSTEM_REQUIRED
+
+
+def drop_stale_dns_sd(port: int) -> None:
+    """Stop «dns-sd -R Lectura …» left over from servers killed without cleanup: they keep announcing a dead
+    address that the phone may pick. Stale = registered for our port (the port is ours now) or for a port
+    nobody listens on."""
+    r = subprocess.run(["pgrep", "-f", f"^dns-sd -R Lectura .* {SERVICE} local [0-9]+$"], capture_output=True,
+                       text=True)
+    for pid in r.stdout.split():
+        cmd = subprocess.run(["ps", "-o", "command=", "-p", pid], capture_output=True, text=True).stdout.split()
+        if not cmd or not cmd[-1].isdigit():
+            continue
+        other = int(cmd[-1])
+        if other != port:
+            with socket.socket() as s:
+                s.settimeout(0.5)
+                if s.connect_ex(("127.0.0.1", other)) == 0:
+                    continue  # another live server: leave its announcement alone
+        subprocess.run(["kill", pid], capture_output=True)
+        log(f"🧹 убрал старое объявление в сети (порт {other})")
+
+
+async def advertise(name: str, port: int):
+    """Announce _lectura._tcp in the local network (the phone finds the server by it).
+    macOS: the built-in dns-sd. Elsewhere: python-zeroconf. Returns a stop() coroutine function."""
+    if sys.platform == "darwin":
+        drop_stale_dns_sd(port)
+        p = subprocess.Popen(["dns-sd", "-R", name, SERVICE, "local", str(port)],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        async def stop_dns_sd() -> None:
+            p.terminate()
+        return stop_dns_sd
+    try:
+        from zeroconf import IPVersion, ServiceInfo
+        from zeroconf.asyncio import AsyncZeroconf
+
+        ip = local_ip()
+        info = ServiceInfo(f"{SERVICE}.local.", f"{name}.{SERVICE}.local.", port=port,
+                           addresses=[socket.inet_aton(ip)], server=f"{socket.gethostname().split('.')[0]}.local.")
+        zc = AsyncZeroconf(ip_version=IPVersion.V4Only, interfaces=[ip])
+        await zc.async_register_service(info)
+    except Exception as e:  # noqa: BLE001 — the address can still be typed in the app
+        log(f"⚠️  объявить сервер в сети не получилось ({e!r}); укажите адрес в приложении вручную")
+
+        async def nothing() -> None:
+            pass
+        return nothing
+
+    async def stop_zeroconf() -> None:
+        await zc.async_unregister_service(info)
+        await zc.async_close()
+    return stop_zeroconf
 
 
 def clear_mlx_cache() -> None:
@@ -138,10 +240,11 @@ class Hub:
     """Очередь записей, один рабочий поток (MLX и claude по очереди) и рассылка статуса."""
 
     def __init__(self, level: str, model: str, effort: str, audio: bool, chat_model: str = "sonnet",
-                 chat_effort: str = "low"):
+                 chat_effort: str = "low", backend: llm.Backend | None = None):
         import personal
 
         self.p = personal
+        self.backend = backend
         self.chats: dict = {}
         self.chat_model, self.chat_effort = chat_model, chat_effort
         self.chat_quiet_until = 0.0
@@ -217,6 +320,11 @@ class Hub:
                 log(f"⚠️  озвучка недоступна ({e}); фразы будут читаться системным голосом")
                 self.audio = False
             await self.set_phase("")
+        if self.backend is not None and self.backend.kind == "local":
+            await self.set_phase("загружаю модель")
+            await loop.run_in_executor(None, llm.warm_up, self.backend)
+            log("🦙 локальная модель загружена")
+            await self.set_phase("")
         while True:
             if not self.queue:
                 self.wake.clear()
@@ -226,11 +334,15 @@ class Hub:
             key = self.p.entry_key(e)
             try:
                 if key not in self.results:
+                    # A local model answers one request at a time: the conversation goes first.
+                    while self.backend is not None and self.backend.kind == "local" and time.time() < self.chat_quiet_until:
+                        await self.set_phase("жду конца разговора")
+                        await asyncio.sleep(5)
                     await self.set_phase("перевожу")
                     log(f"✍️  {e['ru'][:70]}")
                     # Перевод — это claude, не MLX: в общем пуле потоков, чтобы не задерживать озвучку разговора.
                     out = await loop.run_in_executor(
-                        None, self.p.translate, e, self.level, self.model, self.effort)
+                        None, self.p.translate, e, self.level, self.model, self.effort, self.backend)
                     self.results[key] = self.p.make_result(e, out)
                     self.p.save_results(self.results)
                     for ph in self.results[key]["phrases"]:
@@ -447,7 +559,7 @@ def make_app(hub: Hub, code: str):
         return web.json_response({"chat": chat.id, "audio": hub.audio and audio, **out})
 
     async def chat_start(request):
-        from chat import LEVELS, ChatSession
+        from chat import LEVELS, make_session
 
         body = await body_of(request)
         cid = body.get("chat")
@@ -458,7 +570,8 @@ def make_app(hub: Hub, code: str):
         await hub.chat_close(cid, forget=True)
         for old in sorted(hub.chats.values(), key=lambda c: c.used)[:-2]:  # больше трёх процессов не держим
             await old.close()
-        chat = ChatSession(cid, level, topic, clean_about(body.get("about")), hub.chat_model, hub.chat_effort)
+        chat = make_session(hub.backend, cid, level, topic, clean_about(body.get("about")), hub.chat_model,
+                            hub.chat_effort)
         chat.history = clean_history(body.get("history"))
         hub.chats[cid] = chat
         log(f"💬 новый разговор: {topic['title'] or topic['scene'][:60]} · {level}")
@@ -515,7 +628,8 @@ async def serve(args) -> None:
     import personal
 
     code = load_code(args.new_code)
-    hub = Hub(args.level, args.model, args.effort, not args.no_audio, args.chat_model, args.chat_effort)
+    hub = Hub(args.level, args.model, args.effort, not args.no_audio and MLX, args.chat_model, args.chat_effort,
+              args.backend)
     runner = web.AppRunner(make_app(hub, code), access_log=None)
     await runner.setup()
     try:
@@ -527,13 +641,17 @@ async def serve(args) -> None:
                   "   Второй не нужен: телефон работает с тем, что уже запущен.")
             return
         raise
-    bonjour = subprocess.Popen(["dns-sd", "-R", f"Lectura {socket.gethostname().split('.')[0]}", SERVICE,
-                                "local", str(args.port)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    stop_advertising = await advertise(f"Lectura {socket.gethostname().split('.')[0]}", args.port)
+    keep_awake()
+    voice = "голос Mac (Qwen3-TTS)" if hub.audio else "голос телефона"
+    firewall = ("\n   Windows спросит про брандмауэр — разрешите Python доступ к частным сетям."
+                if sys.platform == "win32" else "")
     print(f"""
 🟢 Сервер «Мои фразы» запущен. Остановить — Ctrl+C.
    Код для телефона:  {code}
    Адрес (если телефон не найдёт сам):  {local_ip()}:{args.port}
-   Данные: {personal.WORK}
+   Тексты пишет: {args.backend.label}; озвучка: {voice}
+   Данные: {personal.WORK}{firewall}
 """, flush=True)
     worker = asyncio.create_task(hub.run())
     janitor = asyncio.create_task(hub.chat_janitor())
@@ -544,8 +662,12 @@ async def serve(args) -> None:
         janitor.cancel()
         for cid in list(hub.chats):
             await hub.chat_close(cid, forget=True)
-        bonjour.terminate()
+        await stop_advertising()
         await runner.cleanup()
+
+
+def stop_on_term(*_) -> None:
+    raise KeyboardInterrupt
 
 
 def main() -> None:
@@ -557,9 +679,27 @@ def main() -> None:
     ap.add_argument("--no-audio", action="store_true", help="без озвучки (в приложении будет системный голос)")
     ap.add_argument("--chat-model", default="sonnet", help="модель «Живого разговора» (по умолчанию sonnet)")
     ap.add_argument("--chat-effort", default="low")
+    ap.add_argument("--llm", default="auto", choices=["auto", "claude", "local"],
+                    help="кто пишет тексты: auto — Claude, если Claude Code установлен и выполнен вход, иначе "
+                         "локальная модель (Ollama)")
+    ap.add_argument("--local-model", default=llm.DEFAULT_LOCAL_MODEL, help="модель Ollama для --llm local/auto")
+    ap.add_argument("--mac-voice", action="store_true",
+                    help="голос Mac и с локальной моделью (на машине меньше 24 ГБ всё станет медленнее)")
     ap.add_argument("--new-code", action="store_true", help="сменить код для телефона")
     args = ap.parse_args()
-    ensure_venv()
+    if os.name == "nt":
+        for stream in (sys.stdout, sys.stderr):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+    ensure_venv(not args.no_audio)
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, stop_on_term)  # `kill` cleans up like Ctrl+C (no orphaned dns-sd)
+    args.backend = llm.choose(args.llm, args.local_model)
+    if args.backend.kind == "local" and MLX and not args.no_audio and not args.mac_voice and llm.ram_gb() < 24:
+        # Measured on a 16 GB M1 Pro (2026-11): with the voice loaded, gemma4:e4b's first sentence took 4.5–7 s
+        # instead of 0.3–0.7 s, and a voiced sentence 17–24 s instead of ~3.5 s.
+        print("ℹ️  Локальная модель и голос Mac вместе не помещаются в память — озвучивать будет телефон "
+              "(включить голос Mac: --mac-voice).", flush=True)
+        args.no_audio = True
     try:
         asyncio.run(serve(args))
     except KeyboardInterrupt:

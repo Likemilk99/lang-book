@@ -1,12 +1,12 @@
 # «Живой разговор»
 
-A free conversation with a character in a scene (waiter, neighbour, doctor…) at the learner's level. The learner answers by voice or keyboard. The Mac plays the character with `claude -p` and can voice the replies with Qwen3-TTS. Everything runs locally: the Mac + the Claude subscription, no rented servers or API keys.
+A free conversation with a character in a scene (waiter, neighbour, doctor…) at the learner's level. The learner answers by voice or keyboard. The Mac plays the character with `claude -p` and can voice the replies with Qwen3-TTS. Everything runs locally: the Mac + the Claude subscription, no rented servers or API keys. Without Claude Code the character is a local model in Ollama (`LocalChat`, default gemma4:e4b), and the server also runs on Windows: see [home-server.md](home-server.md).
 
 The card is first on the «Говорить» tab (`LiveChatCard`); route `chat`.
 
 ## Mac side
 - **`pipeline/chat.py`:**
-  - `ChatSession`: one long-lived `claude -p --input-format stream-json --output-format stream-json --include-partial-messages` process per conversation. The CLI keeps the history and the prompt cache, so the first token arrives in ~1 s. A new `claude -p` per turn would take 5–10 s.
+  - `ChatSession` (base: lock, `[RESUME]`, `ReplyStream`, timings) with two backends picked by `make_session`. `LocalChat` keeps the messages itself and streams from Ollama. `ClaudeChat` is one long-lived `claude -p --input-format stream-json --output-format stream-json --include-partial-messages` process per conversation; its system prompt goes through `--system-prompt-file`. The CLI keeps the history and the prompt cache, so the first token arrives in ~1 s. A new `claude -p` per turn would take 5–10 s.
   - Model: `sonnet`, effort `low` (`server.py --chat-model/--chat-effort`). In a test Haiku mixed tú and usted in one dialogue.
   - `build_system`: role, scene, tú/usted, goals with ids, «Обо мне» facts, level rules (`LEVEL_RULES`), and the level word list from `assets/curriculum/vocab_*.json`: A0/A1 get the A1 list, A2 gets A1+A2, B1 gets no list.
 - **Output format.** It is not `--json-schema`, because that returns only at the end and would kill streaming. The model writes:
@@ -64,6 +64,9 @@ The card is first on the «Говорить» tab (`LiveChatCard`); route `chat`
     - MAC: download each `chat.audio` WAV (downloads in parallel, play strictly in order) → `ClipPlayer`.
   - If the Mac has no voice (`hello.audio = false`) or a clip failed, the phone voice reads it.
   - `playTurn` guards against stale audio: a new message, the mic or a replay silences the previous turn.
+  - `playLoop` plays the queue one item at a time and survives a failing clip.
+    - `ClipPlayer.stop()` makes the waiting `play()` return false, and a clip is awaited at most its duration + 5 s.
+    - Before the fix (2026-11), interrupting a Mac clip (mic, send, 🔊 on another reply) left `playLoop` suspended forever. Every later reply and replay of that conversation stayed silent, though the timing line showed the voice was ready.
   - Retry after an error. On 404 it automatically restarts with `history`.
   - `saveFixes` adds the corrected phrases to review (`UserData.addPhrases`, label «разговор: …»).
   - «Обо мне» answers (latest per question) are sent at start.
@@ -79,7 +82,7 @@ The card is first on the «Говорить» tab (`LiveChatCard`); route `chat`
     - goals with ✓;
     - «Звук» changes the voice mid-chat; «Итог» shows the goals and the fixes → «Фразы в повторение».
   - Hint 💡 cycles through levels: 1 — words for the answer (`hints`, tap inserts the word); 2 — + a sample answer; 3 — + all words of the topic's vocab themes at the level (local `vocab_*.json`, works offline).
-  - Mic (`ChatMic`): `SpeechInput` with biasing to the hints and the sample. The recognized text goes into the field for editing (or is sent at once if that option is on). Uses the same engine and stop settings as `SpeakButton`.
+  - Mic (`ChatMic`): `SpeechInput` with biasing to the hints and the sample. The recognized text goes into the field for editing (or is sent at once if that option is on). Uses the same engine and stop settings as `SpeakButton`. Sending a message (button or auto-send) cancels a running recording without a result (`stopKey`), so it doesn't keep writing into the cleared field or record the partner. The next answer needs a new tap.
 - **Prefs:** `chatLevel`, `chatVoice`, `chatWhisper`, `chatAutoSend`, `chatCustomTopic`.
 - **User data:** the conversation itself is not stored (memory only). Only `recordSpeaking` for spoken turns and `addPhrases` from «Итог» are written, both through `UserData`.
 

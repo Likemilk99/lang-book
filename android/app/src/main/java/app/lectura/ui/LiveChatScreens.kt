@@ -312,6 +312,8 @@ private fun ChatRoom(st: ChatState, onBack: () -> Unit) {
     var hintLevel by rememberSaveable(st.id) { mutableIntStateOf(0) }
     var summary by rememberSaveable(st.id) { mutableStateOf(false) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    /** Bumped on every send: the mic stops, and the next answer needs a new tap. */
+    var sent by remember { mutableIntStateOf(0) }
     val list = rememberLazyListState()
     val lastText = st.messages.lastOrNull()?.text.orEmpty()
     LaunchedEffect(st.messages.size, lastText.length, st.busy) {
@@ -325,6 +327,7 @@ private fun ChatRoom(st: ChatState, onBack: () -> Unit) {
         app.chat.say(input, spoken)
         input = ""
         hintLevel = 0
+        sent++
     }
 
     Scaffold(
@@ -420,6 +423,7 @@ private fun ChatRoom(st: ChatState, onBack: () -> Unit) {
                 ChatMic(
                     bias = st.hints.map { it.es } + listOfNotNull(st.sample?.es),
                     enabled = !st.busy,
+                    stopKey = sent,
                     onPartial = { input = it },
                     onFinal = { text ->
                         input = text
@@ -585,9 +589,19 @@ private fun HintPanel(st: ChatState, level: Int, onInsert: (String) -> Unit) {
     }
 }
 
-/** Микрофон: распознанный текст попадает в поле ввода (его можно поправить перед отправкой). */
+/**
+ * Микрофон: распознанный текст попадает в поле ввода (его можно поправить перед отправкой).
+ * A change of [stopKey] (a message was sent) ends the recording without a result: it must not keep writing
+ * into the cleared field or record the partner's reply. The next answer starts with a new tap.
+ */
 @Composable
-private fun ChatMic(bias: List<String>, enabled: Boolean, onPartial: (String) -> Unit, onFinal: (String) -> Unit) {
+private fun ChatMic(
+    bias: List<String>,
+    enabled: Boolean,
+    stopKey: Int,
+    onPartial: (String) -> Unit,
+    onFinal: (String) -> Unit,
+) {
     val context = LocalContext.current
     val app = LecturaApp.instance
     val input = remember { SpeechInput(context) }
@@ -597,6 +611,13 @@ private fun ChatMic(bias: List<String>, enabled: Boolean, onPartial: (String) ->
     DisposableEffect(input) {
         input.onLevel = { level = it }
         onDispose { input.destroy() }
+    }
+    LaunchedEffect(stopKey) {
+        if (listening) {
+            input.cancel()
+            listening = false
+            level = 0f
+        }
     }
 
     fun listen() {

@@ -4,7 +4,7 @@
 - **Content is prepared on the Mac.** Python scripts in `pipeline/` call `claude -p --json-schema` (helper `claude_json` in `prepare_book.py`) on the user's Claude subscription. There is no API key, and the app makes no LLM calls.
 - **The app works offline.** Books, phrasebooks, scenarios and the syllabus are JSON with every translation precomputed. Network is used only for:
   - one-time downloads: book narrator packs (GitHub Release `audio`) and card pictures (Pixabay);
-  - the optional server on the Mac in the home network: «Мои фразы» ([my-phrases.md](my-phrases.md)) and «Живой разговор» ([live-chat.md](live-chat.md)). The conversation's LLM calls happen on the Mac, not in the app.
+  - the optional server on the Mac in the home network: «Мои фразы» ([my-phrases.md](my-phrases.md)) and «Живой разговор» ([live-chat.md](live-chat.md)). The conversation's LLM calls happen on the computer running the server (Claude Code, or a local model in Ollama when there is no Claude), not in the app. The server runs on macOS and Windows: [home-server.md](home-server.md).
 - **Audio.**
   - Pre-generated narrator audio (Qwen3-TTS on the Mac) for book text, phrasebooks and scenarios.
   - The Android system TTS (es-ES) for everything else and as a fallback.
@@ -13,7 +13,7 @@
 
 ## Stack
 - **Android:** Kotlin, Jetpack Compose (Material3), Room, WorkManager, Navigation Compose, kotlinx.serialization, OkHttp. No DI: singletons live in `LecturaApp` (`LecturaApp.instance`).
-- **Mac:** Python 3 scripts in `pipeline/`. Audio and the «Мои фразы» server run in their own venv (`pipeline/.cache/audio-venv`, created automatically by `uv`) with mlx-audio, mlx-whisper and aiohttp.
+- **Mac:** Python 3 scripts in `pipeline/`. Audio and the «Мои фразы» server run in their own venv (`pipeline/.cache/audio-venv`, created automatically by `uv`) with mlx-audio, mlx-whisper and aiohttp. Without MLX (Windows, Intel Mac) the server uses `pipeline/.cache/server-venv` (aiohttp, zeroconf) and has no voice of its own.
 
 ## Package map (`android/app/src/main/java/app/lectura/`)
 

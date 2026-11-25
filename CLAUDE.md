@@ -17,6 +17,7 @@ Feature docs live in [`docs/`](docs/README.md), one file per feature. **Read the
 | «Говорить»: phrasebooks, scenarios, recognition | [docs/speaking.md](docs/speaking.md) |
 | «Живой разговор»: character on the Mac, `chat.py`, voices | [docs/live-chat.md](docs/live-chat.md) |
 | «Мои фразы»: `server.py` (Wi-Fi), `personal.py` (USB) | [docs/my-phrases.md](docs/my-phrases.md) |
+| Home server on macOS/Windows, Claude vs local model (`llm.py`) | [docs/home-server.md](docs/home-server.md) |
 | Audio lessons, listening trainer | [docs/lessons-and-listening.md](docs/lessons-and-listening.md) |
 | Home, daily plan, reminder, progress | [docs/home-and-progress.md](docs/home-and-progress.md) |
 | Syllabus and grammar | [docs/grammar-curriculum.md](docs/grammar-curriculum.md) |
@@ -56,5 +57,5 @@ Feature docs live in [`docs/`](docs/README.md), one file per feature. **Read the
   - `export PATH="$HOME/Library/Android/sdk/platform-tools:$HOME/Library/Android/sdk/emulator:$PATH"`
   - `emulator -avd Pixel_8_Pro -no-window -no-audio -no-boot-anim`
   - Install `app-release.apk` (release-signed).
-- **«Мои фразы» server on the Mac:** double-click `Lectura Server.command` (or `python3 pipeline/server.py`).
+- **«Мои фразы» server:** double-click `Lectura Server.command` on macOS or `Lectura Server.bat` on Windows (or `python3 pipeline/server.py`). Without Claude Code it uses a local model in Ollama (`--llm local`).
 - **Ancestor:** the project's ancestor is Eppika (reading adapted books).

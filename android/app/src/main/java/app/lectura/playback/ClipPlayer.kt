@@ -6,7 +6,9 @@ import android.media.MediaPlayer
 import android.media.PlaybackParams
 import android.util.Log
 import app.lectura.speech.SpeechTts
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 /**
@@ -16,6 +18,8 @@ import kotlin.coroutines.resume
 class ClipPlayer(private val context: Context) {
     private val tts = SpeechTts(context)
     private var media: MediaPlayer? = null
+    /** Whoever waits for the current clip to end; stop() must wake them up too. */
+    private var waiting: CancellableContinuation<Boolean>? = null
 
     private val attributes = AudioAttributes.Builder()
         .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -46,20 +50,40 @@ class ClipPlayer(private val context: Context) {
             return null
         }
         media = mp
-        return suspendCancellableCoroutine { cont ->
-            mp.setOnCompletionListener { if (cont.isActive) cont.resume(true) }
+        // A clip whose end never gets reported (e.g. a truncated WAV) must not hold the caller forever.
+        val limit = (mp.duration.takeIf { it > 0 } ?: 60_000) / rate.coerceAtLeast(0.5f) + 5_000
+        return (withTimeoutOrNull(limit.toLong()) { awaitEnd(mp, rate) } ?: false).also { if (media === mp) stop() }
+    }
+
+    private suspend fun awaitEnd(mp: MediaPlayer, rate: Float): Boolean =
+        suspendCancellableCoroutine { cont ->
+            waiting = cont
+            mp.setOnCompletionListener { finish(cont, true) }
             mp.setOnErrorListener { _, _, _ ->
-                if (cont.isActive) cont.resume(false)
+                finish(cont, false)
                 true
             }
             cont.invokeOnCancellation { stop() }
             // Установка скорости сама запускает воспроизведение — поэтому после подписки на конец.
             runCatching { mp.playbackParams = PlaybackParams().setSpeed(rate).setPitch(1f) }
-            if (!mp.isPlaying) mp.start()
-        }.also { if (media === mp) stop() }
+            runCatching { if (!mp.isPlaying) mp.start() }.onFailure {
+                Log.w("ClipPlayer", "start", it)
+                finish(cont, false)
+            }
+        }
+
+    private fun finish(cont: CancellableContinuation<Boolean>, ok: Boolean) {
+        if (waiting === cont) waiting = null
+        if (cont.isActive) cont.resume(ok)
     }
 
+    /**
+     * Stop and release the clip. The waiting play() returns false: without that, a caller that awaits clips in
+     * a queue (LiveChat.playLoop) stayed suspended forever after an interruption, and every later clip and
+     * replay of the conversation was silent.
+     */
     fun stop() {
+        waiting?.let { finish(it, false) }
         media?.let { mp ->
             media = null
             runCatching {
