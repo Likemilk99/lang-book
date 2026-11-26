@@ -16,6 +16,7 @@ Feature docs live in [`docs/`](docs/README.md), one file per feature. **Read the
 | Pixabay word pictures | [docs/word-images.md](docs/word-images.md) |
 | «Говорить»: phrasebooks, scenarios, recognition | [docs/speaking.md](docs/speaking.md) |
 | «Живой разговор»: character on the Mac, `chat.py`, voices | [docs/live-chat.md](docs/live-chat.md) |
+| Live chat personalization: status, open questions, backlog | [docs/live-chat-roadmap.md](docs/live-chat-roadmap.md) |
 | Progress mirror on the Mac, `learner.py`, frequency ranks, chat journal and learner profile | [docs/learner-progress.md](docs/learner-progress.md) |
 | «Мои фразы»: `server.py` (Wi-Fi), `personal.py` (USB) | [docs/my-phrases.md](docs/my-phrases.md) |
 | Home server on macOS/Windows, Claude vs local model (`llm.py`) | [docs/home-server.md](docs/home-server.md) |
