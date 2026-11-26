@@ -27,6 +27,9 @@
 - **Where:** `DataDialog` (backup/restore), opened from Home and the Library.
 - **Format:** `Backup`, `FORMAT`. New fields only with defaults; an incompatible change means `FORMAT + 1`.
 
+## Copies outside the phone
+- **Progress mirror on the Mac** (`ProgressSnapshot`, [learner-progress.md](learner-progress.md)): a read-only copy for «Живой разговор», sent whole before each conversation. Nothing comes back, so it never changes the data here.
+
 ## Files outside Room
 - `files/books/` — book JSON.
 - `files/audio/<id>/` — narrator packs.

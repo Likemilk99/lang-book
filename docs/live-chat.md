@@ -9,6 +9,7 @@ The card is first on the «Говорить» tab (`LiveChatCard`); route `chat`
   - `ChatSession` (base: lock, `[RESUME]`, `ReplyStream`, timings) with two backends picked by `make_session`. `LocalChat` keeps the messages itself and streams from Ollama. `ClaudeChat` is one long-lived `claude -p --input-format stream-json --output-format stream-json --include-partial-messages` process per conversation; its system prompt goes through `--system-prompt-file`. The CLI keeps the history and the prompt cache, so the first token arrives in ~1 s. A new `claude -p` per turn would take 5–10 s.
   - Model: `sonnet`, effort `low` (`server.py --chat-model/--chat-effort`). In a test Haiku mixed tú and usted in one dialogue.
   - `build_system`: role, scene, tú/usted, goals with ids, «Обо мне» facts, level rules (`LEVEL_RULES`), and the level word list from `assets/curriculum/vocab_*.json`: A0/A1 get the A1 list, A2 gets A1+A2, B1 gets no list.
+  - «LEARNER'S WORDS»: words to review, new frequent words and known words from the phone's progress mirror (`learner.chat_block`, see [learner-progress.md](learner-progress.md)).
 - **Output format.** It is not `--json-schema`, because that returns only at the end and would kill streaming. The model writes:
   ```
   <reply>Spanish line(s)</reply>
@@ -26,13 +27,14 @@ The card is first on the «Говорить» tab (`LiveChatCard`); route `chat`
 
 | Endpoint | |
 |---|---|
+| `POST /progress` (snapshot) | The phone's progress before each conversation → `learner.db` ([learner-progress.md](learner-progress.md)) |
 | `POST /chat/start` `{chat, level, topic, about, history?, text?, audio, whisper}` | Creates the session (closes an older one with the same id; keeps at most 3 claude processes) and runs the first turn (`[START]`, or `text` with `history` after a Mac restart). Returns the turn |
 | `POST /chat/<id>/say` `{text, audio, whisper}` | One learner turn → the full turn JSON (`ChatReply`). 404 `nochat` if the Mac forgot the chat |
 | `POST /chat/<id>/end` | Closes the process and deletes its audio |
 | `GET /chat/audio/<name>.wav` | A sentence clip, from `books/.work/personal/chat-audio/` |
 | WebSocket `/ws` (shared with «Мои фразы») | `chat.delta {chat, turn, text}`, `chat.sentence {turn, seq, text}`, `chat.audio {turn, seq, name, ms, whisper, errors}`, `chat.audio_error {turn, seq}`. `hello` has `chat: true` |
 
-- **Validation:** `chat` id must match `^[a-f0-9]{8,32}$`. `clean_topic`, `clean_about` and `clean_history` keep only known fields of sane length.
+- **Validation:** `chat` id must match `^[a-f0-9]{8,32}$`. `clean_topic` (incl. the vocab theme ids), `clean_about` and `clean_history` keep only known fields of sane length.
 - **Mac voice:**
   - Each sentence is voiced on the one MLX thread (`Hub.synth`) as a WAV, without AAC encoding (faster). The voice is f2 or m2 by the topic's gender.
   - Without Whisper: one `Engine.tts`. With Whisper («Проверять озвучку Whisper»): `Engine.segment` does up to 3 attempts and keeps the best.

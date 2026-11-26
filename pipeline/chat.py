@@ -13,7 +13,8 @@
   история и кэш промпта живут в нём, поэтому ответ начинается через ~1 с (новый `claude -p` на каждую
   реплику — это 5–10 с).
 - Системный промпт: роль и сцена, уровень и список слов уровня (assets/curriculum/vocab_*.json),
-  факты «Обо мне», цели сцены, правила (коротко, вопрос в конце, мягкие исправления).
+  факты «Обо мне», цели сцены, слова ученика (pipeline/learner.py: повторить / новые / знает),
+  правила (коротко, вопрос в конце, мягкие исправления).
 - Ответ модели — размеченный текст, а не --json-schema (та отдаёт результат только в конце):
       <reply>испанская реплика</reply>
       <meta>{"ru": …, "fix": …, "hints": […], "chunks": […], "sample": …, "goals_done": […], "end": false}</meta>
@@ -64,7 +65,7 @@ situations. Level: {level_rule}
 THE SCENE: {scene}
 YOU PLAY: {role}. Stay in this role the whole time: you are a real person in Spain, not a teacher, not an AI.
 FORM OF ADDRESS: {address} — keep it consistent in every turn.
-{goals}{facts}
+{goals}{facts}{learner}
 LANGUAGE RULES
 - Speak only Spanish of Spain: vosotros, Spain vocabulary (móvil, coche, zumo, vale, ordenador), euros.
 - Write numbers, prices and times in words («un euro con ochenta», «a las cinco y media») — the reply is \
@@ -119,12 +120,13 @@ def load_lemmas(level: str) -> list[str]:
     return list(dict.fromkeys(out))
 
 
-def build_system(level: str, topic: dict, about: list[dict]) -> str:
+def build_system(level: str, topic: dict, about: list[dict], learner: str = "") -> str:
+    """learner: the LEARNER'S WORDS section from learner.chat_block (their progress mirrored on the Mac)."""
     level = level if level in LEVEL_RULES else "A1"
     lemmas = load_lemmas(level)
     if lemmas:
         vocab_rule = ("Use words from the ALLOWED WORDS list below (any inflected form), names, numbers, and only "
-                      "the few extra words the scene really needs. Prefer the simplest word.\n"
+                      "the few extra words the scene really needs. Prefer the simplest, most frequent everyday word.\n"
                       f"ALLOWED WORDS ({len(lemmas)}): " + ", ".join(lemmas))
     else:
         vocab_rule = "Use common everyday vocabulary; avoid rare and regional words."
@@ -146,6 +148,7 @@ def build_system(level: str, topic: dict, about: list[dict]) -> str:
         address="usted (formal)" if topic.get("usted") else "tú (informal, normal in Spain)",
         goals=goals_txt,
         facts=facts_txt,
+        learner=learner,
         vocab_rule=vocab_rule,
     )
 
@@ -285,11 +288,11 @@ class ChatSession:
 
     timeout = 120.0
 
-    def __init__(self, cid: str, level: str, topic: dict, about: list[dict]):
+    def __init__(self, cid: str, level: str, topic: dict, about: list[dict], learner: str = ""):
         self.id = cid
         self.level = level
         self.topic = topic
-        self.system = build_system(level, topic, about)
+        self.system = build_system(level, topic, about, learner)
         self.lock = asyncio.Lock()
         self.turn = 0
         self.turns: list[dict] = []
@@ -365,8 +368,9 @@ class ChatSession:
 class ClaudeChat(ChatSession):
     """One conversation = one `claude -p` process: it keeps the history and the prompt cache."""
 
-    def __init__(self, cid: str, level: str, topic: dict, about: list[dict], model: str, effort: str):
-        super().__init__(cid, level, topic, about)
+    def __init__(self, cid: str, level: str, topic: dict, about: list[dict], model: str, effort: str,
+                 learner: str = ""):
+        super().__init__(cid, level, topic, about, learner)
         self.model, self.effort = model, effort
         self.proc: asyncio.subprocess.Process | None = None
         self.prompt_file: Path | None = None
@@ -448,8 +452,8 @@ class LocalChat(ChatSession):
 
     timeout = 300.0  # the first turn also reads the long system prompt
 
-    def __init__(self, cid: str, level: str, topic: dict, about: list[dict], backend):
-        super().__init__(cid, level, topic, about)
+    def __init__(self, cid: str, level: str, topic: dict, about: list[dict], backend, learner: str = ""):
+        super().__init__(cid, level, topic, about, learner)
         self.backend = backend
         self.messages: list[dict] = []
 
@@ -489,10 +493,10 @@ class LocalChat(ChatSession):
 
 
 def make_session(backend, cid: str, level: str, topic: dict, about: list[dict], model: str,
-                 effort: str) -> ChatSession:
+                 effort: str, learner: str = "") -> ChatSession:
     if backend is not None and backend.kind == "local":
-        return LocalChat(cid, level, topic, about, backend)
-    return ClaudeChat(cid, level, topic, about, model, effort)
+        return LocalChat(cid, level, topic, about, backend, learner)
+    return ClaudeChat(cid, level, topic, about, model, effort, learner)
 
 
 # ------------------------------------------------------------------ проверка в терминале
@@ -503,6 +507,7 @@ DEMO_TOPIC = {
     "role": "Javi, the waiter",
     "gender": "m",
     "usted": False,
+    "vocab": ["food", "numbers", "shopping"],
     "goals": [{"id": "order", "ru": "заказать напиток"}, {"id": "food", "ru": "заказать что-то поесть"},
               {"id": "pay", "ru": "спросить, сколько стоит, и заплатить"}],
 }
@@ -513,9 +518,11 @@ async def demo(args) -> None:
     if args.topic:
         topic = {"title": args.topic, "scene": args.topic, "role": "a local person in this situation",
                  "gender": "f", "usted": False, "goals": []}
+    import learner
     import llm
 
-    s = make_session(llm.choose(args.llm, args.local_model), "demo", args.level, topic, [], args.model, args.effort)
+    s = make_session(llm.choose(args.llm, args.local_model), "demo", args.level, topic, [], args.model, args.effort,
+                     learner.chat_block(args.level, topic.get("vocab") or []))
 
     async def show(ev: dict) -> None:
         if ev["type"] == "sentence":
@@ -560,7 +567,9 @@ def main() -> None:
 
         args.local_model = llm.DEFAULT_LOCAL_MODEL
     if args.print_prompt:
-        print(build_system(args.level, DEMO_TOPIC, []))
+        import learner
+
+        print(build_system(args.level, DEMO_TOPIC, [], learner.chat_block(args.level, DEMO_TOPIC["vocab"])))
         return
     asyncio.run(demo(args))
 

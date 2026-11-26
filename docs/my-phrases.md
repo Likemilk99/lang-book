@@ -38,6 +38,7 @@ The learner writes in Russian. The Mac turns each entry into simple Peninsular S
 | `POST /sync` `{"items": [InboxEntry]}` | Returns `{"results": [...ready...], ...status}`; entries without a ready result are queued |
 | `GET /audio/<name>` | An `.m4a` from `books/.work/personal/audio/` |
 | `/chat/…` | «Живой разговор», see [live-chat.md](live-chat.md) |
+| `POST /progress` | Progress mirror for the conversation, see [learner-progress.md](learner-progress.md) |
 
 - **Worker:**
   - One MLX thread (`ThreadPoolExecutor(1)`) does all voicing (here and for «Живой разговор»); MLX must stay on one thread. Translation (`claude -p`) runs in the default thread pool so it doesn't block the conversation's audio.

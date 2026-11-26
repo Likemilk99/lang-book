@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -214,6 +215,7 @@ class LiveChat(
         val path: String
         val body: String
         if (text == null) {
+            pushProgress()
             path = "/chat/start"
             body = json.encodeToString(StartBody(st.id, st.level, st.topic, about(), audio = audio, whisper = turnWhisper))
         } else {
@@ -223,6 +225,7 @@ class LiveChat(
         var reply = mac.postJson(path, body)
         if (reply?.code == 404 && text != null) {
             // Mac перезапускали — разговор начинаем заново с той же историей.
+            pushProgress()
             serverTurn = 0
             playTurn = 1
             reply = mac.postJson(
@@ -274,6 +277,18 @@ class LiveChat(
             wholeQueued = true
             enqueue(Play(r.turn, r.reply, null))
         }
+    }
+
+    /**
+     * Progress snapshot to the Mac (pipeline/learner.py) before a conversation starts: the character then knows
+     * which words to repeat, which frequent words are new and which are known. An older Mac (404) or an error
+     * just means a conversation without it.
+     */
+    private suspend fun pushProgress() {
+        runCatching {
+            val snap = withContext(Dispatchers.IO) { ProgressSnapshot.build(db) }
+            mac.postJson("/progress", json.encodeToString(snap))
+        }.onFailure { runCatching { Log.w("LiveChat", "progress", it) } }
     }
 
     private fun currentReplyKey(): Int? = _state.value?.messages?.lastOrNull { !it.mine }?.key

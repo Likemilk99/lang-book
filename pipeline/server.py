@@ -209,7 +209,8 @@ def clean_topic(t: object) -> dict | None:
             goals.append({"id": _s(g["id"], 40), "ru": _s(g["ru"], 200)})
     out = {"title": _s(t.get("title"), 120), "scene": _s(t.get("scene"), 1500), "role": _s(t.get("role"), 300),
            "gender": t.get("gender") if t.get("gender") in ("m", "f") else "f", "usted": bool(t.get("usted")),
-           "goals": goals[:8]}
+           "goals": goals[:8],
+           "vocab": [v for v in t.get("vocab") or [] if isinstance(v, str) and re.fullmatch(r"[a-z-]{1,40}", v)][:8]}
     return out if out["title"] or out["scene"] else None
 
 
@@ -530,6 +531,17 @@ def make_app(hub: Hub, code: str):
         results = await hub.submit(items)
         return web.json_response({"results": results, **hub.status()})
 
+    async def progress(request):
+        """The phone's progress snapshot → learner.db (pipeline/learner.py); sent before every conversation."""
+        import learner
+
+        snap = learner.clean_snapshot(await body_of(request))
+        if snap is None:
+            return web.json_response({"error": "progress"}, status=400)
+        cov = await asyncio.to_thread(learner.store, snap)
+        log(f"📊 прогресс: {learner.describe(cov)}")
+        return web.json_response({"ok": True, **cov})
+
     async def audio_file(request):
         name = request.match_info["name"]
         f = hub.p.AUDIO / f"{name}.m4a"
@@ -570,8 +582,11 @@ def make_app(hub: Hub, code: str):
         await hub.chat_close(cid, forget=True)
         for old in sorted(hub.chats.values(), key=lambda c: c.used)[:-2]:  # больше трёх процессов не держим
             await old.close()
+        import learner
+
+        words = await asyncio.to_thread(learner.chat_block, level, topic["vocab"], True)
         chat = make_session(hub.backend, cid, level, topic, clean_about(body.get("about")), hub.chat_model,
-                            hub.chat_effort)
+                            hub.chat_effort, words)
         chat.history = clean_history(body.get("history"))
         hub.chats[cid] = chat
         log(f"💬 новый разговор: {topic['title'] or topic['scene'][:60]} · {level}")
@@ -602,8 +617,9 @@ def make_app(hub: Hub, code: str):
             raise web.HTTPNotFound()
         return web.FileResponse(f, headers={"Content-Type": "audio/wav"})
 
-    app = web.Application(middlewares=[auth], client_max_size=2 * 1024 * 1024)
-    app.add_routes([web.get("/ws", ws_handler), web.post("/sync", sync), web.get("/audio/{name}", audio_file),
+    app = web.Application(middlewares=[auth], client_max_size=4 * 1024 * 1024)  # progress snapshot: ~150 bytes per word
+    app.add_routes([web.get("/ws", ws_handler), web.post("/sync", sync), web.post("/progress", progress),
+                    web.get("/audio/{name}", audio_file),
                     web.post("/chat/start", chat_start), web.post("/chat/{cid}/say", chat_say),
                     web.post("/chat/{cid}/end", chat_end), web.get("/chat/audio/{name}", chat_audio)])
     return app
