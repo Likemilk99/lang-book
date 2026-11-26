@@ -69,7 +69,7 @@ class LecturaApp : Application() {
         scenarios = ScenarioRepository(this)
         personal = PersonalRepository(this, db, userData, phrasebook)
         mac = MacLink(this, prefs, db, personal, applicationScope)
-        chat = LiveChat(this, mac, prefs, db, userData)
+        chat = LiveChat(this, mac, prefs, db, userData, lexicon)
         applicationScope.launch { runCatching { personal.sync() }.onFailure { Log.w("LecturaApp", "personal sync", it) } }
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { userData.onAppStart() }.onFailure { Log.e("LecturaApp", "data upgrade failed", it) }

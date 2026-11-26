@@ -2,6 +2,7 @@ package app.lectura
 
 import app.lectura.data.ChatState
 import app.lectura.data.LiveChat
+import app.lectura.model.AskAnswer
 import app.lectura.model.CHAT_LEVELS
 import app.lectura.model.CHAT_TOPICS
 import app.lectura.model.ChatPair
@@ -54,7 +55,7 @@ class LiveChatTest {
             """{"chat":"abc","audio":true,"turn":2,"reply":"Vale. ¿Algo más?","sentences":2,"ru":"Хорошо. Что-то ещё?",
                "fix":{"es":"Quería un café.","ru":"вежливее"},"hints":[{"es":"nada más","ru":"больше ничего"}],"chunks":[{"es":"nada más, gracias","ru":"больше ничего, спасибо"}],
                "brief":{"words":[{"es":"tos","ru":"кашель","tag":"review"},{"es":"fiebre"}],"phrases":[{"es":"Me duele…","ru":"У меня болит…"}]},
-               "sample":{"es":"No, gracias.","ru":"Нет, спасибо."},"words":[],"goals_done":["drink"],"end":false,
+               "sample":{"es":"No, gracias.","ru":"Нет, спасибо."},"words":[{"es":"doler","form":"duele","ru":"болеть"}],"goals_done":["drink"],"end":false,
                "firstMs":700,"totalMs":2500,"unknown":1}""",
         )
         assertEquals("Quería un café.", r.fix?.es)
@@ -65,6 +66,14 @@ class LiveChatTest {
         assertEquals(listOf("review", ""), r.brief!!.words.map { it.tag })
         assertEquals("Me duele…", r.brief!!.phrases.single().es)
         assertNull(json.decodeFromString<ChatReply>("""{"reply":"Hola"}""").brief)
+        assertEquals("duele", r.words.single().form)
+        val how = json.decodeFromString<AskAnswer>(
+            """{"options":[{"es":"¿Hay descuento?","ru":"Есть скидка?"}],"note_ru":"","example":{"es":"¿Hay descuento para estudiantes?","ru":"…"}}""",
+        )
+        assertEquals("¿Hay descuento?", how.options.single().es)
+        assertNull(how.word)
+        val word = json.decodeFromString<AskAnswer>("""{"word":{"es":"doler","ru":"болеть","form_ru":"болит","note_ru":"3 л."}}""")
+        assertEquals("болит", word.word?.form_ru)
         val noFix = json.decodeFromString<ChatReply>("""{"reply":"Hola","fix":null}""")
         assertNull(noFix.fix)
     }

@@ -95,8 +95,8 @@ Nouns without article, verbs in the infinitive, mostly from the allowed words],
 "chunks": [{{"es": "short phrase piece", "ru": "перевод"}}, ...3–5 ready pieces of 2–4 words for the NEXT answer \
 (e.g. tengo fiebre, me duele la garganta, desde ayer) — shown only if single words are not enough],
 "sample": {{"es": "one natural answer the learner could say next, at their level", "ru": "перевод"}},
-"words": [{{"es": "word from your reply", "ru": "перевод"}}, ...0–4 words of your reply the learner \
-probably does not know],
+"words": [{{"es": "dictionary form (infinitive, masculine singular)", "form": "the form as it is in your reply", \
+"ru": "dictionary translation"}}, ...0–4 words of your reply the learner probably does not know],
 "goals_done": ["ids of ALL scene goals the learner has achieved so far"],
 "end": false}}</meta>
 
@@ -246,6 +246,12 @@ def split_hints(hints, chunks) -> dict:
     return {"hints": words[:12], "chunks": pieces[:6]}
 
 
+def _word(x: dict) -> dict:
+    """A word of the reply: dictionary form, its form in the reply (for the review card's example) and translation."""
+    p = _pair(x)
+    return {**p, "form": str(x.get("form") or "").strip()[:100]}
+
+
 def norm_words(s: str) -> str:
     """Для сравнения реплик: без регистра, ударений и знаков препинания."""
     s = "".join(c for c in unicodedata.normalize("NFD", s.lower()) if unicodedata.category(c) != "Mn")
@@ -277,7 +283,7 @@ def parse_meta(text: str) -> dict:
         "fix": _pair(data.get("fix")),
         **split_hints(data.get("hints"), data.get("chunks")),
         "sample": _pair(data.get("sample")),
-        "words": [p for p in (_pair(w) for w in (data.get("words") or [])[:6]) if p],
+        "words": [_word(w) for w in (data.get("words") or [])[:6] if _pair(w)],
         "goals_done": [str(g) for g in (data.get("goals_done") or []) if isinstance(g, (str, int))][:20],
         "end": bool(data.get("end")),
         **parse_brief(data.get("brief")),
@@ -522,6 +528,62 @@ class LocalChat(ChatSession):
         finally:
             stop[0] = True
         self.messages += [{"role": "user", "content": text}, {"role": "assistant", "content": raw}]
+
+
+# ------------------------------------------------------------------ ❓ «Как сказать…» during the chat
+
+ASK_SYSTEM = """You are a friendly tutor of Spanish (Spain) next to a Russian-speaking learner who is in the middle of a \
+role-play conversation. Answer their quick question so they can use the answer in their very next line.
+Peninsular Spanish only (vosotros, Spain vocabulary, «vale»). Simple and natural, at the learner's level. Short."""
+
+ASK_HOW_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "options": {"type": "array", "minItems": 1, "maxItems": 3, "items": {
+            "type": "object", "properties": {"es": {"type": "string"}, "ru": {"type": "string"}},
+            "required": ["es", "ru"], "additionalProperties": False},
+            "description": "1–3 ways to say it, simplest first; ru = short Russian translation only"},
+        "note_ru": {"type": "string", "description": "one short sentence in Russian (tú/usted, when to use) or \"\""},
+        "example": {"type": "object", "properties": {"es": {"type": "string"}, "ru": {"type": "string"}},
+                    "required": ["es", "ru"], "additionalProperties": False,
+                    "description": "a line the learner could say right now in this conversation, using it"},
+    },
+    "required": ["options", "note_ru", "example"],
+    "additionalProperties": False,
+}
+ASK_WORD_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "es": {"type": "string", "description": "dictionary form (infinitive, masculine singular)"},
+        "ru": {"type": "string", "description": "dictionary translation, 1–3 meanings, the one in this sentence first"},
+        "form_ru": {"type": "string", "description": "translation of the word as used in this sentence"},
+        "note_ru": {"type": "string", "description": "very short grammar note in Russian (e.g. «doler, 3 л. ед. ч.»)"},
+    },
+    "required": ["es", "ru", "form_ru", "note_ru"],
+    "additionalProperties": False,
+}
+
+
+def ask_tutor(backend, model: str, level: str, topic: dict, turns: list[dict], kind: str, q: str,
+              sentence: str = "") -> dict:
+    """One quick question during the chat, with the dialogue as context. kind «how»: how to say/ask something
+    (q in Russian or mixed) → {options, note_ru, example}; kind «word»: the word q in [sentence] →
+    {es, ru, form_ru, note_ru}. A separate call: the character never sees the question."""
+    import llm
+
+    dialogue = "\n".join(f"Learner: {t['user']}\nPartner: {t['reply']}" if t.get("user") != "[START]"
+                         else f"Partner: {t['reply']}" for t in turns[-10:])
+    head = (f"Learner's level: {level}. Scene: {topic.get('title') or ''} — {topic.get('scene') or ''}. "
+            f"The partner uses {'usted' if topic.get('usted') else 'tú'}.\n\nTHE CONVERSATION SO FAR:\n"
+            f"{dialogue or '(just started)'}\n\n")
+    if kind == "word":
+        prompt = head + f"The learner taps the word «{q}» in this line: «{sentence}». Explain it."
+        out = llm.json_call(backend, prompt, ASK_SYSTEM, ASK_WORD_SCHEMA, model, "low")
+        return {"word": {k: str(out.get(k) or "").strip()[:200] for k in ("es", "ru", "form_ru", "note_ru")}}
+    prompt = head + f"The learner asks (in Russian or mixed): «{q}»"
+    out = llm.json_call(backend, prompt, ASK_SYSTEM, ASK_HOW_SCHEMA, model, "low")
+    return {"options": [p for p in (_pair(o) for o in (out.get("options") or [])[:3]) if p],
+            "note_ru": str(out.get("note_ru") or "").strip()[:400], "example": _pair(out.get("example"))}
 
 
 def make_session(backend, cid: str, level: str, topic: dict, about: list[dict], model: str,

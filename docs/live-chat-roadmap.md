@@ -43,6 +43,7 @@ Last updated: 2026-11-26.
 - **Rebuild the profile from the last conversation:** `python3 pipeline/learner.py --update-profile`.
 
 ## Questions for the user next session
+0. ❓: is 4–6 s fast enough? Are the answers short and usable? Is tapping a word of a line + «＋ учить» convenient?
 1. Did the brief help before speaking? Too many or too few words? Were the patterns useful?
 2. Do the 💡 words give enough to build a sentence without giving it away? Is step 2 (phrase pieces) the right next step?
 3. Did the character bring back «повторить» words naturally, or did it feel forced?
@@ -57,13 +58,18 @@ Last updated: 2026-11-26.
 - **Frequency bonus:** top 500 / 1500 / 4000. Verbs count as 0.6 of their rank for new words. Rotation: +400 ranks per time a word was already offered.
 - **freq_rank.json:** wordfreq includes news, so *gobierno, nacional* rank high. Only our own word lists are ranked, but a manual stop-list or a spoken-corpus weight may help.
 
+## Done after the roadmap was written (not released, needs the server restart + release)
+- **Save from the chat:** «＋ учить» on unknown words, any tapped word of a line (offline dictionary or the Mac), the whole line, fixes, brief words, ❓ answers; long press on 💡 words.
+- **❓ «Как сказать…»:** `POST /chat/<id>/ask`, measured 4–6 s (Sonnet one-shot); the answer's example fits the current moment. Questions feed the profile.
+- **Fix:** 🔊 in the brief played only after closing it (the hold now applies only to the character's lines).
+
 ## Backlog (candidates, in a suggested order)
-1. **Save words and sentences from the chat to review (asked by the user 2026-11-26, top priority).** Today nothing in the chat can be saved except «Итог» → «Фразы в повторение» (all fixes at once).
+1. ~~**Save words and sentences from the chat to review (asked by the user 2026-11-26, top priority).**~~ Done, see above. Today nothing in the chat can be saved except «Итог» → «Фразы в повторение» (all fixes at once).
    - **Words:** the unknown words of a partner bubble (shown on tap, `ChatMsg.words`), the brief words, and the 💡 words get a «＋ учить» action. Save through `UserData.saveWord` with a card built like `WordCards.fromGlossary`: dictionary translation from `Lexicon` if known, else the chat `ru`; the chat line (`reply` + `ru`) as the example. On a word already saved, add the example (`SaveResult.EXAMPLE_ADDED` toast, as in the reader).
    - **Sentences:** a partner reply or one sentence of it, and a single «✏️ лучше так» fix → `UserData.addPhrases(label = "разговор: <topic>")`. The reply's `ru` is for the whole reply. For one sentence, either save the whole short reply or ask the Mac for per-sentence translations (e.g. a `sentences_ru` list in meta).
    - **UI:** a long press or a small «＋» in the expanded bubble; a check mark once saved. Words that are already saved are marked.
    - This also covers «add the new words to review in one tap» (the brief's «новое» words).
-2. **❓ «Как сказать…» during the chat (asked by the user 2026-11-26).** A ❓ button next to 💡 opens a sheet where the learner asks, in Russian or mixed, how to say or ask something («как спросить про скидку», «как сказать, что я бы хотел перенести»). The Mac answers right away, short, with an example they can use in the next reply. The aim: not knowing a word or a structure must not limit the conversation.
+2. ~~**❓ «Как сказать…» during the chat (asked by the user 2026-11-26).**~~ Done (one-shot; a persistent tutor process only if 4–6 s feels slow). A ❓ button next to 💡 opens a sheet where the learner asks, in Russian or mixed, how to say or ask something («как спросить про скидку», «как сказать, что я бы хотел перенести»). The Mac answers right away, short, with an example they can use in the next reply. The aim: not knowing a word or a structure must not limit the conversation.
    - **Context:** the answer must know the dialogue. The Mac already has it: the session keeps the turns in memory (`chat.turns`, `chat.history`), and the journal has every learner turn of the chat (`turns` table, step 3). Add the topic, the level and the learner profile.
    - **Server:** `POST /chat/<id>/ask {q}`. A separate call, NOT through the character's process: the role-play must not see the question, and the turn counter must not move. One-shot `llm.json_call` (sonnet, low) is simplest, but a fresh `claude -p` takes ~5–10 s. If that feels slow, keep a second long-lived «tutor» process per chat (the `ClaudeChat` machinery with another system prompt, ~1–2 s).
    - **Answer (JSON):** 1–2 Spanish ways to say it (simplest first, at the level, Spain) with Russian, a one-line note in Russian (tú/usted, when to use), and one example that fits the current scene.

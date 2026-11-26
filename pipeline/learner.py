@@ -214,6 +214,8 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
         CREATE TABLE IF NOT EXISTS turns(chat TEXT, n INT, at INT, topic TEXT, level TEXT, said TEXT, reply TEXT,
             fix_es TEXT, fix_ru TEXT);
         CREATE INDEX IF NOT EXISTS turns_chat ON turns(chat);
+        -- ❓ questions during a chat («how do I say…», a tapped word) and the answers
+        CREATE TABLE IF NOT EXISTS asks(chat TEXT, at INT, kind TEXT, q TEXT, answer TEXT);
         -- the learner profile Claude keeps after each conversation (typical mistakes, what works, what to push)
         CREATE TABLE IF NOT EXISTS profile(id INT PRIMARY KEY CHECK(id = 1), json TEXT, updated INT, chats INT);
     """)
@@ -432,6 +434,18 @@ def record_turn(chat: str, topic: str, level: str, said: str, out: dict, path: P
         db.close()
 
 
+def record_ask(chat: str, kind: str, q: str, answer: dict, path: Path | None = None) -> None:
+    db = connect(path)
+    try:
+        with db:
+            db.execute("INSERT INTO asks VALUES (?,?,?,?,?)",
+                       (chat, int(time.time()), kind, q[:500], json.dumps(answer, ensure_ascii=False)))
+            db.execute("DELETE FROM asks WHERE rowid IN (SELECT rowid FROM asks ORDER BY rowid DESC LIMIT -1 OFFSET ?)",
+                       (KEEP_TURNS,))
+    finally:
+        db.close()
+
+
 def load_profile(path: Path | None = None) -> dict | None:
     path = path or DB_FILE
     if not path.exists():
@@ -485,6 +499,7 @@ def update_profile(chat: str, backend, model: str, effort: str, path: Path | Non
     try:
         others = db.execute("SELECT said, fix_es, fix_ru FROM turns WHERE chat != ? AND fix_es != '' "
                             "ORDER BY rowid DESC LIMIT 40", (chat,)).fetchall()
+        asks = db.execute("SELECT kind, q, answer FROM asks WHERE chat = ? ORDER BY rowid", (chat,)).fetchall()
     finally:
         db.close()
     lines = []
@@ -496,7 +511,10 @@ def update_profile(chat: str, backend, model: str, effort: str, path: Path | Non
                                                   ensure_ascii=False, indent=1) if prev else "(none yet)")
               + "\n\nTHE NEW CONVERSATION:\n" + "\n".join(lines)
               + ("\n\nRECENT FIXES FROM EARLIER CONVERSATIONS:\n"
-                 + "\n".join(f"- {s} → {e} ({r})" for s, e, r in others) if others else ""))
+                 + "\n".join(f"- {s} → {e} ({r})" for s, e, r in others) if others else "")
+              + ("\n\nDURING THIS CONVERSATION THE LEARNER ASKED (what they wanted to say but could not — gaps for "
+                 "focus):\n" + "\n".join(f"- {'how to say' if k == 'how' else 'the word'}: {q} → {_ask_short(a)}"
+                                          for k, q, a in asks) if asks else ""))
     out = llm.json_call(backend, prompt, PROFILE_SYSTEM, PROFILE_SCHEMA, model, effort)
     prof = {"mistakes": [m for m in out.get("mistakes") or [] if isinstance(m, dict) and m.get("pattern")][:6],
             "can_do": [str(x) for x in out.get("can_do") or []][:6],
@@ -513,6 +531,13 @@ def update_profile(chat: str, backend, model: str, effort: str, path: Path | Non
     finally:
         db.close()
     return prof
+
+
+def _ask_short(answer: str) -> str:
+    a = json.loads(answer)
+    if "word" in a:
+        return f"{a['word'].get('es', '')} ({a['word'].get('ru', '')})"
+    return " / ".join(o["es"] for o in a.get("options", []))
 
 
 def describe_profile(p: dict) -> str:

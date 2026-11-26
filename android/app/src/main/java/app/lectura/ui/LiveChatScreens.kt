@@ -6,7 +6,9 @@ import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -39,6 +42,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
@@ -47,7 +51,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -55,6 +61,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -77,12 +84,12 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lectura.LecturaApp
+import app.lectura.data.ChatAsk
 import app.lectura.data.ChatMsg
 import app.lectura.data.ChatState
 import app.lectura.data.MacLink
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.LinearProgressIndicator
+import app.lectura.data.SaveResult
+import app.lectura.data.wordKey
 import app.lectura.model.BriefWord
 import app.lectura.model.CHAT_LEVELS
 import app.lectura.model.CHAT_TOPICS
@@ -90,11 +97,12 @@ import app.lectura.model.ChatPair
 import app.lectura.model.ChatTopic
 import app.lectura.model.ChatVoice
 import app.lectura.model.VocabEntry
+import app.lectura.model.WordInfo
 import app.lectura.model.customChatTopic
 import app.lectura.speech.SpeechInput
 import app.lectura.speech.SpeechTts
-import kotlinx.coroutines.launch
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 /** Карточка во вкладке «Говорить». */
 @Composable
@@ -315,6 +323,7 @@ private fun ChatRoom(st: ChatState, onBack: () -> Unit) {
     var input by rememberSaveable(st.id) { mutableStateOf("") }
     var hintLevel by rememberSaveable(st.id) { mutableIntStateOf(0) }
     var summary by rememberSaveable(st.id) { mutableStateOf(false) }
+    var asking by rememberSaveable(st.id) { mutableStateOf(false) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     /** Bumped on every send: the mic stops, and the next answer needs a new tap. */
     var sent by remember { mutableIntStateOf(0) }
@@ -392,7 +401,7 @@ private fun ChatRoom(st: ChatState, onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(st.messages, key = { it.key }) { m ->
-                    if (m.mine) MyBubble(m) else PartnerBubble(m)
+                    if (m.mine) MyBubble(m, st.saved) else PartnerBubble(m, st.saved)
                 }
                 item {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -408,11 +417,13 @@ private fun ChatRoom(st: ChatState, onBack: () -> Unit) {
                 }
             }
             HintPanel(st, hintLevel, onInsert = { w -> input = (input.trimEnd() + " " + w).trimStart() })
+            if (asking) AskSheet(st, onInsert = { w -> input = (input.trimEnd() + " " + w).trimStart() }) { asking = false }
             HorizontalDivider()
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                TextButton(onClick = { asking = true }, contentPadding = PaddingValues(horizontal = 4.dp)) { Text("❓") }
                 TextButton(
                     onClick = { hintLevel = nextHintLevel(st, hintLevel) },
                     enabled = st.hints.isNotEmpty() || st.chunks.isNotEmpty() || st.sample != null || st.topic.vocab.isNotEmpty(),
@@ -481,7 +492,7 @@ private fun BriefSheet(st: ChatState, onClose: () -> Unit) {
                     if (brief.words.isNotEmpty()) {
                         Text("Полезные слова (нажмите — послушать):", style = MaterialTheme.typography.labelLarge)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            brief.words.forEach { w -> BriefChip(w) { app.chat.speak(w.es) } }
+                            brief.words.forEach { w -> BriefChip(w, wordKey(w.es) in st.saved) { app.chat.speak(w.es) } }
                         }
                     }
                     if (brief.phrases.isNotEmpty()) {
@@ -517,23 +528,26 @@ private fun BriefSheet(st: ChatState, onClose: () -> Unit) {
 }
 
 @Composable
-private fun BriefChip(w: BriefWord, onClick: () -> Unit) {
+private fun BriefChip(w: BriefWord, saved: Boolean, onClick: () -> Unit) {
     val (label, color) = when (w.tag) {
         "review" -> "повторить" to MaterialTheme.colorScheme.tertiaryContainer
         "new" -> "новое" to MaterialTheme.colorScheme.primaryContainer
         else -> "" to MaterialTheme.colorScheme.surfaceVariant
     }
     Surface(onClick = onClick, shape = RoundedCornerShape(8.dp), color = color) {
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
-            Text(w.es, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-            if (w.ru.isNotBlank()) Text(w.ru, style = MaterialTheme.typography.labelSmall)
-            if (label.isNotEmpty()) Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.padding(start = 10.dp, top = 4.dp, bottom = 4.dp)) {
+                Text(w.es, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                if (w.ru.isNotBlank()) Text(w.ru, style = MaterialTheme.typography.labelSmall)
+                if (label.isNotEmpty()) Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+            }
+            SaveButton(saved) { savedText(LecturaApp.instance.chat.saveWord(w.es, w.ru), w.es) }
         }
     }
 }
 
 @Composable
-private fun PartnerBubble(m: ChatMsg) {
+private fun PartnerBubble(m: ChatMsg, saved: Set<String>) {
     val chat = LecturaApp.instance.chat
     var open by rememberSaveable(m.key) { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth()) {
@@ -550,9 +564,20 @@ private fun PartnerBubble(m: ChatMsg) {
                 if (open && m.ru.isNotBlank()) {
                     Text(m.ru, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     m.words.forEach { w ->
-                        Text("${w.es} — ${w.ru}", style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "${w.es} — ${w.ru}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontStyle = FontStyle.Italic,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            SaveButton(wordKey(w.es) in saved) {
+                                savedText(chat.saveWord(w.es, w.ru, w.form, m.text, m.ru), w.es)
+                            }
+                        }
                     }
                 }
+                if (open && !m.pending) LineTools(m, saved)
                 if (!m.pending) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { chat.replay(m) }, modifier = Modifier.padding(0.dp)) {
@@ -570,6 +595,176 @@ private fun PartnerBubble(m: ChatMsg) {
     }
 }
 
+/** «＋» → saves (the lambda returns the toast text); «✓» once the word or phrase is in review. */
+@Composable
+private fun SaveButton(saved: Boolean, onSave: suspend () -> String) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    TextButton(
+        onClick = {
+            busy = true
+            scope.launch {
+                val msg = runCatching { onSave() }.getOrElse { "Не сохранилось: ${it.message}" }
+                busy = false
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            }
+        },
+        enabled = !saved && !busy,
+        contentPadding = PaddingValues(horizontal = 6.dp),
+        modifier = Modifier.heightIn(min = 32.dp),
+    ) { Text(if (saved) "✓" else "＋ учить", style = MaterialTheme.typography.labelMedium) }
+}
+
+private fun savedText(r: SaveResult, what: String) = when (r) {
+    SaveResult.ADDED -> "В повторение: $what"
+    SaveResult.EXAMPLE_ADDED -> "Уже в словаре — добавлен пример"
+    SaveResult.ALREADY -> "Уже в словаре"
+}
+
+/**
+ * An opened partner line: tap any word to see what it is (offline dictionary, else the Mac) and save it,
+ * or save the whole line as a phrase.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LineTools(m: ChatMsg, saved: Set<String>) {
+    val chat = LecturaApp.instance.chat
+    val scope = rememberCoroutineScope()
+    var picked by remember(m.key) { mutableStateOf<String?>(null) }
+    var info by remember(m.key) { mutableStateOf<WordInfo?>(null) }
+    var looking by remember(m.key) { mutableStateOf(false) }
+    val tokens = remember(m.text) {
+        m.text.split(Regex("\\s+")).map { it.trim { c -> !c.isLetterOrDigit() } }.filter { it.isNotEmpty() }.distinct()
+    }
+    Text("Нажмите на слово, чтобы разобрать его:", style = MaterialTheme.typography.labelSmall)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        tokens.forEach { t ->
+            Surface(
+                onClick = {
+                    picked = t
+                    info = null
+                    looking = true
+                    scope.launch {
+                        info = chat.lookupWord(t, m.text)
+                        looking = false
+                    }
+                },
+                shape = RoundedCornerShape(6.dp),
+                color = if (t == picked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+            ) { Text(t, Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.bodySmall) }
+        }
+    }
+    picked?.let { t ->
+        val i = info
+        when {
+            looking -> Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                Text("  «$t»: спрашиваю Mac…", style = MaterialTheme.typography.bodySmall)
+            }
+            i == null -> Text("«$t»: не удалось разобрать (Mac не на связи?)", style = MaterialTheme.typography.bodySmall)
+            else -> Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f, fill = false)) {
+                    Text("${i.es} — ${i.ru}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    val more = listOf(i.form_ru.takeIf { it.isNotBlank() && t.lowercase() != i.es }?.let { "«$t» = $it" }, i.note_ru)
+                        .filter { !it.isNullOrBlank() }.joinToString(" · ")
+                    if (more.isNotBlank()) Text(more, style = MaterialTheme.typography.bodySmall)
+                }
+                SaveButton(wordKey(i.es) in saved) { savedText(chat.saveWord(i.es, i.ru, t, m.text, m.ru), i.es) }
+            }
+        }
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Вся фраза", style = MaterialTheme.typography.labelMedium)
+        SaveButton(m.text.trim().lowercase() in saved) {
+            if (chat.savePhrase(m.text, m.ru)) "Фраза в повторении" else "Уже в словаре"
+        }
+    }
+}
+
+/**
+ * ❓ «Как сказать…»: ask the Mac mid-chat in Russian or mixed. The answer knows the dialogue; tap an option to put
+ * it into the reply, 🔊 to hear it, «＋ учить» to keep it. The questions of this conversation stay here.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AskSheet(st: ChatState, onInsert: (String) -> Unit, onClose: () -> Unit) {
+    val chat = LecturaApp.instance.chat
+    var q by rememberSaveable { mutableStateOf("") }
+    ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 16.dp).imePadding(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("❓ Как сказать…", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Спросите по-русски, как сказать или спросить что-то в этом разговоре. Mac знает весь диалог.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Column(
+                Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                st.asks.forEach { a -> AskItem(a, st.saved, onUse = { onInsert(it); onClose() }) }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = q,
+                    onValueChange = { q = it.take(500) },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("например: как спросить про скидку") },
+                    maxLines = 3,
+                )
+                TextButton(
+                    onClick = {
+                        chat.ask(q)
+                        q = ""
+                    },
+                    enabled = q.isNotBlank(),
+                ) { Text("Спросить") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AskItem(a: ChatAsk, saved: Set<String>, onUse: (String) -> Unit) {
+    val chat = LecturaApp.instance.chat
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("— ${a.q}", style = MaterialTheme.typography.bodyMedium, fontStyle = FontStyle.Italic)
+        val ans = a.answer
+        when {
+            ans != null -> {
+                ans.options.forEach { o -> AskLine(o, o.es.trim().lowercase() in saved, onUse) }
+                if (ans.note_ru.isNotBlank()) Text(ans.note_ru, style = MaterialTheme.typography.bodySmall)
+                ans.example?.let { e ->
+                    Text("Например:", style = MaterialTheme.typography.labelMedium)
+                    AskLine(e, e.es.trim().lowercase() in saved, onUse)
+                }
+            }
+            a.error.isNotBlank() -> Text(a.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            else -> Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                Text("  Mac думает…", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+/** One Spanish line of a ❓ answer: tap → into the reply field; 🔊; «＋ учить». */
+@Composable
+private fun AskLine(p: ChatPair, saved: Boolean, onUse: (String) -> Unit) {
+    val chat = LecturaApp.instance.chat
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).clickable { onUse(p.es) }) {
+            Text(p.es, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+            if (p.ru.isNotBlank()) Text(p.ru, style = MaterialTheme.typography.bodySmall)
+        }
+        IconButton(onClick = { chat.speak(p.es) }) { Icon(Icons.AutoMirrored.Filled.VolumeUp, "Послушать") }
+        SaveButton(saved) { if (chat.savePhrase(p.es, p.ru)) "В повторение: ${p.es}" else "Уже в словаре" }
+    }
+}
+
 /** Сколько ждали: текст (первый токен) и озвучка Mac по фразам — для сравнения режимов. */
 private fun timing(m: ChatMsg): String {
     fun sec(ms: Int) = String.format(Locale.US, "%.1f", ms / 1000f)
@@ -582,7 +777,7 @@ private fun timing(m: ChatMsg): String {
 }
 
 @Composable
-private fun MyBubble(m: ChatMsg) {
+private fun MyBubble(m: ChatMsg, saved: Set<String>) {
     val chat = LecturaApp.instance.chat
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
         Surface(
@@ -607,6 +802,9 @@ private fun MyBubble(m: ChatMsg) {
                     }
                 }
                 Icon(Icons.AutoMirrored.Filled.VolumeUp, "Послушать", Modifier.padding(start = 6.dp))
+                SaveButton(f.es.trim().lowercase() in saved) {
+                    if (chat.savePhrase(f.es, f.ru)) "В повторение: ${f.es}" else "Уже в словаре"
+                }
             }
         }
     }
@@ -627,17 +825,32 @@ internal fun nextHintLevel(st: ChatState, level: Int): Int =
         }
     } ?: 0
 
-@OptIn(ExperimentalLayoutApi::class)
+/** Tap inserts the word, a long press puts it into review (single words as words, pieces as phrases). */
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun HintChips(items: List<ChatPair>, onInsert: (String) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val chat = LecturaApp.instance.chat
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items.forEach { h ->
             Surface(
-                onClick = { onInsert(h.es) },
                 shape = RoundedCornerShape(8.dp),
                 color = MaterialTheme.colorScheme.surface,
             ) {
-                Column(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
+                Column(
+                    Modifier.combinedClickable(
+                        onClick = { onInsert(h.es) },
+                        onLongClick = {
+                            scope.launch {
+                                val msg = if (h.es.trim().contains(' ')) {
+                                    if (chat.savePhrase(h.es, h.ru)) "В повторение: ${h.es}" else "Уже в словаре"
+                                } else savedText(chat.saveWord(h.es, h.ru), h.es)
+                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                    ).padding(horizontal = 10.dp, vertical = 4.dp),
+                ) {
                     Text(h.es, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                     if (h.ru.isNotBlank()) Text(h.ru, style = MaterialTheme.typography.labelSmall)
                 }
@@ -669,7 +882,7 @@ private fun HintPanel(st: ChatState, level: Int, onInsert: (String) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             if (st.hints.isNotEmpty()) {
-                Text("Слова для ответа (нажмите — вставить):", style = MaterialTheme.typography.labelMedium)
+                Text("Слова для ответа (нажмите — вставить, долгое нажатие — учить):", style = MaterialTheme.typography.labelMedium)
                 HintChips(st.hints, onInsert)
             } else if (st.busy) {
                 Text("Подсказка появится вместе с ответом собеседника.", style = MaterialTheme.typography.bodySmall)

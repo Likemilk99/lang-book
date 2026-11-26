@@ -4,7 +4,10 @@ import android.content.Context
 import android.util.Log
 import app.lectura.model.ABOUT_QUESTIONS
 import app.lectura.model.Character
+import app.lectura.model.AskAnswer
 import app.lectura.model.ChatBrief
+import app.lectura.model.ChatWord
+import app.lectura.model.WordInfo
 import app.lectura.model.ChatPair
 import app.lectura.model.ChatReply
 import app.lectura.model.ChatTopic
@@ -46,7 +49,7 @@ data class ChatMsg(
     /** Для реплики ученика: как сказать правильно. */
     val fix: ChatPair? = null,
     /** Незнакомые слова из реплики собеседника. */
-    val words: List<ChatPair> = emptyList(),
+    val words: List<ChatWord> = emptyList(),
     /** Собеседник ещё «печатает». */
     val pending: Boolean = false,
     /** Не дошло до Mac — можно повторить. */
@@ -58,6 +61,9 @@ data class ChatMsg(
     val firstMs: Int = 0,
     val totalMs: Int = 0,
 )
+
+/** One ❓ question and its answer (null while the Mac thinks). */
+data class ChatAsk(val id: Int, val q: String, val answer: AskAnswer? = null, val error: String = "")
 
 data class ChatState(
     val id: String,
@@ -72,6 +78,10 @@ data class ChatState(
     val brief: ChatBrief? = null,
     /** «Перед разговором» is shown (opens at the start, 📋 reopens it). */
     val briefOpen: Boolean = false,
+    /** ❓ questions of this conversation, oldest first. */
+    val asks: List<ChatAsk> = emptyList(),
+    /** Keys of words and phrases already in review (wordKey / phrase text lowercase): marked ✓. */
+    val saved: Set<String> = emptySet(),
     val goalsDone: Set<String> = emptySet(),
     val ended: Boolean = false,
     val error: String = "",
@@ -91,6 +101,7 @@ class LiveChat(
     private val prefs: Prefs,
     private val db: AppDatabase,
     private val userData: UserData,
+    private val lexicon: LexiconRepository,
 ) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val _state = MutableStateFlow<ChatState?>(null)
@@ -156,6 +167,10 @@ class LiveChat(
         s.launch { mac.chatEvents.collect { onEvent(it) } }
         s.launch { playLoop() }
         s.launch { send(null) }
+        s.launch {
+            val keys = withContext(Dispatchers.IO) { runCatching { db.words().keys().first() }.getOrDefault(emptyList()) }
+            _state.update { it?.copy(saved = it.saved + keys) }
+        }
     }
 
     /** Закончить разговор (Mac закроет процесс модели). */
@@ -368,7 +383,7 @@ class LiveChat(
 
     private suspend fun playLoop() {
         for (p in queue) {
-            held.first { !it }
+            if (p.turn >= 0) held.first { !it } // only the character's lines wait; 🔊 on hints and the brief plays at once
             if (p.turn != playTurn) continue
             val file = p.file
             // One broken clip must not end the loop: then the rest of the conversation would be silent.
@@ -425,6 +440,67 @@ class LiveChat(
         return userData.addPhrases(list, label = "разговор: ${st.topic.title}")
     }
 
+    // ---------------------------------------------------------------- ❓ and saving to review
+
+    private var nextAsk = 0
+
+    /** ❓ «Как сказать…»: the Mac answers with the dialogue as context (a separate call, not the character). */
+    fun ask(question: String) {
+        val q = question.trim()
+        val st = _state.value ?: return
+        val s = scope ?: return
+        if (q.isEmpty()) return
+        val id = nextAsk++
+        _state.update { it?.copy(asks = it.asks + ChatAsk(id, q)) }
+        s.launch {
+            val r = mac.postJson("/chat/${st.id}/ask", json.encodeToString(AskBody("how", q, "", st.level, st.topic)))
+            val a = r?.takeIf { it.code == 200 }?.let { runCatching { json.decodeFromString<AskAnswer>(it.body) }.getOrNull() }
+            val err = when {
+                a != null -> ""
+                r == null -> "Mac не на связи"
+                else -> "Mac не ответил (${r.code})"
+            }
+            _state.update { s2 -> s2?.copy(asks = s2.asks.map { if (it.id == id) it.copy(answer = a, error = err) else it }) }
+        }
+    }
+
+    /** A word tapped in a partner's line: its dictionary form and meaning (offline dictionary first, else the Mac). */
+    suspend fun lookupWord(word: String, sentence: String): WordInfo? {
+        val st = _state.value ?: return null
+        lexicon.get().ru(word)?.let { return WordInfo(word.trim().lowercase(), it) }
+        val r = mac.postJson("/chat/${st.id}/ask", json.encodeToString(AskBody("word", word, sentence, st.level, st.topic)))
+        return r?.takeIf { it.code == 200 }
+            ?.let { runCatching { json.decodeFromString<AskAnswer>(it.body).word }.getOrNull() }
+            ?.takeIf { it.es.isNotBlank() }
+    }
+
+    /**
+     * A word from the chat → review (one card per dictionary form, like from a book). The chat line is its example;
+     * on a word already saved the example is added. Translation: the dictionary one if known, else [ru].
+     */
+    suspend fun saveWord(es: String, ru: String, form: String = "", sentence: String = "", sentenceRu: String = ""): SaveResult {
+        val head = es.trim()
+        val now = System.currentTimeMillis()
+        val examples = if (sentence.isBlank()) emptyList()
+        else listOf(WordExample(form.ifBlank { head }, sentence, sentenceRu, ru, "", CHAT_BOOK, now))
+        val card = SavedWord(
+            key = wordKey(head), word = head, lemma = head, ru = lexicon.get().ru(head) ?: ru, grammar = "",
+            sentence = sentence, sentenceRu = sentenceRu, bookId = CHAT_BOOK, createdAt = now, due = now,
+            examples = examples,
+        )
+        val r = userData.saveWord(card)
+        _state.update { it?.copy(saved = it.saved + card.key) }
+        return r
+    }
+
+    /** A phrase from the chat (a reply, a fix, a ❓ answer) → review. False if it was already there. */
+    suspend fun savePhrase(es: String, ru: String): Boolean {
+        val st = _state.value ?: return false
+        val n = userData.addPhrases(listOf(Phrase(id = "", es = es.trim(), ru = ru.ifBlank { es })), label = "разговор: ${st.topic.title}")
+        _state.update { it?.copy(saved = it.saved + es.trim().lowercase()) }
+        return n > 0
+    }
+
     // ---------------------------------------------------------------- данные для Mac
 
     /** Ответы «Обо мне» — собеседник знает, кто вы (последний ответ на каждый вопрос). */
@@ -469,9 +545,14 @@ class LiveChat(
     )
 
     @Serializable
+    private data class AskBody(val kind: String, val q: String, val sentence: String, val level: String, val topic: ChatTopic)
+
+    @Serializable
     private data class SayBody(val text: String, val audio: Boolean, val whisper: Boolean)
 
     companion object {
+        /** bookId of word cards saved from «Живой разговор». */
+        const val CHAT_BOOK = "chat"
         private const val PARTNER = "partner"
 
         /** id разговора: 12 hex-символов (сервер проверяет ^[a-f0-9]{8,32}$). */

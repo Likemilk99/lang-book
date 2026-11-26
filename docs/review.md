@@ -6,6 +6,7 @@
   - A word card is keyed by its dictionary form (`Token.l`, lowercased; accents and ñ kept): hablo, hablamos and habla all go to the card **hablar**.
   - Each form the user saved is a `WordExample` in `SavedWord.examples` (form, sentence, its translation, grammar, book). Saving another form of a saved word adds an example instead of a new card (`UserData.saveWord` → `SaveResult.EXAMPLE_ADDED`, toast «Уже в словаре — добавлен пример»).
   - Cards saved before 0.14 have no `examples`; their single example is `sentence`/`sentenceRu` with `word` as the form (`allExamples`).
+  - Words can also be saved from «Живой разговор» (`bookId` «chat», the chat line as the example; see [live-chat.md](live-chat.md)).
   - Card translation is the dictionary one (`Lexicon`): curriculum vocab first, then `assets/lemmas.json` (`pipeline/lemmas.py`), otherwise the contextual `Token.ru`.
   - `UserData.consolidateWords()` merges cards with the same dictionary form: the most advanced card (stage, interval, reps) keeps its schedule, all examples move to it. It runs once on upgrade to 0.14 (after a safety copy `Android/data/app.lectura/files/backup-before-0.14.json`) and after every backup import. It also runs on every app update, so saved cards pick up dictionary fixes from `pipeline/vocab_fixes.json` (card `ru` is replaced by the `Lexicon` translation; schedules are kept). Phrases are never merged.
 - **Matching:** words are matched by both form and lemma (`vocabIndex`).

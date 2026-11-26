@@ -635,6 +635,38 @@ def make_app(hub: Hub, code: str):
             return web.json_response({"error": "text"}, status=400)
         return await chat_turn(chat, text, body)
 
+    async def chat_ask(request):
+        """❓ during the chat: «how do I say…» (kind how) or a tapped word (kind word), with the dialogue as context.
+        A separate model call (chat.ask_tutor): the character's process never sees it, the turn does not move."""
+        import learner
+        from chat import ask_tutor
+
+        cid = request.match_info["cid"]
+        body = await body_of(request)
+        kind = body.get("kind") if body.get("kind") in ("how", "word") else "how"
+        q, sentence = _s(body.get("q"), 500), _s(body.get("sentence"), 1000)
+        if not q or not CHAT_ID_RE.match(cid):
+            return web.json_response({"error": "q"}, status=400)
+        chat = hub.chats.get(cid)
+        if chat is not None:
+            turns = chat.history + [{"user": t["user"], "reply": t["reply"]} for t in chat.turns]
+            level, topic = chat.level, chat.topic
+        else:  # the Mac restarted mid-chat: the journal still has the learner's turns
+            turns = [{"user": t["said"], "reply": t["reply"]} for t in await asyncio.to_thread(learner.chat_turns, cid)]
+            level = body.get("level") if body.get("level") in ("A0", "A1", "A2", "B1") else "A1"
+            topic = clean_topic(body.get("topic")) or {}
+        log(f"❓ {q[:80]}")
+        try:
+            out = await asyncio.to_thread(ask_tutor, hub.backend, hub.chat_model, level, topic, turns, kind, q, sentence)
+        except Exception as err:  # noqa: BLE001
+            log(f"❌ вопрос: {err}")
+            return web.json_response({"error": "ask", "text": str(err)[:300]}, status=502)
+        try:
+            await asyncio.to_thread(learner.record_ask, cid, kind, q, out)
+        except Exception as err:  # noqa: BLE001
+            log(f"⚠️  журнал вопросов: {err}")
+        return web.json_response(out)
+
     async def chat_end(request):
         await hub.chat_close(request.match_info["cid"], forget=True, profile=True)
         hub.chat_quiet_until = 0
@@ -651,6 +683,7 @@ def make_app(hub: Hub, code: str):
     app.add_routes([web.get("/ws", ws_handler), web.post("/sync", sync), web.post("/progress", progress),
                     web.get("/audio/{name}", audio_file),
                     web.post("/chat/start", chat_start), web.post("/chat/{cid}/say", chat_say),
+                    web.post("/chat/{cid}/ask", chat_ask),
                     web.post("/chat/{cid}/end", chat_end), web.get("/chat/audio/{name}", chat_audio)])
     return app
 

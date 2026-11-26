@@ -47,6 +47,23 @@ val CHAT_LEVELS = listOf("A0", "A1", "A2", "B1")
 @Serializable
 data class ChatPair(val es: String, val ru: String = "")
 
+/** An unknown word of a partner's reply: dictionary form, its form in the reply, dictionary translation. */
+@Serializable
+data class ChatWord(val es: String, val ru: String = "", val form: String = "")
+
+/** ❓ answer. «how»: ways to say it, a note, an example for this moment. «word»: a tapped word explained. */
+@Serializable
+data class AskAnswer(
+    val options: List<ChatPair> = emptyList(),
+    val note_ru: String = "",
+    val example: ChatPair? = null,
+    val word: WordInfo? = null,
+)
+
+/** A tapped word: dictionary form and translation, its meaning in this line, a short grammar note. */
+@Serializable
+data class WordInfo(val es: String, val ru: String = "", val form_ru: String = "", val note_ru: String = "")
+
 /** A word of the pre-conversation brief; tag: "review" (the learner is forgetting it), "new" or "". */
 @Serializable
 data class BriefWord(val es: String, val ru: String = "", val tag: String = "")
@@ -69,7 +86,7 @@ data class ChatReply(
     /** Phrase pieces of 2–4 words (hint step 2); empty from an older server. */
     val chunks: List<ChatPair> = emptyList(),
     val sample: ChatPair? = null,
-    val words: List<ChatPair> = emptyList(),
+    val words: List<ChatWord> = emptyList(),
     val goals_done: List<String> = emptyList(),
     val end: Boolean = false,
     /** Cheat sheet before the conversation: only in the first turn of a newer Mac server. */

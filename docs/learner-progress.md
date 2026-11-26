@@ -38,6 +38,7 @@ The phone mirrors its learning progress to the home server, so «Живой ра
 
 ## Conversation journal and learner profile (Mac only, no app change)
 - **Journal** (`turns` table): every learner turn of «Живой разговор» — what they said, the character's reply, the fix — written by `server.py` after each turn (`learner.record_turn`; the `[START]` turn is not the learner's). Rows are appended (turn numbers restart after a Mac restart). The last 5000 are kept.
+- **Questions** (`asks` table): every ❓ question during a chat (how to say something, a tapped word) and the answer. The profile update gets the conversation's questions as gaps: what the learner wanted to say but could not.
 - **Profile** (`profile` table, one row): updated by one model call when a conversation is over (`POST /chat/<id>/end`, or the janitor forgetting it after 3 h) and had at least 2 learner turns (`Hub.profile_update` → `learner.update_profile`).
   - Input: the previous profile, this conversation with its fixes, and the last 40 fixes of earlier conversations.
   - Output (`PROFILE_SCHEMA`): `mistakes` — up to 6 recurring patterns (tutor text in English, Russian for the learner, a wrong and a right example); `can_do`; `focus` — 2–4 things the next conversations should practise; `note_ru` — 1–2 sentences to the learner.
