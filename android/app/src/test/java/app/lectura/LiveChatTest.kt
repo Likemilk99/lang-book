@@ -1,11 +1,14 @@
 package app.lectura
 
+import app.lectura.data.ChatState
 import app.lectura.data.LiveChat
 import app.lectura.model.CHAT_LEVELS
 import app.lectura.model.CHAT_TOPICS
+import app.lectura.model.ChatPair
 import app.lectura.model.ChatReply
 import app.lectura.model.ChatVoice
 import app.lectura.model.VocabList
+import app.lectura.ui.nextHintLevel
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -49,15 +52,29 @@ class LiveChatTest {
     fun parsesServerReply() {
         val r = json.decodeFromString<ChatReply>(
             """{"chat":"abc","audio":true,"turn":2,"reply":"Vale. ¿Algo más?","sentences":2,"ru":"Хорошо. Что-то ещё?",
-               "fix":{"es":"Quería un café.","ru":"вежливее"},"hints":[{"es":"nada más","ru":"больше ничего"}],
+               "fix":{"es":"Quería un café.","ru":"вежливее"},"hints":[{"es":"nada más","ru":"больше ничего"}],"chunks":[{"es":"nada más, gracias","ru":"больше ничего, спасибо"}],
                "sample":{"es":"No, gracias.","ru":"Нет, спасибо."},"words":[],"goals_done":["drink"],"end":false,
                "firstMs":700,"totalMs":2500,"unknown":1}""",
         )
         assertEquals("Quería un café.", r.fix?.es)
         assertEquals(listOf("drink"), r.goals_done)
         assertEquals(2, r.sentences)
+        assertEquals("nada más, gracias", r.chunks.single().es)
+        assertTrue(json.decodeFromString<ChatReply>("""{"reply":"Hola"}""").chunks.isEmpty())
         val noFix = json.decodeFromString<ChatReply>("""{"reply":"Hola","fix":null}""")
         assertNull(noFix.fix)
+    }
+
+    @Test
+    fun hintStepsSkipEmpty() {
+        val topic = CHAT_TOPICS.first { it.vocab.isNotEmpty() }
+        val p = ChatPair("fiebre", "температура")
+        val full = ChatState("c", topic, "A1", hints = listOf(p), chunks = listOf(p), sample = p)
+        assertEquals(listOf(1, 2, 3, 4, 0), generateSequence(0) { nextHintLevel(full, it) }.drop(1).take(5).toList())
+        // Older Mac server: no phrase pieces, so the second tap goes straight to the sample answer.
+        val old = full.copy(chunks = emptyList())
+        assertEquals(3, nextHintLevel(old, 1))
+        assertEquals(0, nextHintLevel(old.copy(sample = null, topic = topic.copy(vocab = emptyList())), 1))
     }
 
     @Test

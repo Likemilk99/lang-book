@@ -12,9 +12,10 @@ The card is first on the «Говорить» tab (`LiveChatCard`); route `chat`
 - **Output format.** It is not `--json-schema`, because that returns only at the end and would kill streaming. The model writes:
   ```
   <reply>Spanish line(s)</reply>
-  <meta>{"ru", "fix", "hints", "sample", "words", "goals_done", "end"}</meta>
+  <meta>{"ru", "fix", "hints", "chunks", "sample", "words", "goals_done", "end"}</meta>
   ```
   `ReplyStream` parses it on the fly: the text grows on screen, and finished sentences go to TTS at once.
+- **Hints:** `hints` are 8–12 single words for the next answer (the words that answer the question plus related alternatives: at the doctor *fiebre, tos, cabeza, garganta, doler…*), so the learner builds the sentence. `chunks` are 3–5 phrase pieces of 2–4 words (*me duele la garganta*). `split_hints` moves any hint longer than two words into `chunks` and drops duplicates. An older app ignores `chunks`.
 - **Fix handling:**
   - `drop_trivial_fix` drops «fixes» that differ only in punctuation, ¿¡, capitals or accents. The learner speaks; the prompt asks for this too, but the model doesn't always follow.
   - Russian words in a reply are allowed: the character answers in Spanish, and `fix` gives the Spanish phrase.
@@ -81,10 +82,10 @@ The card is first on the «Говорить» tab (`LiveChatCard`); route `chat`
     - your bubble shows «✏️ лучше так» with the explanation; tap it to hear it;
     - goals with ✓;
     - «Звук» changes the voice mid-chat; «Итог» shows the goals and the fixes → «Фразы в повторение».
-  - Hint 💡 cycles through levels: 1 — words for the answer (`hints`, tap inserts the word); 2 — + a sample answer; 3 — + all words of the topic's vocab themes at the level (local `vocab_*.json`, works offline).
+  - Hint 💡 opens one step per tap (`nextHintLevel`): 1 — single words for the answer (`hints`, tap inserts the word); 2 — + phrase pieces (`chunks`); 3 — + a sample answer; 4 — + all words of the topic's vocab themes at the level (local `vocab_*.json`, works offline). Steps with nothing to show are skipped (an older Mac server sends no `chunks`); after the last step the button shows ✕. Words first, so the learner has to build the sentence.
   - Mic (`ChatMic`): `SpeechInput` with biasing to the hints and the sample. The recognized text goes into the field for editing (or is sent at once if that option is on). Uses the same engine and stop settings as `SpeakButton`. Sending a message (button or auto-send) cancels a running recording without a result (`stopKey`), so it doesn't keep writing into the cleared field or record the partner. The next answer needs a new tap.
 - **Prefs:** `chatLevel`, `chatVoice`, `chatWhisper`, `chatAutoSend`, `chatCustomTopic`.
 - **User data:** the conversation itself is not stored (memory only). Only `recordSpeaking` for spoken turns and `addPhrases` from «Итог» are written, both through `UserData`.
 
 ## Tests
-`LiveChatTest`: topic format and limits, vocab theme ids exist, chat id matches the server regex, levels equal `chat.LEVELS`, parsing a `ChatReply`.
+`LiveChatTest`: topic format and limits, vocab theme ids exist, chat id matches the server regex, levels equal `chat.LEVELS`, parsing a `ChatReply` (with and without `chunks`), hint steps skip empty ones.

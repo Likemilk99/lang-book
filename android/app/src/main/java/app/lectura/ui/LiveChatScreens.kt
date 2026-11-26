@@ -401,14 +401,14 @@ private fun ChatRoom(st: ChatState, onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 TextButton(
-                    onClick = { hintLevel = if (hintLevel >= 3) 0 else hintLevel + 1 },
-                    enabled = st.hints.isNotEmpty() || st.sample != null || st.topic.vocab.isNotEmpty(),
+                    onClick = { hintLevel = nextHintLevel(st, hintLevel) },
+                    enabled = st.hints.isNotEmpty() || st.chunks.isNotEmpty() || st.sample != null || st.topic.vocab.isNotEmpty(),
                     contentPadding = PaddingValues(horizontal = 6.dp),
                 ) {
                     Text(
-                        when (hintLevel) {
-                            0 -> "💡"
-                            3 -> "✕"
+                        when {
+                            hintLevel == 0 -> "💡"
+                            nextHintLevel(st, hintLevel) == 0 -> "✕"
                             else -> "💡+"
                         },
                     )
@@ -421,7 +421,7 @@ private fun ChatRoom(st: ChatState, onBack: () -> Unit) {
                     maxLines = 4,
                 )
                 ChatMic(
-                    bias = st.hints.map { it.es } + listOfNotNull(st.sample?.es),
+                    bias = st.hints.map { it.es } + st.chunks.map { it.es } + listOfNotNull(st.sample?.es),
                     enabled = !st.busy,
                     stopKey = sent,
                     onPartial = { input = it },
@@ -519,14 +519,47 @@ private fun MyBubble(m: ChatMsg) {
     }
 }
 
-/** Подсказка по ступеням: 1 — слова для ответа, 2 — + пример ответа, 3 — + все слова темы на уровне. */
+/**
+ * Hint steps, one per 💡 tap: 1 — single words for the answer (the learner builds the sentence),
+ * 2 — + phrase pieces, 3 — + a sample answer, 4 — + all words of the topic at the level.
+ * Steps with nothing to show are skipped (e.g. no phrase pieces from an older Mac server); after the last one — closed.
+ */
+internal fun nextHintLevel(st: ChatState, level: Int): Int =
+    (level + 1..4).firstOrNull { l ->
+        when (l) {
+            1 -> true
+            2 -> st.chunks.isNotEmpty()
+            3 -> st.sample != null
+            else -> st.topic.vocab.isNotEmpty()
+        }
+    } ?: 0
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun HintChips(items: List<ChatPair>, onInsert: (String) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        items.forEach { h ->
+            Surface(
+                onClick = { onInsert(h.es) },
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surface,
+            ) {
+                Column(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
+                    Text(h.es, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    if (h.ru.isNotBlank()) Text(h.ru, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HintPanel(st: ChatState, level: Int, onInsert: (String) -> Unit) {
     if (level == 0) return
     val app = LecturaApp.instance
-    val vocab by produceState<List<VocabEntry>>(emptyList(), st.topic.id, st.level, level >= 3) {
-        if (level < 3) return@produceState
+    val vocab by produceState<List<VocabEntry>>(emptyList(), st.topic.id, st.level, level >= 4) {
+        if (level < 4) return@produceState
         val levels = when (st.level) {
             "A0", "A1" -> listOf("A1")
             "A2" -> listOf("A1", "A2")
@@ -544,24 +577,15 @@ private fun HintPanel(st: ChatState, level: Int, onInsert: (String) -> Unit) {
         ) {
             if (st.hints.isNotEmpty()) {
                 Text("Слова для ответа (нажмите — вставить):", style = MaterialTheme.typography.labelMedium)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    st.hints.forEach { h ->
-                        Surface(
-                            onClick = { onInsert(h.es) },
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                        ) {
-                            Column(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
-                                Text(h.es, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                                if (h.ru.isNotBlank()) Text(h.ru, style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                    }
-                }
+                HintChips(st.hints, onInsert)
             } else if (st.busy) {
                 Text("Подсказка появится вместе с ответом собеседника.", style = MaterialTheme.typography.bodySmall)
             }
-            if (level >= 2) {
+            if (level >= 2 && st.chunks.isNotEmpty()) {
+                Text("Части фраз:", style = MaterialTheme.typography.labelMedium)
+                HintChips(st.chunks, onInsert)
+            }
+            if (level >= 3) {
                 st.sample?.let { s ->
                     Text("Пример ответа:", style = MaterialTheme.typography.labelMedium)
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -573,7 +597,7 @@ private fun HintPanel(st: ChatState, level: Int, onInsert: (String) -> Unit) {
                     }
                 }
             }
-            if (level >= 3 && vocab.isNotEmpty()) {
+            if (level >= 4 && vocab.isNotEmpty()) {
                 Text("Слова темы (${st.level}):", style = MaterialTheme.typography.labelMedium)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     vocab.forEach { w ->

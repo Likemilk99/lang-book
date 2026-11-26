@@ -56,7 +56,10 @@ data class ChatReply(
     val ru: String = "",
     /** Как правильно сказать последнюю реплику ученика (null — всё хорошо). */
     val fix: ChatPair? = null,
+    /** Single words for the next answer (hint step 1). */
     val hints: List<ChatPair> = emptyList(),
+    /** Phrase pieces of 2–4 words (hint step 2); empty from an older server. */
+    val chunks: List<ChatPair> = emptyList(),
     val sample: ChatPair? = null,
     val words: List<ChatPair> = emptyList(),
     val goals_done: List<String> = emptyList(),

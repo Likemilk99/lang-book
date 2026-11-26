@@ -64,6 +64,7 @@ data class ChatState(
     /** Ждём ответа собеседника. */
     val busy: Boolean = false,
     val hints: List<ChatPair> = emptyList(),
+    val chunks: List<ChatPair> = emptyList(),
     val sample: ChatPair? = null,
     val goalsDone: Set<String> = emptySet(),
     val ended: Boolean = false,
@@ -202,7 +203,7 @@ class LiveChat(
         playTurn = serverTurn + 1
         _state.update {
             it?.copy(
-                busy = true, error = "", hints = emptyList(), sample = null,
+                busy = true, error = "", hints = emptyList(), chunks = emptyList(), sample = null,
                 messages = it.messages + listOfNotNull(
                     text?.let { t -> ChatMsg(myKey, mine = true, text = t) },
                     ChatMsg(replyKey, mine = false, text = "", pending = true),
@@ -251,6 +252,7 @@ class LiveChat(
             s?.copy(
                 busy = false,
                 hints = r.hints,
+                chunks = r.chunks,
                 sample = r.sample,
                 goalsDone = s.goalsDone + r.goals_done,
                 ended = r.end,

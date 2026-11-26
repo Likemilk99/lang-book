@@ -16,7 +16,7 @@
   факты «Обо мне», цели сцены, правила (коротко, вопрос в конце, мягкие исправления).
 - Ответ модели — размеченный текст, а не --json-schema (та отдаёт результат только в конце):
       <reply>испанская реплика</reply>
-      <meta>{"ru": …, "fix": …, "hints": […], "sample": …, "goals_done": […], "end": false}</meta>
+      <meta>{"ru": …, "fix": …, "hints": […], "chunks": […], "sample": …, "goals_done": […], "end": false}</meta>
   [ReplyStream] разбирает поток на лету: готовые предложения реплики сразу уходят в озвучку.
 """
 from __future__ import annotations
@@ -87,8 +87,12 @@ OUTPUT FORMAT — exactly this, nothing before or after:
 <meta>{{"ru": "Russian translation of your reply",
 "fix": null or {{"es": "the learner's LAST message said correctly and naturally (Spain)", \
 "ru": "very short explanation in Russian of what was wrong"}},
-"hints": [{{"es": "word or short chunk", "ru": "перевод"}}, ...3–6 items the learner can use in their NEXT \
-answer, from the allowed words],
+"hints": [{{"es": "one word", "ru": "перевод"}}, ...8–12 SINGLE words (no phrases) the learner can combine \
+into their NEXT answer: the words for answering you plus related alternatives, so they can build several different \
+answers themselves (e.g. at the doctor: fiebre, tos, cansancio, cabeza, garganta, oído, doler, desde, ayer). \
+Nouns without article, verbs in the infinitive, mostly from the allowed words],
+"chunks": [{{"es": "short phrase piece", "ru": "перевод"}}, ...3–5 ready pieces of 2–4 words for the NEXT answer \
+(e.g. tengo fiebre, me duele la garganta, desde ayer) — shown only if single words are not enough],
 "sample": {{"es": "one natural answer the learner could say next, at their level", "ru": "перевод"}},
 "words": [{{"es": "word from your reply", "ru": "перевод"}}, ...0–4 words of your reply the learner \
 probably does not know],
@@ -218,6 +222,20 @@ def _pair(x) -> dict | None:
     return None
 
 
+def split_hints(hints, chunks) -> dict:
+    """hints are single words (1–2 tokens: «cabeza», «de repente»), chunks are phrase pieces.
+    A longer item the model put into hints moves to chunks."""
+    def pairs(xs) -> list[dict]:
+        return [p for p in (_pair(x) for x in (xs if isinstance(xs, list) else [])[:16]) if p]
+    words, pieces = [], []
+    for p in pairs(hints):
+        (words if len(p["es"].split()) <= 2 else pieces).append(p)
+    pieces += pairs(chunks)
+    seen: set[str] = set()
+    pieces = [p for p in pieces if not (norm_words(p["es"]) in seen or seen.add(norm_words(p["es"])))]
+    return {"hints": words[:12], "chunks": pieces[:6]}
+
+
 def norm_words(s: str) -> str:
     """Для сравнения реплик: без регистра, ударений и знаков препинания."""
     s = "".join(c for c in unicodedata.normalize("NFD", s.lower()) if unicodedata.category(c) != "Mn")
@@ -247,7 +265,7 @@ def parse_meta(text: str) -> dict:
     return {
         "ru": str(data.get("ru") or "").strip()[:1000],
         "fix": _pair(data.get("fix")),
-        "hints": [p for p in (_pair(h) for h in (data.get("hints") or [])[:8]) if p],
+        **split_hints(data.get("hints"), data.get("chunks")),
         "sample": _pair(data.get("sample")),
         "words": [p for p in (_pair(w) for w in (data.get("words") or [])[:6]) if p],
         "goals_done": [str(g) for g in (data.get("goals_done") or []) if isinstance(g, (str, int))][:20],
@@ -511,6 +529,8 @@ async def demo(args) -> None:
             if out["fix"]:
                 print(f"   ✏️  {out['fix']['es']} — {out['fix']['ru']}")
             print("   💡 " + " · ".join(f"{h['es']} ({h['ru']})" for h in out["hints"]))
+            if out["chunks"]:
+                print("   🧩 " + " · ".join(f"{h['es']} ({h['ru']})" for h in out["chunks"]))
             if out["sample"]:
                 print(f"   ↪ {out['sample']['es']}")
             if out["goals_done"]:
