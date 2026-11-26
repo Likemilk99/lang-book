@@ -359,6 +359,10 @@ class UserData(
                     }.onFailure { Log.w("UserData", "safety backup failed", it) }
                 }
                 consolidateWords()
+            } else {
+                // Every update: card translations follow the fixed dictionary (vocab_fixes.json),
+                // e.g. rico «вкусный» → «богатый; вкусный (о еде)». Idempotent; schedules are kept.
+                runCatching { consolidateWords() }.onFailure { Log.w("UserData", "consolidate on upgrade", it) }
             }
         }
         meta.put(AppMeta(MetaKeys.LAST_LAUNCH_VERSION, AppVersion.code.toString()))
