@@ -354,13 +354,22 @@ def prompt_block(b: dict | None) -> str:
     return "\n".join(lines) + "\n"
 
 
-def chat_block(level: str, themes: list[str], record: bool = False) -> str:
-    """Prompt section for a new conversation; never fails the chat (a broken mirror means no section)."""
+def chat_context(level: str, themes: list[str], record: bool = False) -> tuple[str, dict[str, str]]:
+    """For a new conversation: the prompt section and word → "review" | "new" (tags for the pre-chat brief).
+    Never fails the chat: a broken mirror means no section."""
     try:
-        return prompt_block(brief(level, themes, record=record))
+        b = brief(level, themes, record=record)
     except Exception as err:  # noqa: BLE001
         log(f"⚠️  прогресс ученика: {err}")
-        return ""
+        return "", {}
+    if not b:
+        return "", {}
+    tags = {w["es"].lower(): "new" for w in b["new"]} | {w["es"].lower(): "review" for w in b["review"]}
+    return prompt_block(b), tags
+
+
+def chat_block(level: str, themes: list[str], record: bool = False) -> str:
+    return chat_context(level, themes, record)[0]
 
 
 def main() -> None:

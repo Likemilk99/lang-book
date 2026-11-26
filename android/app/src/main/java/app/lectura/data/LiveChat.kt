@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import app.lectura.model.ABOUT_QUESTIONS
 import app.lectura.model.Character
+import app.lectura.model.ChatBrief
 import app.lectura.model.ChatPair
 import app.lectura.model.ChatReply
 import app.lectura.model.ChatTopic
@@ -21,6 +22,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -67,6 +69,9 @@ data class ChatState(
     val hints: List<ChatPair> = emptyList(),
     val chunks: List<ChatPair> = emptyList(),
     val sample: ChatPair? = null,
+    val brief: ChatBrief? = null,
+    /** «Перед разговором» is shown (opens at the start, 📋 reopens it). */
+    val briefOpen: Boolean = false,
     val goalsDone: Set<String> = emptySet(),
     val ended: Boolean = false,
     val error: String = "",
@@ -110,6 +115,8 @@ class LiveChat(
     /** Предложения текущего хода по номеру — для голоса телефона и запасного чтения. */
     private val sentences = HashMap<Int, String>()
     private var nextKey = 0
+    /** The opening line waits until the learner closes «Перед разговором». */
+    private val held = MutableStateFlow(false)
 
     private data class Play(val turn: Int, val text: String, val file: File?)
     private var queue = Channel<Play>(Channel.UNLIMITED)
@@ -144,7 +151,8 @@ class LiveChat(
         clips = ClipPlayer(context)
         queue = Channel(Channel.UNLIMITED)
         val id = newId()
-        _state.value = ChatState(id, topic, level, busy = true)
+        _state.value = ChatState(id, topic, level, busy = true, briefOpen = true)
+        held.value = true
         s.launch { mac.chatEvents.collect { onEvent(it) } }
         s.launch { playLoop() }
         s.launch { send(null) }
@@ -154,6 +162,7 @@ class LiveChat(
     fun end() {
         val st = _state.value
         _state.value = null
+        held.value = false
         stopAudio()
         scope?.cancel()
         scope = null
@@ -257,6 +266,7 @@ class LiveChat(
                 hints = r.hints,
                 chunks = r.chunks,
                 sample = r.sample,
+                brief = r.brief ?: s.brief,
                 goalsDone = s.goalsDone + r.goals_done,
                 ended = r.end,
                 messages = s.messages.map {
@@ -350,8 +360,15 @@ class LiveChat(
         queue.trySend(p)
     }
 
+    /** Show or close «Перед разговором». Closing it lets the opening line speak (it waits while you read). */
+    fun showBrief(open: Boolean) {
+        _state.update { it?.copy(briefOpen = open) }
+        if (!open) held.value = false
+    }
+
     private suspend fun playLoop() {
         for (p in queue) {
+            held.first { !it }
             if (p.turn != playTurn) continue
             val file = p.file
             // One broken clip must not end the loop: then the rest of the conversation would be silent.

@@ -584,9 +584,10 @@ def make_app(hub: Hub, code: str):
             await old.close()
         import learner
 
-        words = await asyncio.to_thread(learner.chat_block, level, topic["vocab"], True)
+        words, tags = await asyncio.to_thread(learner.chat_context, level, topic["vocab"], True)
         chat = make_session(hub.backend, cid, level, topic, clean_about(body.get("about")), hub.chat_model,
                             hub.chat_effort, words)
+        chat.learner_words = tags
         chat.history = clean_history(body.get("history"))
         hub.chats[cid] = chat
         log(f"💬 новый разговор: {topic['title'] or topic['scene'][:60]} · {level}")

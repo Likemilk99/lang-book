@@ -13,10 +13,11 @@ The card is first on the «Говорить» tab (`LiveChatCard`); route `chat`
 - **Output format.** It is not `--json-schema`, because that returns only at the end and would kill streaming. The model writes:
   ```
   <reply>Spanish line(s)</reply>
-  <meta>{"ru", "fix", "hints", "chunks", "sample", "words", "goals_done", "end"}</meta>
+  <meta>{"ru", "fix", "hints", "chunks", "sample", "words", "goals_done", "end", "brief"?}</meta>
   ```
   `ReplyStream` parses it on the fly: the text grows on screen, and finished sentences go to TTS at once.
 - **Hints:** `hints` are 8–12 single words for the next answer (the words that answer the question plus related alternatives: at the doctor *fiebre, tos, cabeza, garganta, doler…*), so the learner builds the sentence. `chunks` are 3–5 phrase pieces of 2–4 words (*me duele la garganta*). `split_hints` moves any hint longer than two words into `chunks` and drops duplicates. An older app ignores `chunks`.
+- **Brief («Перед разговором»):** on the `[START]` turn only, meta also has `brief` = 10–15 key words of the scene (frequent first, including the learner's review and new words that fit) and 4–6 reusable patterns with «…» («Me duele…», «Desde hace…»). `parse_brief` keeps it only when non-empty; `tag_brief` marks words from `learner.chat_context` as `review` / `new`. It makes the first turn ~2 s longer (measured: 6.2 s instead of ~4 s with Sonnet), hidden behind the reading.
 - **Fix handling:**
   - `drop_trivial_fix` drops «fixes» that differ only in punctuation, ¿¡, capitals or accents. The learner speaks; the prompt asks for this too, but the model doesn't always follow.
   - Russian words in a reply are allowed: the character answers in Spanish, and `fix` gives the Spanish phrase.
@@ -70,7 +71,8 @@ The card is first on the «Говорить» tab (`LiveChatCard`); route `chat`
   - `playLoop` plays the queue one item at a time and survives a failing clip.
     - `ClipPlayer.stop()` makes the waiting `play()` return false, and a clip is awaited at most its duration + 5 s.
     - Before the fix (2026-11), interrupting a Mac clip (mic, send, 🔊 on another reply) left `playLoop` suspended forever. Every later reply and replay of that conversation stayed silent, though the timing line showed the voice was ready.
-  - Retry after an error. On 404 it automatically restarts with `history`.
+  - Retry after an error. On 404 it automatically restarts with `history` (the brief already shown is kept).
+  - «Перед разговором»: `ChatState.briefOpen` is true at the start. The opening line's audio waits (`held`) until the learner closes the brief (`showBrief(false)`); `showBrief(true)` reopens it.
   - `saveFixes` adds the corrected phrases to review (`UserData.addPhrases`, label «разговор: …»).
   - «Обо мне» answers (latest per question) are sent at start.
 - **`ui/LiveChatScreens.kt`:**
@@ -79,7 +81,9 @@ The card is first on the «Говорить» tab (`LiveChatCard`); route `chat`
     - voice and «Проверять озвучку Whisper» (only for the Mac voice; to compare speed and quality);
     - «Голосовой ответ отправлять сразу»;
     - the topics and «Своя тема».
+  - «Перед разговором» (`BriefSheet`, a bottom sheet): goals, key words (tap — hear it; «повторить» / «новое» marks), patterns with 🔊, «Начать разговор» / «Вернуться к разговору». While the Mac is preparing it shows a progress bar; an older Mac server sends no brief and the sheet says so.
   - Chat screen:
+    - the title with 📋 reopens «Перед разговором»;
     - bubbles: tap a partner bubble for the translation and unknown words; 🔊 replays the reply (Mac clips if there are any). The timing line shows «текст X с · голос Mac a + b с (Whisper)»;
     - your bubble shows «✏️ лучше так» with the explanation; tap it to hear it;
     - goals with ✓;
@@ -90,4 +94,4 @@ The card is first on the «Говорить» tab (`LiveChatCard`); route `chat`
 - **User data:** the conversation itself is not stored (memory only). Only `recordSpeaking` for spoken turns and `addPhrases` from «Итог» are written, both through `UserData`.
 
 ## Tests
-`LiveChatTest`: topic format and limits, vocab theme ids exist, chat id matches the server regex, levels equal `chat.LEVELS`, parsing a `ChatReply` (with and without `chunks`), hint steps skip empty ones.
+`LiveChatTest`: topic format and limits, vocab theme ids exist, chat id matches the server regex, levels equal `chat.LEVELS`, parsing a `ChatReply` (with and without `chunks` and `brief`), hint steps skip empty ones.

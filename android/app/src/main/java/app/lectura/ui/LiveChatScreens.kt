@@ -80,6 +80,10 @@ import app.lectura.LecturaApp
 import app.lectura.data.ChatMsg
 import app.lectura.data.ChatState
 import app.lectura.data.MacLink
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.LinearProgressIndicator
+import app.lectura.model.BriefWord
 import app.lectura.model.CHAT_LEVELS
 import app.lectura.model.CHAT_TOPICS
 import app.lectura.model.ChatPair
@@ -335,8 +339,17 @@ private fun ChatRoom(st: ChatState, onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("${st.topic.emoji} ${st.topic.title}", maxLines = 1, style = MaterialTheme.typography.titleMedium)
+                    // Tap the title (📋) to reopen «Перед разговором».
+                    Column(Modifier.clickable { app.chat.showBrief(true) }) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "${st.topic.emoji} ${st.topic.title}",
+                                maxLines = 1,
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            Text(" 📋", style = MaterialTheme.typography.titleMedium)
+                        }
                         Text(
                             "${st.level} · ${app.chat.voice.title}",
                             style = MaterialTheme.typography.labelSmall,
@@ -437,6 +450,86 @@ private fun ChatRoom(st: ChatState, onBack: () -> Unit) {
         }
     }
     if (summary) SummaryDialog(st) { summary = false }
+    if (st.briefOpen) BriefSheet(st) { app.chat.showBrief(false) }
+}
+
+/**
+ * «Перед разговором»: the scene's goals, key words (the ones you are forgetting and new frequent ones are marked)
+ * and reusable patterns, picked by the Mac with the first turn. Opens at the start (the opening line waits until
+ * it is closed) and again from 📋 next to the topic title.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun BriefSheet(st: ChatState, onClose: () -> Unit) {
+    val app = LecturaApp.instance
+    val started = st.messages.any { it.mine }
+    ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("${st.topic.emoji} ${st.topic.title}", style = MaterialTheme.typography.titleLarge)
+            if (st.topic.goals.isNotEmpty()) {
+                Text("Что нужно сделать:", style = MaterialTheme.typography.labelLarge)
+                st.topic.goals.forEach { g ->
+                    Text((if (g.id in st.goalsDone) "✓ " else "○ ") + g.ru, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            val brief = st.brief
+            when {
+                brief != null -> {
+                    if (brief.words.isNotEmpty()) {
+                        Text("Полезные слова (нажмите — послушать):", style = MaterialTheme.typography.labelLarge)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            brief.words.forEach { w -> BriefChip(w) { app.chat.speak(w.es) } }
+                        }
+                    }
+                    if (brief.phrases.isNotEmpty()) {
+                        Text("Обороты:", style = MaterialTheme.typography.labelLarge)
+                        brief.phrases.forEach { p ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(p.es, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                                    if (p.ru.isNotBlank()) Text(p.ru, style = MaterialTheme.typography.bodySmall)
+                                }
+                                IconButton(onClick = { app.chat.speak(p.es.replace("…", "")) }) {
+                                    Icon(Icons.AutoMirrored.Filled.VolumeUp, "Послушать")
+                                }
+                            }
+                        }
+                    }
+                }
+                st.busy -> {
+                    Text("Mac подбирает слова и обороты для этой сцены…", style = MaterialTheme.typography.bodyMedium)
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
+                st.error.isNotBlank() -> Text(st.error, color = MaterialTheme.colorScheme.error)
+                else -> Text(
+                    "Подборку слов присылает сервер на Mac — обновите его, чтобы она появилась.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Button(onClick = onClose, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                Text(if (started) "Вернуться к разговору" else "Начать разговор")
+            }
+        }
+    }
+}
+
+@Composable
+private fun BriefChip(w: BriefWord, onClick: () -> Unit) {
+    val (label, color) = when (w.tag) {
+        "review" -> "повторить" to MaterialTheme.colorScheme.tertiaryContainer
+        "new" -> "новое" to MaterialTheme.colorScheme.primaryContainer
+        else -> "" to MaterialTheme.colorScheme.surfaceVariant
+    }
+    Surface(onClick = onClick, shape = RoundedCornerShape(8.dp), color = color) {
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
+            Text(w.es, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            if (w.ru.isNotBlank()) Text(w.ru, style = MaterialTheme.typography.labelSmall)
+            if (label.isNotEmpty()) Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+        }
+    }
 }
 
 @Composable

@@ -47,6 +47,14 @@ val CHAT_LEVELS = listOf("A0", "A1", "A2", "B1")
 @Serializable
 data class ChatPair(val es: String, val ru: String = "")
 
+/** A word of the pre-conversation brief; tag: "review" (the learner is forgetting it), "new" or "". */
+@Serializable
+data class BriefWord(val es: String, val ru: String = "", val tag: String = "")
+
+/** «Перед разговором»: key words of the scene and reusable patterns («Me duele…»), picked by the Mac. */
+@Serializable
+data class ChatBrief(val words: List<BriefWord> = emptyList(), val phrases: List<ChatPair> = emptyList())
+
 /** Ответ сервера на реплику (POST /chat/start и /chat/<id>/say). */
 @Serializable
 data class ChatReply(
@@ -64,6 +72,8 @@ data class ChatReply(
     val words: List<ChatPair> = emptyList(),
     val goals_done: List<String> = emptyList(),
     val end: Boolean = false,
+    /** Cheat sheet before the conversation: only in the first turn of a newer Mac server. */
+    val brief: ChatBrief? = null,
     /** Сколько предложений в реплике (столько клипов озвучки придёт с голосом Mac). */
     val sentences: Int = 0,
     /** Mac будет озвучивать эту реплику. */

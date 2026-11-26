@@ -53,6 +53,7 @@ class LiveChatTest {
         val r = json.decodeFromString<ChatReply>(
             """{"chat":"abc","audio":true,"turn":2,"reply":"Vale. ¿Algo más?","sentences":2,"ru":"Хорошо. Что-то ещё?",
                "fix":{"es":"Quería un café.","ru":"вежливее"},"hints":[{"es":"nada más","ru":"больше ничего"}],"chunks":[{"es":"nada más, gracias","ru":"больше ничего, спасибо"}],
+               "brief":{"words":[{"es":"tos","ru":"кашель","tag":"review"},{"es":"fiebre"}],"phrases":[{"es":"Me duele…","ru":"У меня болит…"}]},
                "sample":{"es":"No, gracias.","ru":"Нет, спасибо."},"words":[],"goals_done":["drink"],"end":false,
                "firstMs":700,"totalMs":2500,"unknown":1}""",
         )
@@ -61,6 +62,9 @@ class LiveChatTest {
         assertEquals(2, r.sentences)
         assertEquals("nada más, gracias", r.chunks.single().es)
         assertTrue(json.decodeFromString<ChatReply>("""{"reply":"Hola"}""").chunks.isEmpty())
+        assertEquals(listOf("review", ""), r.brief!!.words.map { it.tag })
+        assertEquals("Me duele…", r.brief!!.phrases.single().es)
+        assertNull(json.decodeFromString<ChatReply>("""{"reply":"Hola"}""").brief)
         val noFix = json.decodeFromString<ChatReply>("""{"reply":"Hola","fix":null}""")
         assertNull(noFix.fix)
     }

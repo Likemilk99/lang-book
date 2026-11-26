@@ -105,6 +105,13 @@ fine or is the [START] message. fix is ALSO null when the only differences are p
 or accent marks — the learner speaks, they do not write. Naturalness tips only when they really help. \
 Set "end": true only when the scene has naturally finished (goodbye said).
 
+On the [START] turn ONLY, meta also has "brief" — a short cheat sheet the learner reads before the conversation:
+"brief": {{"words": [{{"es": "word", "ru": "перевод"}}, ...10–15 key words for this whole scene, the most frequent \
+and useful first; include the learner's REVIEW and NEW words that fit the scene; nouns without article, verbs in the \
+infinitive], "phrases": [{{"es": "pattern", "ru": "перевод"}}, ...4–6 short reusable patterns the learner will need \
+in this scene, with «…» for the part they fill in (e.g. «Me duele…», «Desde hace…», «¿Me puede…?»)]}}. \
+Omit "brief" on every other turn.
+
 The first user message is [START]: open the scene with your first line (greeting + an opening question). \
 A message starting with [RESUME] gives the conversation so far: continue it from the learner's new message."""
 
@@ -273,7 +280,29 @@ def parse_meta(text: str) -> dict:
         "words": [p for p in (_pair(w) for w in (data.get("words") or [])[:6]) if p],
         "goals_done": [str(g) for g in (data.get("goals_done") or []) if isinstance(g, (str, int))][:20],
         "end": bool(data.get("end")),
+        **parse_brief(data.get("brief")),
     }
+
+
+def parse_brief(b) -> dict:
+    """The [START] turn's cheat sheet: {"brief": {"words", "phrases"}}, or nothing when absent or empty."""
+    if not isinstance(b, dict):
+        return {}
+
+    def pairs(xs, n: int) -> list[dict]:
+        return [p for p in (_pair(x) for x in (xs if isinstance(xs, list) else [])[:n]) if p]
+
+    words, phrases = pairs(b.get("words"), 16), pairs(b.get("phrases"), 8)
+    return {"brief": {"words": words, "phrases": phrases}} if words or phrases else {}
+
+
+def tag_brief(out: dict, learner_words: dict[str, str]) -> dict:
+    """Mark the brief's words the learner should review or is about to learn («review» / «new»)."""
+    for w in (out.get("brief") or {}).get("words", []):
+        tag = learner_words.get(w["es"].strip().lower())
+        if tag:
+            w["tag"] = tag
+    return out
 
 
 # ------------------------------------------------------------------ сессия
@@ -293,6 +322,8 @@ class ChatSession:
         self.level = level
         self.topic = topic
         self.system = build_system(level, topic, about, learner)
+        # word → "review" | "new" from the learner's progress (learner.brief): tags the [START] brief
+        self.learner_words: dict[str, str] = {}
         self.lock = asyncio.Lock()
         self.turn = 0
         self.turns: list[dict] = []
@@ -358,7 +389,8 @@ class ChatSession:
             reply = stream.reply()
             if not reply:
                 raise RuntimeError("пустой ответ")
-            out = {"turn": turn, "reply": reply, "sentences": seq, **drop_trivial_fix(stream.meta(), said),
+            out = {"turn": turn, "reply": reply, "sentences": seq,
+                   **tag_brief(drop_trivial_fix(stream.meta(), said), self.learner_words),
                    "firstMs": int((first or 0) * 1000), "totalMs": int((time.time() - t0) * 1000)}
             self.turns.append({"user": said, **out})
             self.used = time.time()
@@ -521,8 +553,10 @@ async def demo(args) -> None:
     import learner
     import llm
 
+    words, tags = learner.chat_context(args.level, topic.get("vocab") or [])
     s = make_session(llm.choose(args.llm, args.local_model), "demo", args.level, topic, [], args.model, args.effort,
-                     learner.chat_block(args.level, topic.get("vocab") or []))
+                     words)
+    s.learner_words = tags
 
     async def show(ev: dict) -> None:
         if ev["type"] == "sentence":
@@ -542,6 +576,11 @@ async def demo(args) -> None:
                 print(f"   ↪ {out['sample']['es']}")
             if out["goals_done"]:
                 print(f"   ✓ {', '.join(out['goals_done'])}")
+            if out.get("brief"):
+                b = out["brief"]
+                print("   📋 " + " · ".join(f"{w['es']}{' [' + w['tag'] + ']' if w.get('tag') else ''} ({w['ru']})"
+                                         for w in b["words"]))
+                print("   📋 " + " · ".join(f"{p['es']} ({p['ru']})" for p in b["phrases"]))
             text = input("🙂 ").strip()
             if not text:
                 break

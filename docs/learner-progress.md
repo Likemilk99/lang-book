@@ -19,6 +19,7 @@ The phone mirrors its learning progress to the home server, so «Живой ра
   - **new** (5): curriculum nouns, verbs, adjectives and adverbs of the chat levels (A0/A1 → A1, A2 → A1–A2, B1 → A1–B1) that are not in the cards. Sorted by frequency rank, verbs count as 0.6 of their rank (core verbs first). 2 from the topic (its first theme first) + 3 general. Words already offered move back by 400 ranks per time (`offered` table), so each conversation brings different ones.
   - **known** (≤ 120): recall ≥ 70 % and stage ≥ 3 or 2+ reps, beyond the level word list the prompt already has (none for B1, which has no list).
 - **`prompt_block`** → the «LEARNER'S WORDS» section of the chat system prompt (`chat.build_system(..., learner)`): use 3–5 review words naturally and put them first in hints; introduce 1–2 new words and repeat them; known words may be used freely. Without a snapshot the section is empty. A broken mirror never breaks a conversation (`chat_block` logs and returns "").
+- **Brief tags:** `chat_context` also returns word → `review` / `new`, which marks those words in «Перед разговором» ([live-chat.md](live-chat.md)).
 - **Coverage:** how many of the 300 / 1000 / 2000 most frequent curriculum content words are known. A plain measure of how much everyday speech the learner can follow.
 
 ## Frequency (`pipeline/freq_rank.json`)
@@ -36,7 +37,6 @@ The phone mirrors its learning progress to the home server, so «Живой ра
 - `python3 pipeline/chat.py --print-prompt` includes it.
 
 ## Later
-- A pre-conversation brief (useful words and phrases, reopened from the chat header) built from this data.
 - A log of the conversation fixes and a short learner profile (typical mistakes) updated by Claude after each conversation.
 - Words used correctly in a conversation counted as a review (this changes the schedule on the phone, so it needs `UserData`).
 
