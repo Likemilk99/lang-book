@@ -249,6 +249,7 @@ class Hub:
         self.chats: dict = {}
         self.chat_model, self.chat_effort = chat_model, chat_effort
         self.chat_quiet_until = 0.0
+        self.profile_lock = asyncio.Lock()
         self.chat_audio = personal.WORK / "chat-audio"
         self.last_tts = 0.0
         self.level, self.model, self.effort, self.audio = level, model, effort, audio
@@ -461,16 +462,37 @@ class Hub:
         except Exception as err:  # noqa: BLE001
             log(f"⚠️  прогрев голоса: {err}")
 
-    async def chat_close(self, cid: str, forget: bool) -> None:
+    async def chat_close(self, cid: str, forget: bool, profile: bool = False) -> None:
+        """profile: the conversation is over (the phone ended it, or it was forgotten) — update the learner
+        profile from it in the background."""
         chat = self.chats.get(cid)
         if chat is None:
             return
+        if profile and forget and sum(1 for t in chat.turns if t.get("user") != "[START]") >= 2:
+            asyncio.create_task(self.profile_update(cid))
         await chat.close()
         if forget:
             chat.closed = True
             self.chats.pop(cid, None)
             for f in self.chat_audio.glob(f"{cid}-*"):
                 f.unlink(missing_ok=True)
+
+    async def profile_update(self, cid: str) -> None:
+        """One model call after a conversation (pipeline/learner.py): typical mistakes, what works, what to push.
+        A local model answers one request at a time, so it waits while a conversation is going on."""
+        import learner
+
+        async with self.profile_lock:
+            while self.backend is not None and self.backend.kind == "local" and time.time() < self.chat_quiet_until:
+                await asyncio.sleep(10)
+            try:
+                prof = await asyncio.to_thread(learner.update_profile, cid, self.backend, self.model, self.effort)
+            except Exception as err:  # noqa: BLE001 — the next conversation just keeps the old profile
+                log(f"⚠️  профиль ученика не обновлён: {err}")
+                return
+            if prof:
+                log("🧠 профиль ученика обновлён: "
+                    + ("; ".join(m["ru"] or m["pattern"] for m in prof["mistakes"]) or "без типичных ошибок"))
 
     async def chat_janitor(self) -> None:
         for f in self.chat_audio.glob("*"):  # остатки прошлого запуска
@@ -480,7 +502,7 @@ class Hub:
             now = time.time()
             for cid, chat in list(self.chats.items()):
                 if now - chat.used > CHAT_FORGET:
-                    await self.chat_close(cid, forget=True)
+                    await self.chat_close(cid, forget=True, profile=True)
                     log(f"💬 разговор {cid} забыт")
                 elif chat.alive and now - chat.used > CHAT_IDLE_CLOSE and not chat.lock.locked():
                     await chat.close()
@@ -568,6 +590,13 @@ def make_app(hub: Hub, code: str):
             log(f"❌ разговор: {err}")
             return web.json_response({"error": "chat", "text": str(err)[:300]}, status=502)
         log(f"🤖 {out['reply'][:80]}  ({out['firstMs']} / {out['totalMs']} мс)")
+        import learner
+
+        try:
+            await asyncio.to_thread(learner.record_turn, chat.id, chat.topic.get("title") or chat.topic.get("scene", ""),
+                                    chat.level, text, out)
+        except Exception as err:  # noqa: BLE001 — the journal must not break the conversation
+            log(f"⚠️  журнал разговора: {err}")
         return web.json_response({"chat": chat.id, "audio": hub.audio and audio, **out})
 
     async def chat_start(request):
@@ -607,7 +636,7 @@ def make_app(hub: Hub, code: str):
         return await chat_turn(chat, text, body)
 
     async def chat_end(request):
-        await hub.chat_close(request.match_info["cid"], forget=True)
+        await hub.chat_close(request.match_info["cid"], forget=True, profile=True)
         hub.chat_quiet_until = 0
         return web.json_response({"ok": True})
 

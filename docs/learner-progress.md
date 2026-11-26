@@ -36,8 +36,18 @@ The phone mirrors its learning progress to the home server, so «Живой ра
 - `python3 pipeline/learner.py [--level A2] [--themes body-health,time]` prints the coverage and the prompt section the next conversation would get (without counting the new words as offered).
 - `python3 pipeline/chat.py --print-prompt` includes it.
 
+## Conversation journal and learner profile (Mac only, no app change)
+- **Journal** (`turns` table): every learner turn of «Живой разговор» — what they said, the character's reply, the fix — written by `server.py` after each turn (`learner.record_turn`; the `[START]` turn is not the learner's). Rows are appended (turn numbers restart after a Mac restart). The last 5000 are kept.
+- **Profile** (`profile` table, one row): updated by one model call when a conversation is over (`POST /chat/<id>/end`, or the janitor forgetting it after 3 h) and had at least 2 learner turns (`Hub.profile_update` → `learner.update_profile`).
+  - Input: the previous profile, this conversation with its fixes, and the last 40 fixes of earlier conversations.
+  - Output (`PROFILE_SCHEMA`): `mistakes` — up to 6 recurring patterns (tutor text in English, Russian for the learner, a wrong and a right example); `can_do`; `focus` — 2–4 things the next conversations should practise; `note_ru` — 1–2 sentences to the learner.
+  - The prompt asks to merge with the previous profile, drop patterns the learner now gets right, and ignore one-off slips, punctuation, accents and speech-recognition errors.
+  - Model: the server's `--model`/`--effort` (opus, medium) or the local model; with a local model it waits until no conversation is active (`CHAT_QUIET`), since Ollama answers one request at a time. Updates run one at a time. Measured: ~10 s with Opus.
+- **In the prompt:** `profile_block` → «LEARNER PROFILE»: typical mistakes (give natural chances to use these structures, recast, keep `meta.fix` focused on them), what they already handle, what to push next. `chat_context` adds it to every new conversation, also without a progress snapshot (it comes from the conversations alone).
+- **Check:** `python3 pipeline/learner.py` prints the profile too; `--update-profile` rebuilds it from the last conversation in the journal.
+
 ## Later
-- A log of the conversation fixes and a short learner profile (typical mistakes) updated by Claude after each conversation.
+- Show the profile (`note_ru`, the mistakes in Russian) in the app, e.g. in «Итог».
 - Words used correctly in a conversation counted as a review (this changes the schedule on the phone, so it needs `UserData`).
 
 ## Tests

@@ -14,6 +14,9 @@ How it works:
     review — words they are forgetting: low recall and lapses, frequent and on-topic words first;
     new    — frequent words of the level not in their cards yet, core verbs first (2 on the topic + 3 general);
     known  — well-remembered words beyond the level word list, which the character may use freely.
+- Journal and profile: every learner turn of a conversation (said, reply, fix) is appended to the journal; when the
+  conversation is over, one model call updates the learner profile (typical mistakes, what works, what to push),
+  which every next conversation gets in its prompt.
 - Frequency: pipeline/freq_rank.json — lemma → rank in spoken+written Spanish (wordfreq «es», lemmatized with
   simplemma) for every word of the curriculum and of the books. It is committed, so the server needs neither package.
   wordfreq also counts Latin American Spanish; only our own (Spain) word lists are ranked, so nothing Latin American
@@ -206,6 +209,13 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
         -- known words among the most frequent ones, one row per day
         CREATE TABLE IF NOT EXISTS coverage(day TEXT PRIMARY KEY, words INT, known INT, top300 INT, top1000 INT,
             top2000 INT);
+        -- conversation journal: what the learner said, the character's reply and the fix (if any)
+        -- (turn numbers restart when the Mac restarts mid-conversation, so rows are simply appended)
+        CREATE TABLE IF NOT EXISTS turns(chat TEXT, n INT, at INT, topic TEXT, level TEXT, said TEXT, reply TEXT,
+            fix_es TEXT, fix_ru TEXT);
+        CREATE INDEX IF NOT EXISTS turns_chat ON turns(chat);
+        -- the learner profile Claude keeps after each conversation (typical mistakes, what works, what to push)
+        CREATE TABLE IF NOT EXISTS profile(id INT PRIMARY KEY CHECK(id = 1), json TEXT, updated INT, chats INT);
     """)
     return db
 
@@ -355,17 +365,162 @@ def prompt_block(b: dict | None) -> str:
 
 
 def chat_context(level: str, themes: list[str], record: bool = False) -> tuple[str, dict[str, str]]:
-    """For a new conversation: the prompt section and word → "review" | "new" (tags for the pre-chat brief).
-    Never fails the chat: a broken mirror means no section."""
+    """For a new conversation: the prompt sections (learner's words + profile) and word → "review" | "new"
+    (tags for the pre-chat brief). Never fails the chat: a broken mirror means no section."""
     try:
         b = brief(level, themes, record=record)
+        prof = load_profile()
     except Exception as err:  # noqa: BLE001
         log(f"⚠️  прогресс ученика: {err}")
         return "", {}
-    if not b:
-        return "", {}
-    tags = {w["es"].lower(): "new" for w in b["new"]} | {w["es"].lower(): "review" for w in b["review"]}
-    return prompt_block(b), tags
+    tags = {}
+    if b:
+        tags = {w["es"].lower(): "new" for w in b["new"]} | {w["es"].lower(): "review" for w in b["review"]}
+    return prompt_block(b) + profile_block(prof), tags
+
+
+# ------------------------------------------------------------------ conversation journal and learner profile
+
+KEEP_TURNS = 5000
+PROFILE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "mistakes": {"type": "array", "maxItems": 6, "items": {
+            "type": "object",
+            "properties": {
+                "pattern": {"type": "string", "description": "the recurring error, short, in English, for the tutor"},
+                "ru": {"type": "string", "description": "the same in Russian for the learner, short"},
+                "wrong": {"type": "string", "description": "a typical wrong phrase of theirs"},
+                "right": {"type": "string", "description": "the same said correctly (Spain)"},
+            },
+            "required": ["pattern", "ru", "wrong", "right"], "additionalProperties": False}},
+        "can_do": {"type": "array", "maxItems": 6, "items": {"type": "string"},
+                   "description": "what they already handle well, short, English"},
+        "focus": {"type": "array", "maxItems": 4, "items": {"type": "string"},
+                  "description": "what the next conversations should push (structures, frequent verbs/words), English"},
+        "note_ru": {"type": "string", "description": "1–2 sentences to the learner in Russian about their progress"},
+    },
+    "required": ["mistakes", "can_do", "focus", "note_ru"],
+    "additionalProperties": False,
+}
+PROFILE_SYSTEM = """You keep a short profile of a Russian-speaking learner of Spanish (Spain) for their conversation \
+tutor. The learner lives in Spain and wants to SPEAK as soon as possible: practical, frequent everyday language.
+Update the profile from the previous one and the new conversation:
+- mistakes: RECURRING error patterns (grammar, word choice, word order, missing articles, ser/estar, gender, verb \
+forms…), most important first. Merge with the previous ones; drop a pattern the learner now gets right; ignore one-off \
+slips, missing punctuation/accents and obvious speech-recognition errors (the learner speaks, it is dictated).
+- can_do: what they already say well (so the tutor builds on it).
+- focus: 2–4 concrete things the next conversations should make them practise: the structures behind the mistakes \
+and the most frequent verbs/words they avoid or lack.
+Be concrete and short. Real examples from the learner's own lines."""
+
+
+def record_turn(chat: str, topic: str, level: str, said: str, out: dict, path: Path | None = None) -> None:
+    """One learner turn of «Живой разговор» → the journal (the opening [START] turn is not the learner's)."""
+    if said.startswith("[START]"):
+        return
+    fix = out.get("fix") or {}
+    db = connect(path)
+    try:
+        with db:
+            db.execute("INSERT INTO turns VALUES (?,?,?,?,?,?,?,?,?)",
+                       (chat, out["turn"], int(time.time()), topic[:120], level, said[:1000], out["reply"][:1000],
+                        fix.get("es", "")[:300], fix.get("ru", "")[:300]))
+            db.execute("DELETE FROM turns WHERE rowid IN (SELECT rowid FROM turns ORDER BY rowid DESC LIMIT -1 OFFSET ?)",
+                       (KEEP_TURNS,))
+    finally:
+        db.close()
+
+
+def load_profile(path: Path | None = None) -> dict | None:
+    path = path or DB_FILE
+    if not path.exists():
+        return None
+    db = connect(path)
+    try:
+        row = db.execute("SELECT json, updated, chats FROM profile WHERE id = 1").fetchone()
+    finally:
+        db.close()
+    if not row:
+        return None
+    return {**json.loads(row[0]), "updated": row[1], "chats": row[2]}
+
+
+def profile_block(p: dict | None) -> str:
+    """The LEARNER PROFILE section of the chat system prompt ("" before the first profiled conversation)."""
+    if not p or not (p.get("mistakes") or p.get("can_do") or p.get("focus")):
+        return ""
+    lines = ["", "LEARNER PROFILE (kept from their earlier conversations):"]
+    if p.get("mistakes"):
+        lines.append("- Typical mistakes — give natural chances to use these structures, recast them correctly, "
+                     "and keep meta.fix focused on them: "
+                     + "; ".join(f"{m['pattern']} («{m['wrong']}» → «{m['right']}»)" for m in p["mistakes"]))
+    if p.get("can_do"):
+        lines.append("- Already handles: " + "; ".join(p["can_do"]))
+    if p.get("focus"):
+        lines.append("- Push next: " + "; ".join(p["focus"]))
+    return "\n".join(lines) + "\n"
+
+
+def chat_turns(chat: str, path: Path | None = None) -> list[dict]:
+    db = connect(path)
+    try:
+        cols = ("n", "topic", "level", "said", "reply", "fix_es", "fix_ru")
+        return [dict(zip(cols, r)) for r in db.execute(
+            f"SELECT {', '.join(cols)} FROM turns WHERE chat = ? ORDER BY rowid", (chat,))]
+    finally:
+        db.close()
+
+
+def update_profile(chat: str, backend, model: str, effort: str, path: Path | None = None) -> dict | None:
+    """After a conversation: ask the model to update the profile from this conversation, the previous profile and
+    recent fixes of other conversations. None if the conversation was too short (fewer than 2 learner turns)."""
+    import llm
+
+    turns = chat_turns(chat, path)
+    if len(turns) < 2:
+        return None
+    prev = load_profile(path)
+    db = connect(path)
+    try:
+        others = db.execute("SELECT said, fix_es, fix_ru FROM turns WHERE chat != ? AND fix_es != '' "
+                            "ORDER BY rowid DESC LIMIT 40", (chat,)).fetchall()
+    finally:
+        db.close()
+    lines = []
+    for t in turns:
+        lines.append(f"Learner: {t['said']}" + (f"\n  fix: {t['fix_es']} ({t['fix_ru']})" if t["fix_es"] else ""))
+        lines.append(f"Tutor: {t['reply']}")
+    prompt = (f"Level: {turns[0]['level']}. Scene: {turns[0]['topic']}.\n\n"
+              "PREVIOUS PROFILE:\n" + (json.dumps({k: prev[k] for k in ("mistakes", "can_do", "focus", "note_ru")},
+                                                  ensure_ascii=False, indent=1) if prev else "(none yet)")
+              + "\n\nTHE NEW CONVERSATION:\n" + "\n".join(lines)
+              + ("\n\nRECENT FIXES FROM EARLIER CONVERSATIONS:\n"
+                 + "\n".join(f"- {s} → {e} ({r})" for s, e, r in others) if others else ""))
+    out = llm.json_call(backend, prompt, PROFILE_SYSTEM, PROFILE_SCHEMA, model, effort)
+    prof = {"mistakes": [m for m in out.get("mistakes") or [] if isinstance(m, dict) and m.get("pattern")][:6],
+            "can_do": [str(x) for x in out.get("can_do") or []][:6],
+            "focus": [str(x) for x in out.get("focus") or []][:4],
+            "note_ru": str(out.get("note_ru") or "")}
+    for m in prof["mistakes"]:
+        for k in ("pattern", "ru", "wrong", "right"):
+            m[k] = str(m.get(k) or "")[:300]
+    db = connect(path)
+    try:
+        with db:
+            db.execute("INSERT OR REPLACE INTO profile VALUES (1, ?, ?, ?)",
+                       (json.dumps(prof, ensure_ascii=False), int(time.time()), (prev or {}).get("chats", 0) + 1))
+    finally:
+        db.close()
+    return prof
+
+
+def describe_profile(p: dict) -> str:
+    lines = [f"Профиль (разговоров: {p.get('chats', 0)}): {p.get('note_ru', '')}"]
+    lines += [f"  ✗ {m['ru'] or m['pattern']}: «{m['wrong']}» → «{m['right']}»" for m in p.get("mistakes", [])]
+    lines += [f"  ✓ {x}" for x in p.get("can_do", [])]
+    lines += [f"  → {x}" for x in p.get("focus", [])]
+    return "\n".join(lines)
 
 
 def chat_block(level: str, themes: list[str], record: bool = False) -> str:
@@ -377,16 +532,31 @@ def main() -> None:
     ap.add_argument("--level", default="A1", choices=list(NEW_FROM))
     ap.add_argument("--themes", default="", help="vocab theme ids of the topic, comma-separated")
     ap.add_argument("--build-freq", action="store_true")
+    ap.add_argument("--update-profile", action="store_true",
+                    help="update the profile from the last conversation in the journal (normally the server does it)")
+    ap.add_argument("--llm", default="auto", choices=["auto", "claude", "local"])
     args = ap.parse_args()
     if args.build_freq:
         build_freq()
         return
+    if args.update_profile:
+        import llm
+
+        db = connect()
+        row = db.execute("SELECT chat FROM turns ORDER BY rowid DESC LIMIT 1").fetchone()
+        db.close()
+        if not row or not update_profile(row[0], llm.choose(args.llm), "opus", "medium"):
+            print("В журнале нет разговора хотя бы из двух реплик.")
+            return
     b = brief(args.level, [t for t in args.themes.split(",") if t])
     if b is None:
         print("Прогресса ещё нет: телефон присылает его перед каждым «Живым разговором».")
-        return
-    print(describe(b["stats"]))
-    print(prompt_block(b))
+    else:
+        print(describe(b["stats"]))
+    prof = load_profile()
+    if prof:
+        print(describe_profile(prof))
+    print(prompt_block(b) + profile_block(prof))
 
 
 if __name__ == "__main__":

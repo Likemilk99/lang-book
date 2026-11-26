@@ -31,7 +31,7 @@ The card is first on the «Говорить» tab (`LiveChatCard`); route `chat`
 | `POST /progress` (snapshot) | The phone's progress before each conversation → `learner.db` ([learner-progress.md](learner-progress.md)) |
 | `POST /chat/start` `{chat, level, topic, about, history?, text?, audio, whisper}` | Creates the session (closes an older one with the same id; keeps at most 3 claude processes) and runs the first turn (`[START]`, or `text` with `history` after a Mac restart). Returns the turn |
 | `POST /chat/<id>/say` `{text, audio, whisper}` | One learner turn → the full turn JSON (`ChatReply`). 404 `nochat` if the Mac forgot the chat |
-| `POST /chat/<id>/end` | Closes the process and deletes its audio |
+| `POST /chat/<id>/end` | Closes the process and deletes its audio; with 2+ learner turns, updates the learner profile in the background |
 | `GET /chat/audio/<name>.wav` | A sentence clip, from `books/.work/personal/chat-audio/` |
 | WebSocket `/ws` (shared with «Мои фразы») | `chat.delta {chat, turn, text}`, `chat.sentence {turn, seq, text}`, `chat.audio {turn, seq, name, ms, whisper, errors}`, `chat.audio_error {turn, seq}`. `hello` has `chat: true` |
 
@@ -49,6 +49,7 @@ The card is first on the «Говорить» tab (`LiveChatCard`); route `chat`
   - Their voicing waits while a conversation is active (`CHAT_QUIET` = 120 s after the last chat event; phase «жду конца разговора»).
 - **Janitor:** closes claude processes idle for 15 min (the history stays) and forgets chats after 3 h. It clears `chat-audio/` on start.
 - **Privacy:** «Обо мне» answers go to Claude as context, just like «Мои фразы» translations do. Nothing is written to git.
+- **Journal and profile:** every learner turn (said, reply, fix) goes to `learner.db`, and after the conversation one model call updates the learner profile (typical mistakes), which the next conversations get in their prompt. See [learner-progress.md](learner-progress.md).
 
 ### Measured on the M1 Pro 16 GB (2026-11)
 - **Text:** first sentence 0.6–1.7 s after sending, full turn with meta 2–4 s.
@@ -91,7 +92,7 @@ The card is first on the «Говорить» tab (`LiveChatCard`); route `chat`
   - Hint 💡 opens one step per tap (`nextHintLevel`): 1 — single words for the answer (`hints`, tap inserts the word); 2 — + phrase pieces (`chunks`); 3 — + a sample answer; 4 — + all words of the topic's vocab themes at the level (local `vocab_*.json`, works offline). Steps with nothing to show are skipped (an older Mac server sends no `chunks`); after the last step the button shows ✕. Words first, so the learner has to build the sentence.
   - Mic (`ChatMic`): `SpeechInput` with biasing to the hints and the sample. The recognized text goes into the field for editing (or is sent at once if that option is on). Uses the same engine and stop settings as `SpeakButton`. Sending a message (button or auto-send) cancels a running recording without a result (`stopKey`), so it doesn't keep writing into the cleared field or record the partner. The next answer needs a new tap.
 - **Prefs:** `chatLevel`, `chatVoice`, `chatWhisper`, `chatAutoSend`, `chatCustomTopic`.
-- **User data:** the conversation itself is not stored (memory only). Only `recordSpeaking` for spoken turns and `addPhrases` from «Итог» are written, both through `UserData`.
+- **User data:** the phone does not store the conversation (memory only); the Mac keeps a journal of the learner's turns in `books/.work/personal/learner.db` ([learner-progress.md](learner-progress.md)). Only `recordSpeaking` for spoken turns and `addPhrases` from «Итог» are written, both through `UserData`.
 
 ## Tests
 `LiveChatTest`: topic format and limits, vocab theme ids exist, chat id matches the server regex, levels equal `chat.LEVELS`, parsing a `ChatReply` (with and without `chunks` and `brief`), hint steps skip empty ones.
